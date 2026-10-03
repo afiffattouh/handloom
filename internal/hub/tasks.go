@@ -152,7 +152,7 @@ func (c *call) expireLeases() error {
 			return err
 		}
 		payload := map[string]any{"owner": t.ownerName}
-		b, _ := json.Marshal(payload)
+		b := marshal(payload)
 		// The hub is the actor here, whoever's request triggered the check.
 		if _, err := c.tx.Exec(`INSERT INTO audit(actor, action, target, payload, created_at) VALUES ('hub', 'task.lease_expired', ?, ?, ?)`,
 			t.target(), string(b), store.Millis(c.now)); err != nil {

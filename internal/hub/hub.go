@@ -4,6 +4,7 @@
 package hub
 
 import (
+	"bytes"
 	"context"
 	"crypto/subtle"
 	"database/sql"
@@ -393,8 +394,17 @@ func (c *call) project(name string) (int64, string, error) {
 
 // ---- events and audit ----
 
+// marshal encodes a payload as it should read in the log: "->" stays "->".
+func marshal(v any) []byte {
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	enc.SetEscapeHTML(false)
+	enc.Encode(v)
+	return bytes.TrimSpace(buf.Bytes())
+}
+
 func (c *call) emit(projectID, agentID int64, typ string, payload any) error {
-	b, _ := json.Marshal(payload)
+	b := marshal(payload)
 	var pid, aid any
 	if projectID != 0 {
 		pid = projectID
@@ -412,7 +422,7 @@ func (c *call) audit(action, target string, payload any) error {
 	if payload == nil {
 		payload = map[string]any{}
 	}
-	b, _ := json.Marshal(payload)
+	b := marshal(payload)
 	_, err := c.tx.Exec(`INSERT INTO audit(actor, action, target, payload, created_at) VALUES (?, ?, ?, ?, ?)`,
 		c.p.actor(), action, target, string(b), store.Millis(c.now))
 	return err

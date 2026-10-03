@@ -13,7 +13,7 @@ type memo struct {
 	firstNudge      time.Time // first nudge since the agent last read its inbox
 	nudges          int       // nudges since the agent last read its inbox
 	reportedUnknown bool
-	failedFor       int64  // newest unread message id a failure was reported for
+	failedReason    string // wake failure already reported to the lead; cleared when the state changes
 	state           string // agent state as last seen from the hub
 	lastHeartbeat   time.Time
 }
@@ -47,7 +47,7 @@ type decision struct {
 //  2. idle with a terminal: type the nudge, at most once per NudgeEvery.
 //  3. headless resume: not in this version.
 //  4. otherwise (blocked, offline, unknown, no terminal): report to the lead,
-//     once per batch of mail.
+//     once until the agent's state changes.
 func (l *Link) decide(a api.DeviceAgent, m *memo, now time.Time) decision {
 	if a.Unread == 0 {
 		return decision{}
@@ -78,7 +78,7 @@ func (l *Link) decide(a api.DeviceAgent, m *memo, now time.Time) decision {
 }
 
 func failOnce(a api.DeviceAgent, m *memo, reason string) decision {
-	if a.LastUnreadID <= m.failedFor {
+	if m.failedReason == reason {
 		return decision{}
 	}
 	return decision{doFail, reason}
@@ -101,7 +101,9 @@ func (l *Link) step(ctx context.Context, a api.DeviceAgent) {
 	now := l.opt.Now()
 	l.mu.Lock()
 	m := l.memoFor(a.Name)
-	m.state = a.State
+	if m.state != a.State {
+		m.state, m.failedReason = a.State, ""
+	}
 	if a.Unread == 0 {
 		m.nudges, m.reportedUnknown = 0, false
 	}
@@ -116,11 +118,12 @@ func (l *Link) step(ctx context.Context, a api.DeviceAgent) {
 		}
 		if err != nil {
 			l.opt.Log.Printf("nudge %s: %v", a.Name, err)
+			reason := "driver_error: " + reasonText(err.Error())
 			l.mu.Lock()
-			report := a.LastUnreadID > m.failedFor
+			report := m.failedReason != reason
 			l.mu.Unlock()
 			if report {
-				l.fail(ctx, a, m, "driver_error: "+reasonText(err.Error()))
+				l.fail(ctx, a, m, reason)
 			}
 			return
 		}
@@ -130,6 +133,7 @@ func (l *Link) step(ctx context.Context, a api.DeviceAgent) {
 		}
 		m.nudges++
 		m.lastNudge = now
+		m.failedReason = ""
 		l.mu.Unlock()
 		l.opt.Log.Printf("nudged %s through %s (%d unread)", a.Name, drv.Name(), a.Unread)
 		if err := l.hub.Do(ctx, "POST", "/v1/agents/"+a.Name+"/wake", api.WakeReq{Method: drv.Name()}, nil); err != nil {
@@ -140,7 +144,8 @@ func (l *Link) step(ctx context.Context, a api.DeviceAgent) {
 	case doUnknown:
 		l.mu.Lock()
 		m.reportedUnknown = true
-		m.failedFor = a.LastUnreadID // the lead hears about this batch once
+		// The hub sets the state to unknown and tells the lead; do not report that again.
+		m.state, m.failedReason = api.StateUnknown, "state_"+api.StateUnknown
 		l.mu.Unlock()
 		l.opt.Log.Printf("%s did not read its inbox after %d nudges: marking unknown", a.Name, m.nudges)
 		if err := l.hub.Do(ctx, "POST", "/v1/agents/"+a.Name+"/wake", api.WakeReq{Method: api.WakeNone, Reason: d.reason}, nil); err != nil {
@@ -151,7 +156,7 @@ func (l *Link) step(ctx context.Context, a api.DeviceAgent) {
 
 func (l *Link) fail(ctx context.Context, a api.DeviceAgent, m *memo, reason string) {
 	l.mu.Lock()
-	m.failedFor = a.LastUnreadID
+	m.failedReason = reason
 	l.mu.Unlock()
 	l.opt.Log.Printf("cannot wake %s: %s", a.Name, reason)
 	if err := l.hub.Do(ctx, "POST", "/v1/agents/"+a.Name+"/wake", api.WakeReq{Method: api.WakeNone, Reason: reason}, nil); err != nil {

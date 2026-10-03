@@ -160,7 +160,7 @@ func (e *env) audit(args []string) error {
 	}
 	e.print(all, func() {
 		for _, r := range all {
-			fmt.Fprintf(e.out, "%5d  %s  %-18s %-18s %-22s %s\n", r.Seq, r.CreatedAt.Format("15:04:05.000"),
+			fmt.Fprintf(e.out, "%5d  %s  %-18s %-18s %-22s %s\n", r.Seq, r.CreatedAt.UTC().Format("15:04:05.000Z"),
 				r.Actor, r.Action, r.Target, string(r.Payload))
 		}
 	})
@@ -183,8 +183,8 @@ func (e *env) register(args []string) error {
 	if err != nil {
 		return err
 	}
-	if *wake == "" {
-		*wake = drivers.Detect()
+	if *wake == "" && *kind != "shell" {
+		*wake = drivers.Detect() // a plain shell has no agent to read a nudge
 	}
 	var a api.Agent
 	req := api.RegisterReq{Name: pos[0], Kind: *kind, Project: *project, WakeTarget: *wake, SessionID: *session}

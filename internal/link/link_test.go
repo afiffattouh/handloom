@@ -249,11 +249,19 @@ func TestLadderNeverTypesIntoWorkingOrBlocked(t *testing.T) {
 	if m := f.inbox(f.lead); len(m) != 1 || !strings.Contains(m[0].Body, "worker cannot be woken (state_blocked)") {
 		t.Fatalf("lead inbox: %+v", m)
 	}
-	// New mail is a new batch: reported again.
+	// More mail while still blocked: the lead already knows.
 	f.mail("worker")
 	f.ladder()
-	if len(f.audit("wake.failed")) != 2 {
-		t.Fatal("new mail for a blocked agent was not reported")
+	if len(f.audit("wake.failed")) != 1 {
+		t.Fatal("the same failure was reported twice")
+	}
+	// Unblocked and blocked again is a new episode.
+	f.state(f.worker, "working")
+	f.ladder()
+	f.state(f.worker, "blocked")
+	f.ladder()
+	if len(f.audit("wake.failed")) != 2 || f.driver.count() != 0 {
+		t.Fatal("a new blocked episode was not reported")
 	}
 }
 

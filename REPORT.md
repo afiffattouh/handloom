@@ -8,7 +8,7 @@ Date: 2026-10-03. Builder: Claude Code on GB10.
 |---|---|
 | **M0** | **Passes** on GB10 plus Mantis. |
 | **M1** | **Passes** on GB10 plus Mantis: three of four runs. The failed run is explained below and led to a fix. |
-| **M2** | **Partly passes.** Claude Code lead, Codex worker and a headless Claude Code worker finish the job (two runs of two). The check also asks for a Pi worker, which has not run: Pi has no working cloud model on either machine. |
+| **M2** | **Partly passes.** Claude Code lead, Codex worker and a headless Claude Code worker finish the job (three runs of three). The check also asks for a Pi worker, which has not run: Pi has no working cloud model on either machine. |
 
 The M0 and M1 sections below are as written for those milestones. M2 is in its own section at the end.
 
@@ -214,14 +214,14 @@ PI_MODEL=<provider/model> test/e2e/m2.sh
 - **Pi, OMP and OpenCode adapters are unverified live.** Their shims may need changes once run: in particular the end-of-turn delivery (`pi.sendUserMessage` at `agent_settled`; `client.session.prompt` at `session.idle`).
 - **Headless commands for Codex, Pi, OMP and OpenCode** come from each CLI's `--help` and have not been run. Only `claude -p --resume` has.
 - **Codex on GB10 is logged out**, so Codex 0.144.5 there is untested. Mantis has 0.160.0.
-- **Codex records the test folder as trusted** in `~/.codex/config.toml` on Mantis (one entry, `/root/hltest/codex-project`). handloom does not write it; Codex does.
-- Two runs is a small sample.
+- **Codex records the test folder as trusted** in `~/.codex/config.toml` on Mantis (one entry, `/root/hltest/codex-project`). handloom does not write it; Codex does. During probing Codex had also added entries for my probe folders and their hooks; I removed exactly those lines from that file by hand (the diff is in DECISIONS.md terms: two `[projects]` blocks and two `[hooks.state]` entries, all for `/root/hltest-probe*`).
+- Three runs is a small sample.
 
 ## Evidence
 
 Unit tests: 105 tests and subtests pass, none fail.
 
-`test/e2e/m2.sh`, two runs, both exit 0: `docs/evidence/m2-claude-codex-headless-run1.txt` and `-run2.txt`; the Codex terminal and the headless log of run 1 are beside them. M0 was rerun with the final code and passes.
+`test/e2e/m2.sh`, three runs, all exit 0: `docs/evidence/m2-claude-codex-headless-run1.txt`, `-run2.txt` and `-run3.txt`; the Codex terminal and the headless log of run 1 are beside them. M0 was rerun with the final code and passes.
 
 Audit log after the brief, run 2:
 
@@ -248,6 +248,15 @@ Audit log after the brief, run 2:
 ```
 
 The script's checks on that log, all ok: the lead created three tasks spread over the two workers; each was claimed and submitted by its assignee and accepted by the lead; task 3 was claimed only after task 1 was accepted; the Codex worker was woken by typed nudges; the headless worker was woken only by headless turns; no human or admin action after the brief.
+
+Codex's Stop-hook delivery, live (extra phase of `m2.sh`, run 3). Mail was sent while the Codex worker was mid-turn; nothing was typed; the hook held the turn, Codex read the mail through `handloom_inbox` and replied:
+
+```
+77  20:03:09.208Z  human:hltest-human    message.send  message:11
+78  20:03:27.483Z  device:hltest-mantis  wake          agent:hltest-codex  {"messages":[11],"method":"hook"}
+79  20:03:30.720Z  agent:hltest-codex    inbox.read    agent:hltest-codex  {"messages":[11]}
+80  20:03:33.919Z  agent:hltest-codex    message.send  message:12  {"recipients":["hltest-lead"],"to":"role:lead"}
+```
 
 Setup before the brief, done by the script: starting the agents, and one `claude -p` run that creates the headless worker's session, because a session must exist before it can be resumed.
 

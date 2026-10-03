@@ -266,3 +266,40 @@ else
   printf '\nM2 PARTIAL PASS: Claude Code lead, Codex worker and a headless Claude Code worker finished the job with no human input after the brief. No Pi worker ran.\n'
 fi
 echo "Evidence: $OUT/audit.txt, $OUT/lead-pane.txt, $OUT/codex-pane.txt, $OUT/headless.log"
+
+# ---- extra: Codex's end-of-turn hook, live ----
+# As in m1.sh: mail that arrives while the Codex worker is mid-turn must be
+# handed over by its Stop hook, with nothing typed. Runs after the verdict
+# above and does type one prompt, into the Codex worker.
+[ -z "${NO_EXTRA:-}" ] || exit 0
+say "extra, after the job: mail for a working Codex agent is delivered by its Stop hook"
+EXTRA_AT="$(human audit --json | python3 -c 'import json,sys; print(json.load(sys.stdin)[-1]["seq"])')"
+rtmux send-keys -t "$CODEX" -l "Write a note of about 200 words on why tests matter to note.txt, then print it with cat note.txt, then end your turn."
+sleep 1
+rtmux send-keys -t "$CODEX" Enter
+for _ in $(seq 40); do [ "$(agent_field "$CODEX" state)" = working ] && break; sleep 0.5; done
+[ "$(agent_field "$CODEX" state)" = working ] || fail "extra: the Codex worker did not start working"
+show human human send "$CODEX" "Extra check: please reply with a handloom message to role:lead saying hook-delivery-ok"
+verdict=""
+for _ in $(seq 40); do
+  verdict="$(human audit --json | python3 -c '
+import json, sys
+rows = [r for r in json.load(sys.stdin) if r["seq"] > int(sys.argv[1])]
+agent = "agent:" + sys.argv[2]
+wakes = [r for r in rows if r["action"] == "wake" and r["target"] == agent]
+read = [r for r in rows if r["action"] == "inbox.read" and r["actor"] == agent]
+idle = [r for r in rows if r["action"] == "agent.state" and r["target"] == agent and r["payload"]["state"] == "idle"]
+reply = [r for r in rows if r["action"] == "message.send" and r["actor"] == agent]
+if wakes and read and idle and wakes[0]["seq"] < read[0]["seq"] < idle[-1]["seq"]:
+    print(wakes[0]["payload"]["method"], "replied" if reply else "no-reply")' "$EXTRA_AT" "$CODEX")"
+  [ -n "$verdict" ] && break
+  sleep 3
+done
+human audit | awk -v after="$EXTRA_AT" '$1 > after' | grep -E ' (wake|wake\.failed|message\.send|inbox\.read|agent\.state|denied) ' || true
+rtmux capture-pane -p -S -2000 -t "$CODEX" >"$OUT/codex-pane.txt" 2>/dev/null || true
+[ "${verdict%% *}" = hook ] || fail "extra: expected the Codex worker to be woken by its Stop hook and to read its inbox, got '${verdict:-nothing}'"
+echo "    ok   the Codex worker was working, nothing was typed, its Stop hook delivered the mail and it read it"
+case "$verdict" in
+  *no-reply) echo "    note the worker read the message but did not send the reply it asked for (see $OUT/codex-pane.txt)" ;;
+  *) echo "    ok   the worker acted on the message and replied to the lead" ;;
+esac

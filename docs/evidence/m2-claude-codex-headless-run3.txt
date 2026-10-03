@@ -1,0 +1,154 @@
+
+== build
+local:  /home/user/projects/handloom/bin/handloom (handloom dev protocol handloom/1)
+remote: dist/handloom-linux-amd64 -> mantis:/root/hltest/bin/handloom
+
+== clean start
+
+== hub on model-host.example:7420
+this machine: {"ok":true,"protocol":"handloom/1"}
+mantis:      {"ok":true,"protocol":"handloom/1"}
+
+== devices and links
+Joined http://model-host.example:7420 as device hltest-thinkstationpgx-2be0. Credential saved in /home/user/projects/handloom/test/e2e/out/m2/home (mode 0600).
+Joined http://model-host.example:7420 as device hltest-mantis. Credential saved in /root/hltest/home (mode 0600).
+link is running: device hltest-thinkstationpgx-2be0, hub http://model-host.example:7420, handloom/1
+link is running: device hltest-mantis, hub http://model-host.example:7420, handloom/1
+hltest-mantis      joined      last seen 0s ago
+hltest-thinkstationpgx-2be0 joined      last seen 1s ago
+
+== the CLIs
+lead:     2.1.288 (Claude Code)
+codex:    codex-cli 0.160.0 Logged in using ChatGPT 
+headless: 2.1.288 (Claude Code)
+pi:       not in this run (set PI_MODEL=provider/model to add a Pi worker)
+
+== register agents; the admin makes hltest-lead the lead
+Registered hltest-lead (claude) as worker in project default on device hltest-thinkstationpgx-2be0.
+Registered hltest-codex (codex) as worker in project default on device hltest-mantis.
+Registered hltest-headless (claude) as worker in project default on device hltest-mantis.
+hltest-lead is now lead in project default.
+
+== lead: Claude Code on thinkstationpgx-2be0
+started hltest-lead in tmux session hltest-lead (tmux -L hltest attach -t hltest-lead)
+
+== codex worker: Codex on mantis
+codex adapter installed in /root/hltest/codex-project for hltest-codex (worker, project default).
+    exec /root/hltest/bin/handloom run hltest-codex -- /usr/local/bin/codex --enable hooks --dangerously-bypass-hook-trust -a never -s workspace-write \
+      -c 'model_reasoning_effort="low"' \
+      -c 'mcp_servers.handloom.command="/root/hltest/bin/handloom"' -c 'mcp_servers.handloom.args=["mcp"]' \
+      -c 'mcp_servers.handloom.default_tools_approval_mode="approve"' \
+      -c 'mcp_servers.handloom.env={HANDLOOM_HOME="/root/hltest/home",HANDLOOM_AGENT="hltest-codex"}'
+
+== headless worker: Claude Code on mantis, no terminal
+claude adapter installed in /root/hltest/headless-project for hltest-headless (worker, project default).
+    creating its session (12fd2ad7-5688-44c1-bb61-3c76e3ae6227) with one headless run: setup, before the brief
+    READY
+
+== waiting for the agents
+    hltest-lead: idle, kind claude, wake target tmux:/tmp/tmux-1000/hltest:%2, session 399f1392-3c21-4c49-859a-ed1f3284d13f
+    hltest-codex: idle, kind codex, wake target tmux:/tmp/tmux-0/hltest:%1, session 
+    hltest-headless: offline, kind claude, wake target headless, session 12fd2ad7-5688-44c1-bb61-3c76e3ae6227
+
+== the first brief (the only thing typed into an agent after setup)
+    You are the lead of a handloom team. I will not be available again, so do not ask me anything. Use the handloom 
+    command for all coordination; your CLAUDE.md explains it. Your workers are other agents on other machines: 
+    hltest-codex hltest-headless. The job: collect three facts. Create exactly three handloom tasks. First task, 
+    assigned to hltest-codex: run uname -r and write the output to kernel.txt. Second task, assigned to 
+    hltest-headless: run hostname and write the output to hostname.txt. Third task, assigned to hltest-codex, 
+    which must depend on the first task: run uname -m and write the output to arch.txt. Every task must ask for 
+    evidence of the form test:cat <file> -> <content>. After creating the tasks, end your turn; handloom wakes you 
+    when work is submitted. When woken, read your inbox and check each submitted task with handloom task show. The 
+    files are on the workers' machines and you cannot read them, so judge the evidence text: accept the task if 
+    the evidence shows the file content, reject it with a reason if not. When all three tasks are done, say DONE 
+    and stop.
+    typed into hltest-lead at 20:00:23Z, after audit row 22. From here the script only reads.
+
+== waiting for the job (up to 420s)
+    +   0s  no tasks yet                             lead=working codex=idle headless=offline 
+    +   5s  #1:open #2:open                          lead=working codex=working headless=offline 
+    +  10s  #1:open #2:open #3:open                  lead=idle codex=working headless=working 
+    +  15s  #1:open #2:claimed #3:open               lead=idle codex=working headless=working 
+    +  20s  #1:open #2:submitted #3:open             lead=working codex=working headless=offline 
+    +  25s  #1:claimed #2:done #3:open               lead=idle codex=working headless=offline 
+    +  35s  #1:submitted #2:done #3:open             lead=idle codex=working headless=offline 
+    +  40s  #1:submitted #2:done #3:open             lead=idle codex=idle headless=offline 
+    +  71s  #1:submitted #2:done #3:open             lead=idle codex=idle headless=working 
+    +  76s  #1:submitted #2:done #3:open             lead=idle codex=idle headless=offline 
+    +  86s  #1:submitted #2:done #3:open             lead=working codex=idle headless=offline 
+    +  91s  #1:done #2:done #3:open                  lead=idle codex=working headless=offline 
+    + 101s  #1:done #2:done #3:claimed               lead=idle codex=working headless=offline 
+    + 112s  #1:done #2:done #3:submitted             lead=idle codex=working headless=offline 
+    + 117s  #1:done #2:done #3:submitted             lead=idle codex=idle headless=offline 
+    + 147s  #1:done #2:done #3:submitted             lead=working codex=idle headless=offline 
+    + 152s  #1:done #2:done #3:done                  lead=idle codex=idle headless=offline 
+
+== board
+#1   done      Collect kernel version  (owner hltest-codex)
+#2   done      Collect hostname  (owner hltest-headless)
+#3   done      Collect architecture  (owner hltest-codex, depends on #1)
+    #1 Evidence:
+    #1   - test:cat kernel.txt -> 6.8.0-139-generic
+    #1 Note: Recorded uname -r output in kernel.txt and verified its contents.
+    #2 Evidence:
+    #2   - test:cat hostname.txt -> ubuntu-4gb-hel1-1
+    #2 Note: Wrote hostname output to hostname.txt
+    #3 Evidence:
+    #3   - test:cat arch.txt -> x86_64
+    #3 Note: Recorded uname -m output in arch.txt and verified its contents.
+
+== audit log after the brief: every wake, create, claim, submit, accept, reject
+   24  20:00:26.009Z  agent:hltest-lead task.create        task:1                 {"assigned_to":"hltest-codex","depends_on":[],"title":"Collect kernel version"}
+   25  20:00:27.221Z  agent:hltest-lead task.create        task:2                 {"assigned_to":"hltest-headless","depends_on":[],"title":"Collect hostname"}
+   26  20:00:27.535Z  device:hltest-mantis wake               agent:hltest-codex   {"messages":[1],"method":"tmux"}
+   27  20:00:27.631Z  device:hltest-mantis wake               agent:hltest-headless {"messages":[2],"method":"headless"}
+   30  20:00:28.463Z  agent:hltest-lead task.create        task:3                 {"assigned_to":"hltest-codex","depends_on":[1],"title":"Collect architecture"}
+   36  20:00:36.348Z  agent:hltest-headless task.claim         task:2                 {"owner":"hltest-headless"}
+   37  20:00:40.652Z  agent:hltest-headless task.submit        task:2                 {"evidence":["test:cat hostname.txt -> ubuntu-4gb-hel1-1"],"note":"Wrote hostname output to hostname.txt","owner":"hltest-headless"}
+   38  20:00:41.063Z  device:hltest-thinkstationpgx-2be0 wake               agent:hltest-lead    {"messages":[4],"method":"tmux"}
+   44  20:00:44.343Z  agent:hltest-lead task.accept        task:2                 {"owner":"hltest-headless"}
+   46  20:00:45.712Z  agent:hltest-codex task.claim         task:1                 {"owner":"hltest-codex"}
+   47  20:00:57.882Z  agent:hltest-codex task.submit        task:1                 {"evidence":["test:cat kernel.txt -> 6.8.0-139-generic"],"note":"Recorded uname -r output in kernel.txt and verified its contents.","owner":"hltest-codex"}
+   49  20:01:30.406Z  device:hltest-mantis wake               agent:hltest-headless {"messages":[5],"method":"headless"}
+   56  20:01:48.790Z  device:hltest-thinkstationpgx-2be0 wake               agent:hltest-lead    {"messages":[6],"method":"tmux"}
+   59  20:01:52.301Z  agent:hltest-lead task.accept        task:1                 {"owner":"hltest-codex"}
+   60  20:01:52.826Z  device:hltest-mantis wake               agent:hltest-codex   {"messages":[7,8],"method":"tmux"}
+   64  20:02:02.414Z  agent:hltest-codex task.claim         task:3                 {"owner":"hltest-codex"}
+   65  20:02:11.229Z  agent:hltest-codex task.submit        task:3                 {"evidence":["test:cat arch.txt -> x86_64"],"note":"Recorded uname -m output in arch.txt and verified its contents.","owner":"hltest-codex"}
+   67  20:02:48.799Z  device:hltest-thinkstationpgx-2be0 wake               agent:hltest-lead    {"messages":[9],"method":"tmux"}
+   70  20:02:51.318Z  agent:hltest-lead task.accept        task:3                 {"owner":"hltest-codex"}
+   72  20:03:00.835Z  device:hltest-mantis wake               agent:hltest-codex   {"messages":[10],"method":"tmux"}
+
+== checks
+    ok   the lead created three tasks
+    ok   the tasks are spread over the workers ['agent:hltest-codex', 'agent:hltest-headless']
+    ok   task:1: claimed and submitted by agent:hltest-codex, accepted by the lead
+    ok   task:2: claimed and submitted by agent:hltest-headless, accepted by the lead
+    ok   task:3: claimed and submitted by agent:hltest-codex, accepted by the lead
+    ok   one task depends on another
+    ok   task:3 was claimed only after task:1 was accepted
+    ok   the lead (Claude Code) was woken by handloom: ['tmux', 'tmux', 'tmux']
+    ok   the Codex worker was woken by handloom: ['tmux', 'tmux', 'tmux']
+    ok   the Codex worker's first wake was a typed terminal nudge
+    ok   the headless worker was woken by headless turns only: ['headless', 'headless']
+    ok   no human or admin action after the brief
+    ok   task actions came only from the team ['agent:hltest-codex', 'agent:hltest-headless', 'agent:hltest-lead']
+    keys typed by this script: 0 key(s) on startup dialogs during setup, then the brief; nothing after
+    NOTE no Pi worker in this run: the M2 check asks for one
+
+M2 PARTIAL PASS: Claude Code lead, Codex worker and a headless Claude Code worker finished the job with no human input after the brief. No Pi worker ran.
+Evidence: /home/user/projects/handloom/test/e2e/out/m2/audit.txt, /home/user/projects/handloom/test/e2e/out/m2/lead-pane.txt, /home/user/projects/handloom/test/e2e/out/m2/codex-pane.txt, /home/user/projects/handloom/test/e2e/out/m2/headless.log
+
+== extra, after the job: mail for a working Codex agent is delivered by its Stop hook
+
+[human] $ handloom send hltest-codex Extra check: please reply with a handloom message to role:lead saying hook-delivery-ok
+    Sent to hltest-codex.
+   76  20:03:08.771Z  device:hltest-mantis agent.state        agent:hltest-codex   {"state":"working","was":"idle"}
+   77  20:03:09.208Z  human:hltest-human message.send       message:11             {"recipients":["hltest-codex"],"task_id":null,"to":"hltest-codex"}
+   78  20:03:27.483Z  device:hltest-mantis wake               agent:hltest-codex   {"messages":[11],"method":"hook"}
+   79  20:03:30.720Z  agent:hltest-codex inbox.read         agent:hltest-codex   {"messages":[11]}
+   80  20:03:33.919Z  agent:hltest-codex message.send       message:12             {"recipients":["hltest-lead"],"task_id":null,"to":"role:lead"}
+   81  20:03:36.673Z  device:hltest-mantis agent.state        agent:hltest-codex   {"state":"idle","was":"working"}
+    ok   the Codex worker was working, nothing was typed, its Stop hook delivered the mail and it read it
+    ok   the worker acted on the message and replied to the lead
+m2 exit=0

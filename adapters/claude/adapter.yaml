@@ -1,0 +1,23 @@
+# Claude Code adapter. This manifest describes the adapter; in this version
+# the installer for it is `handloom adapter install claude` (internal/cli/adapter.go).
+kind: claude
+detect: [claude]
+state:
+  method: hook
+  # One command handles every event: `handloom hook claude` reads the hook JSON on stdin.
+  events:
+    SessionStart: register session id and wake target, state idle
+    UserPromptSubmit: state working
+    PostToolUse: activity (extends task leases; blocked -> working)
+    PermissionRequest: state blocked
+    Notification: state blocked (permission_prompt, elicitation_dialog)
+    Stop: end-of-turn delivery, else state idle
+    SessionEnd: state offline
+  install: .claude/settings.local.json in the project
+turn_end_delivery: true   # Stop hook prints {"decision":"block","reason":"<fixed nudge>"}
+wake:
+  terminal: true          # herdr or tmux nudge
+  headless: "claude -p --resume {session_id} {prompt}"   # M2
+mcp:
+  install: "claude mcp add handloom -- handloom mcp"             # M2
+instructions: AGENTS.snippet.md   # written into the project's CLAUDE.md between handloom markers

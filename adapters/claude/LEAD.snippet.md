@@ -1,0 +1,2 @@
+- As lead you create tasks (`handloom task create "<title>" --body "..." --assign <agent> --depends <id>`), and you alone accept or reject submitted work: read the evidence with `handloom task show <id>`, then `handloom task accept <id>` or `handloom task reject <id> --reason "..."`.
+- `handloom agents` lists the team. `handloom task list` shows the board.

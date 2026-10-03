@@ -56,7 +56,7 @@ Checked against the installed CLI (2.1.288 on GB10) with a logging hook, and aga
 
 **D11. Re-nudge and "unknown".** The design says: two nudges with no `handloom inbox` call within 10 minutes mark the agent unknown. It does not say when the second nudge is sent if no new mail arrives. Choice: if delivered mail stays unread for 5 minutes, nudge once more. After two nudges and 10 minutes with no inbox call, report unknown. The link sees inbox calls because they pass through its socket.
 
-**D12. A wake failure is reported once per episode.** The first M0 run reported "cannot be woken" to the lead for every new message to a plain shell. Now the link reports a given reason once and again only after the agent's state has changed.
+**D12. A wake failure is reported once per episode.** The first M0 run reported "cannot be woken" to the lead for every new message to a plain shell. Now the link reports a given reason once and again only after the agent's state has changed. Known quirk: an agent with no adapter (a plain shell) never reports a state, so the lead still gets one "cannot be woken (state_unknown)" notice for it. It is true, but a lead that is an LLM may read it as a problem. M2 could skip the notice for agents that have never reported a state.
 
 **D13. The nudge has no backticks.** The typed line is `You have N new handloom messages. Run: handloom inbox`. The design's example has backticks, which a shell would execute if the pane had fallen back to a shell. The tmux driver also refuses to type when the pane's foreground program is a shell.
 

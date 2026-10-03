@@ -33,7 +33,7 @@ cd /home/user/projects/handloom && test/e2e/m1.sh
 ## What does not work, or is not done
 
 - **M1 on two machines** has not run (see Status).
-- **Claude Code 2.1.220 on Mantis is untested with the adapter.** GB10 has 2.1.288. The adapter uses the `PermissionRequest` hook event and the test agents use `dontAsk` mode; I could not check either on the older version without a login. If one is missing there, the M1 run will show it.
+- **Claude Code 2.1.220 on Mantis has not run the adapter.** GB10 has 2.1.288. Checked without a login: `claude --help` on Mantis lists `dontAsk` as a permission mode, and the 2.1.220 binary contains the `PermissionRequest` hook event. Both things the M1 run depends on are present, but hooks have not fired there yet.
 - **Out of scope, not built:** other adapters, MCP server, headless resume, web board, escalations (`handloom ask`), notifiers, packaging, TLS.
 - **Device-offline detection** is not built: an agent goes `offline` only when its session ends cleanly.
 - `handloom link install` (service unit) is not built; the link runs in the foreground.
@@ -166,6 +166,6 @@ Listed at the end of DECISIONS.md. In short: add the four API calls the wake lad
 
 ## Left on the machines
 
-- GB10: Go 1.27.1 in `~/.local/go`. The repo in `/home/user/projects/handloom` with 6 local commits; no remote, nothing pushed.
+- GB10: Go 1.27.1 in `~/.local/go`. The repo in `/home/user/projects/handloom` with local commits only; no remote, nothing pushed.
 - Mantis: `/root/hltest` (the test binary and link files). Remove with `ssh mantis rm -rf /root/hltest`. The next e2e run recreates it.
 - No tmux session, Herdr pane or process from the tests is still running. Ports 7420 and 7421 are free.

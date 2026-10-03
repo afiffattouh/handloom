@@ -1,0 +1,132 @@
+
+== build
+local:  /home/user/projects/handloom/bin/handloom (handloom dev protocol handloom/1)
+remote: dist/handloom-linux-amd64 -> mantis:/root/hltest/bin/handloom
+
+== clean start
+
+== hub on model-host.example:7420
+this machine: {"ok":true,"protocol":"handloom/1"}
+mantis:      {"ok":true,"protocol":"handloom/1"}
+
+== devices and links
+Joined http://model-host.example:7420 as device hltest-thinkstationpgx-2be0. Credential saved in /home/user/projects/handloom/test/e2e/out/m1/home (mode 0600).
+Joined http://model-host.example:7420 as device hltest-mantis. Credential saved in /root/hltest/home (mode 0600).
+link is running: device hltest-thinkstationpgx-2be0, hub http://model-host.example:7420, handloom/1
+link is running: device hltest-mantis, hub http://model-host.example:7420, handloom/1
+hltest-mantis      joined      last seen 0s ago
+hltest-thinkstationpgx-2be0 joined      last seen 1s ago
+
+== Claude Code on mantis
+2.1.288 (Claude Code)
+  "loggedIn": true,
+  "authMethod": "claude.ai",
+
+== register agents; the admin makes hltest-lead the lead
+Registered hltest-lead (claude) as worker in project default on device hltest-thinkstationpgx-2be0.
+Registered hltest-worker (claude) as worker in project default on device hltest-mantis.
+hltest-lead is now lead in project default.
+
+== start Claude Code: lead on thinkstationpgx-2be0, worker on mantis (model sonnet)
+Claude Code adapter installed in /home/user/projects/handloom/test/e2e/out/m1/lead-project for hltest-lead (lead, project default).
+  hooks:        /home/user/projects/handloom/test/e2e/out/m1/lead-project/.claude/settings.local.json
+  instructions: /home/user/projects/handloom/test/e2e/out/m1/lead-project/CLAUDE.md
+  identity:     /home/user/projects/handloom/test/e2e/out/m1/lead-project/.handloom/agent
+Start `claude` in that directory, inside tmux or herdr so it can be woken.
+started hltest-lead in tmux session hltest-lead (tmux -L hltest attach -t hltest-lead)
+Claude Code adapter installed in /root/hltest/worker-project for hltest-worker (worker, project default).
+  hooks:        /root/hltest/worker-project/.claude/settings.local.json
+  instructions: /root/hltest/worker-project/CLAUDE.md
+  identity:     /root/hltest/worker-project/.handloom/agent
+Start `claude` in that directory, inside tmux or herdr so it can be woken.
+started hltest-worker in tmux session hltest-worker (tmux -L hltest attach -t hltest-worker)
+    hltest-lead: idle, session 6a8891d5-1db3-42ae-b7b4-ea9d1294db22, wake target tmux:/tmp/tmux-1000/hltest:%2
+    hltest-worker: idle, session 42359685-8062-493a-b66e-e4b7b2accc11, wake target tmux:/tmp/tmux-0/hltest:%1
+
+== the first brief (the only thing typed into an agent after setup)
+    You are the lead of a handloom team. I will not be available again, so do not ask me anything. Use the handloom 
+    command for all coordination; your CLAUDE.md explains it. The job: collect three facts from the worker agent 
+    hltest-worker, which runs on another machine. Create exactly three handloom tasks, all assigned to 
+    hltest-worker. First task: run uname -r and write the output to kernel.txt. Second task: run hostname and 
+    write the output to hostname.txt. Third task, which must depend on the first task: write summary.txt with two 
+    lines, the kernel version and then the hostname. Every task must ask for evidence of the form test:cat <file> 
+    -> <content>. After creating the tasks, end your turn; handloom wakes you when work is submitted. When woken, 
+    read your inbox and check each submitted task with handloom task show. The files are on the worker's machine and 
+    you cannot read them, so judge the evidence text: accept the task if the evidence shows the file content, 
+    reject it with a reason if not. When all three tasks are done, say DONE and stop.
+    typed into hltest-lead at 19:04:58Z, after audit row 15. From here the script only reads.
+
+== waiting for the job (up to 420s)
+    +   0s  no tasks yet                                       hltest-lead=idle hltest-worker=idle
+    +   5s  #1:open #2:open                                    hltest-lead=working hltest-worker=working
+    +  10s  #1:claimed #2:open #3:open                         hltest-lead=idle hltest-worker=working
+    +  15s  #1:claimed #2:claimed #3:open                      hltest-lead=idle hltest-worker=working
+    +  20s  #1:submitted #2:submitted #3:open                  hltest-lead=working hltest-worker=working
+    +  25s  #1:done #2:done #3:open                            hltest-lead=idle hltest-worker=working
+    +  30s  #1:done #2:done #3:submitted                       hltest-lead=idle hltest-worker=working
+    +  35s  #1:done #2:done #3:submitted                       hltest-lead=idle hltest-worker=idle
+    +  81s  #1:done #2:done #3:submitted                       hltest-lead=working hltest-worker=idle
+    +  86s  #1:done #2:done #3:done                            hltest-lead=idle hltest-worker=working
+
+== board
+#1   done      Write kernel version to kernel.txt  (owner hltest-worker)
+#2   done      Write hostname to hostname.txt  (owner hltest-worker)
+#3   done      Write summary.txt  (owner hltest-worker, depends on #1)
+    #1 Evidence:
+    #1   - test:cat kernel.txt -> 6.8.0-139-generic
+    #1 Note: Wrote uname -r output to kernel.txt
+    #2 Evidence:
+    #2   - test:cat hostname.txt -> ubuntu-4gb-hel1-1
+    #2 Note: Wrote hostname output to hostname.txt
+    #3 Evidence:
+    #3   - test:cat summary.txt -> 6.8.0-139-generic / ubuntu-4gb-hel1-1
+    #3 Note: Line 1 kernel version, line 2 hostname
+
+== audit log after the brief: every wake, create, claim, submit, accept, reject
+   17  19:05:01.879Z  agent:hltest-lead task.create        task:1                 {"assigned_to":"hltest-worker","depends_on":[],"title":"Write kernel version to kernel.txt"}
+   18  19:05:02.402Z  device:hltest-mantis wake               agent:hltest-worker  {"messages":[1],"method":"tmux"}
+   20  19:05:03.347Z  agent:hltest-lead task.create        task:2                 {"assigned_to":"hltest-worker","depends_on":[],"title":"Write hostname to hostname.txt"}
+   22  19:05:04.961Z  agent:hltest-lead task.create        task:3                 {"assigned_to":"hltest-worker","depends_on":[1],"title":"Write summary.txt"}
+   24  19:05:08.564Z  agent:hltest-worker task.claim         task:1                 {"owner":"hltest-worker"}
+   25  19:05:08.759Z  agent:hltest-worker task.claim         task:2                 {"owner":"hltest-worker"}
+   26  19:05:17.185Z  agent:hltest-worker task.submit        task:1                 {"evidence":["test:cat kernel.txt -> 6.8.0-139-generic"],"note":"Wrote uname -r output to kernel.txt","owner":"hltest-worker"}
+   27  19:05:17.412Z  agent:hltest-worker task.submit        task:2                 {"evidence":["test:cat hostname.txt -> ubuntu-4gb-hel1-1"],"note":"Wrote hostname output to hostname.txt","owner":"hltest-worker"}
+   28  19:05:17.596Z  device:hltest-thinkstationpgx-2be0 wake               agent:hltest-lead    {"messages":[4,5],"method":"tmux"}
+   31  19:05:20.170Z  device:hltest-mantis wake               agent:hltest-worker  {"messages":[3],"method":"hook"}
+   32  19:05:21.309Z  agent:hltest-lead task.accept        task:1                 {"owner":"hltest-worker"}
+   33  19:05:21.313Z  agent:hltest-lead task.accept        task:2                 {"owner":"hltest-worker"}
+   36  19:05:25.317Z  agent:hltest-worker task.claim         task:3                 {"owner":"hltest-worker"}
+   37  19:05:27.965Z  agent:hltest-worker task.submit        task:3                 {"evidence":["test:cat summary.txt -> 6.8.0-139-generic / ubuntu-4gb-hel1-1"],"note":"Line 1 kernel version, line 2 hostname","owner":"hltest-worker"}
+   39  19:06:18.704Z  device:hltest-thinkstationpgx-2be0 wake               agent:hltest-lead    {"messages":[9],"method":"tmux"}
+   42  19:06:21.835Z  agent:hltest-lead task.accept        task:3                 {"owner":"hltest-worker"}
+   43  19:06:22.370Z  device:hltest-mantis wake               agent:hltest-worker  {"messages":[10],"method":"tmux"}
+
+== checks
+    ok   the lead created three tasks, all assigned to the worker
+    ok   one task depends on another
+    ok   task:1: claimed and submitted by the worker, accepted by the lead
+    ok   task:2: claimed and submitted by the worker, accepted by the lead
+    ok   task:3: claimed and submitted by the worker, accepted by the lead
+    ok   task:3 was claimed only after task:1 was accepted
+    ok   the worker was woken by handloom (tmux, hook, tmux)
+    ok   the worker's first wake was a typed terminal nudge
+    ok   the lead was woken by handloom (tmux, tmux)
+    ok   no human or admin action after the brief
+    ok   task actions came only from the two agents ['agent:hltest-lead', 'agent:hltest-worker']
+    keys typed by this script: 0 key(s) on the trust dialogs during setup, then the brief; nothing after
+
+M1 PASS: lead on thinkstationpgx-2be0 and worker on mantis finished the three-task job with no human input after the brief.
+Evidence: /home/user/projects/handloom/test/e2e/out/m1/audit.txt, /home/user/projects/handloom/test/e2e/out/m1/lead-pane.txt, /home/user/projects/handloom/test/e2e/out/m1/worker-pane.txt
+
+== extra, after the job: mail for a working agent is delivered by the end-of-turn hook
+
+[human] $ handloom send hltest-worker Extra check: please reply with: handloom send role:lead hook-delivery-ok
+    Sent to hltest-worker.
+   48  19:06:34.048Z  device:hltest-mantis agent.state        agent:hltest-worker  {"state":"working","was":"idle"}
+   49  19:06:34.570Z  human:hltest-human message.send       message:11             {"recipients":["hltest-worker"],"task_id":null,"to":"hltest-worker"}
+   50  19:06:43.944Z  device:hltest-mantis wake               agent:hltest-worker  {"messages":[11],"method":"hook"}
+   51  19:06:45.601Z  agent:hltest-worker inbox.read         agent:hltest-worker  {"messages":[11]}
+   52  19:06:51.848Z  device:hltest-mantis agent.state        agent:hltest-worker  {"state":"idle","was":"working"}
+    ok   the worker was working, nothing was typed, the Stop hook delivered the mail and the worker read it
+    note the worker read the message but did not send the reply it asked for (see /home/user/projects/handloom/test/e2e/out/m1/worker-pane.txt)
+run 4 exit=0

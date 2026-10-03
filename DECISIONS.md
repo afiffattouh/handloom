@@ -10,16 +10,26 @@ Choices made while building M0 and M1, and places where the design was unclear o
 **E1b. Claude Code shows a "trust this folder" dialog in a new directory.** When the folder pre-approves permissions, the dialog's default answer is "No, exit". `test/e2e/m1.sh` answers it (Down, Enter) during setup, before the brief, and counts those keys in its output. Without trust, Claude Code ignores the project's allow rules.
 
 **E2. Claude Code on Mantis was not logged in.**
-`claude auth status` on Mantis returned `"loggedIn": false`, and `claude -p "say ok"` printed `Not logged in · Please run /login`. Logging in needs the owner. Credentials were not copied from GB10. `test/e2e/m1.sh` checks this first and stops with a clear message.
+`claude auth status` on Mantis returned `"loggedIn": false`. Credentials were not copied from GB10. The owner logged in later the same day and M1 then ran. `test/e2e/m1.sh` checks the login first and stops with a clear message.
 
 **E3. Two Claude Code versions on Mantis.**
-A non-interactive shell finds `/usr/local/bin/claude` (2.1.202). The newer one is `/root/.local/bin/claude` (2.1.220). GB10 has 2.1.288. The e2e script uses `/root/.local/bin/claude` by absolute path (`REMOTE_CLAUDE`).
+A non-interactive shell finds `/usr/local/bin/claude` (2.1.202). The newer one is `/root/.local/bin/claude` (2.1.220). GB10 has 2.1.288. The e2e script uses `/root/.local/bin/claude` by absolute path (`REMOTE_CLAUDE`). After the login that one had updated itself to 2.1.288, so the M1 runs used 2.1.288 on both machines.
 
 **E4. Different CPU architectures.**
 GB10 is arm64, Mantis is amd64. Go 1.27.1 is installed in `~/.local/go` on GB10 (checksum verified against go.dev). The Mantis binary is cross-compiled with `CGO_ENABLED=0 GOOS=linux GOARCH=amd64`; the pure-Go SQLite driver makes that work.
 
 **E5. Herdr's Claude hook reports the session, not the state.**
 `~/.claude/hooks/herdr-agent-state.sh` handles `SessionStart` only and sends the session id to Herdr's socket. It does not report idle, working or blocked. So handloom cannot learn Claude Code's state from that hook and installs its own. No Herdr code was copied, so its licence was not a question. handloom never edits `~/.claude/settings.json`; its hooks go in the project.
+
+**E6. `dontAsk` mode denies shell redirects to files.** Tested with the test allowlist: `uname -r && hostname` and `uname -r | cat` are allowed, `uname -r > k.txt` is denied even with `Write` allowed. In the second two-machine M1 run the worker hit this, stopped and asked "the user". The allowlist was not widened: allowing all of Bash for an unattended root agent would defeat the reason Claude Code refuses bypass mode as root. Instead the adapter's instructions now say that nobody is watching, that a denied command should be retried another permitted way, and that a stuck agent blocks the task and messages the lead.
+
+## Findings from the M1 runs
+
+**F1. A stuck agent that has claimed nothing is invisible.** Leases cover claimed tasks. In the failed run the worker ended its turn without claiming its assigned tasks, and the lead waited with no notice. A fix for M2: the hub tells the lead when an assigned task is still unclaimed some minutes after its notice was delivered.
+
+**F2. Agents may decline mail that looks unrelated.** In the hook check the worker read a message from a human asking it to send a reply and declined: the text arrived in a tool result and had nothing to do with its current request. That is the cautious behaviour principle 6 wants for agent messages, but it also applied to a `human:` sender. handloom's notices about tasks were acted on in every run, because the instructions block says to. If humans are to direct agents through handloom, the instructions need to say how much weight a `human:` message carries (M3, with the human channel).
+
+**F3. The nudge rate limit shapes the pace.** One nudge per agent per 60 seconds means a second wake inside a minute waits. The three-task job took about 90 seconds, most of it that wait.
 
 ## Claude Code facts, verified
 
@@ -87,4 +97,5 @@ Checked against the installed CLI (2.1.288 on GB10) with a logging hook, and aga
 3. Section 9: specify the re-nudge rule and how often a failure is reported (D11, D12). Remove backticks from the nudge example (D13).
 4. Section 10: the "If Herdr is running, the link can read agent state from Herdr" shortcut does not hold for Claude Code as Herdr's hook stands (E5). `herdr agent list` does expose a state, which M2 could use.
 5. Section 8: "Adapters send heartbeats while the agent is `working`" should be tied to activity (D15).
-6. Section 10, adapter table: add that Claude Code refuses bypass mode as root, so headless and unattended agents on root-only machines need an allowlist (E1).
+6. Section 10, adapter table: add that Claude Code refuses bypass mode as root, so headless and unattended agents on root-only machines need an allowlist (E1), and that the instructions block must tell agents nobody is watching (E6).
+7. Section 8: say what happens when an assigned task is never claimed (F1).

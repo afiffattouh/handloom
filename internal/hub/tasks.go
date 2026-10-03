@@ -151,6 +151,9 @@ func (c *call) expireLeases() error {
 		if err := c.touch(t, `status = 'open', owner_agent_id = NULL, lease_expires_at = NULL, blocked_reason = ''`); err != nil {
 			return err
 		}
+		if err := c.markClaimable(t); err != nil {
+			return err
+		}
 		payload := map[string]any{"owner": t.ownerName}
 		b := marshal(payload)
 		// The hub is the actor here, whoever's request triggered the check.
@@ -167,6 +170,54 @@ func (c *call) expireLeases() error {
 		}
 		if lead != nil {
 			body := fmt.Sprintf("Task #%d (%s): the lease held by %s expired. The task is open again.", t.id, t.title, t.ownerName)
+			if _, err := c.insertMessage("hub", lead, lead.name, &t.id, body); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// markClaimable starts the clock for "assigned but never claimed": the task
+// is open, assigned, and nothing holds it back.
+func (c *call) markClaimable(t *taskRow) error {
+	_, err := c.tx.Exec(`UPDATE task SET claimable_at = CASE WHEN assigned_to IS NULL THEN NULL ELSE ? END, unclaimed_notified = 0 WHERE id = ?`,
+		store.Millis(c.now), t.id)
+	return err
+}
+
+// reportUnclaimed tells the lead, once per task, when an assigned task that
+// could be claimed has been left alone for too long. Leases only cover
+// claimed tasks; this covers an assignee that never started.
+func (c *call) reportUnclaimed() error {
+	stale, err := c.tasks(`WHERE t.status = 'open' AND t.assigned_to IS NOT NULL AND t.unclaimed_notified = 0
+		AND t.claimable_at IS NOT NULL AND t.claimable_at <= ?`, store.Millis(c.now.Add(-c.h.opt.Unclaimed)))
+	if err != nil {
+		return err
+	}
+	for _, t := range stale {
+		if _, err := c.tx.Exec(`UPDATE task SET unclaimed_notified = 1 WHERE id = ?`, t.id); err != nil {
+			return err
+		}
+		assignee, err := c.agentByID(t.assigned.Int64)
+		if err != nil {
+			return err
+		}
+		payload := map[string]any{"assigned_to": assignee.name, "state": assignee.state}
+		if _, err := c.tx.Exec(`INSERT INTO audit(actor, action, target, payload, created_at) VALUES ('hub', 'task.unclaimed', ?, ?, ?)`,
+			t.target(), string(marshal(payload)), store.Millis(c.now)); err != nil {
+			return err
+		}
+		if err := c.emit(t.projectID, 0, "task.unclaimed", map[string]any{"target": t.target(), "detail": payload}); err != nil {
+			return err
+		}
+		lead, err := c.lead(t.projectID)
+		if err != nil {
+			return err
+		}
+		if lead != nil && lead.id != assignee.id {
+			body := fmt.Sprintf("Task #%d (%s) is assigned to %s and has not been claimed for %s. %s is %s. Message it, reassign the task, or cancel it.",
+				t.id, t.title, assignee.name, c.h.opt.Unclaimed, assignee.name, assignee.state)
 			if _, err := c.insertMessage("hub", lead, lead.name, &t.id, body); err != nil {
 				return err
 			}
@@ -268,6 +319,9 @@ func (c *call) notifyAssigned(t *taskRow, assignee *agentRow) error {
 		body += fmt.Sprintf("It depends on %s, not done yet. You will be told when you can claim it.", taskRefs(open))
 	} else {
 		body += fmt.Sprintf("Read it with `handloom task show %d`, then claim it with `handloom task claim %d`.", t.id, t.id)
+		if _, err := c.tx.Exec(`UPDATE task SET claimable_at = ?, unclaimed_notified = 0 WHERE id = ?`, store.Millis(c.now), t.id); err != nil {
+			return err
+		}
 	}
 	return c.hubMessage(assignee, &t.id, body)
 }
@@ -303,7 +357,7 @@ func taskAssign(c *call) (any, error) {
 		}
 		assigned = assignee.id
 	}
-	if err := c.touch(t, `assigned_to = ?`, assigned); err != nil {
+	if err := c.touch(t, `assigned_to = ?, claimable_at = NULL, unclaimed_notified = 0`, assigned); err != nil {
 		return nil, err
 	}
 	if err := c.record(t.projectID, 0, "task.assign", t.target(), map[string]any{"assigned_to": req.Agent}); err != nil {
@@ -353,6 +407,9 @@ func taskAccept(c *call) (any, error) {
 		}
 		a, err := c.agentByID(w.assigned.Int64)
 		if err != nil {
+			return nil, err
+		}
+		if err := c.markClaimable(w); err != nil {
 			return nil, err
 		}
 		body := fmt.Sprintf("Task #%d (%s) can be claimed now: its dependencies are done. Claim it with `handloom task claim %d`.", w.id, w.title, w.id)
@@ -528,6 +585,9 @@ func taskRelease(c *call) (any, error) {
 		return nil, err
 	}
 	if err := c.touch(t, `status = 'open', owner_agent_id = NULL, lease_expires_at = NULL, blocked_reason = ''`); err != nil {
+		return nil, err
+	}
+	if err := c.markClaimable(t); err != nil {
 		return nil, err
 	}
 	if err := c.record(t.projectID, 0, "task.release", t.target(), map[string]any{"owner": a.name}); err != nil {

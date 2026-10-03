@@ -67,7 +67,7 @@ GET  /whoami                                               -> {kind, name, devic
 ### Agents
 
 ```
-POST /agents                       {name, kind, project?, wake_target?, session_id?} -> agent    device
+POST /agents                       {name, kind, project?, wake_target?, session_id?, dir?} -> agent    device
 GET  /agents?project=                                      -> [agent]                  read
 POST /agents/{name}/role           {role}                  -> agent                    admin, human
 POST /agents/{name}/state          {state}                 -> agent                    the agent's device
@@ -78,8 +78,9 @@ GET  /device/agents                                        -> [agent + unread, u
 
 - `state` is `idle`, `working`, `blocked` or `offline`. The hub also sets `unknown`.
 - `turn-end` is the end-of-turn hook. If the agent has unread mail that this hook has not handed over before, the answer is `block: true`, the agent stays `working`, the mail is marked delivered by `hook`, and a `wake` row is written. Otherwise the agent becomes `idle`. One batch of mail holds the agent at most once.
-- `wake` is the link's report. `method` `tmux` or `herdr`: a nudge was typed; unread mail is marked delivered. `method` `none` with a `reason`: the agent could not be woken; the hub writes `wake.failed` and messages the lead. Reason `no_inbox_after_nudges` also sets the agent's state to `unknown`.
-- Registering an existing name from the same device refreshes its kind, wake target and session id. From another device it is a 409.
+- `wake` is the link's report. `method` `tmux` or `herdr`: a nudge was typed; `headless`: a headless turn was started on the agent's session. Unread mail is marked delivered. `method` `none` with a `reason`: the agent could not be woken; the hub writes `wake.failed` and messages the lead. Reason `no_inbox_after_nudges` also sets the agent's state to `unknown`.
+- Registering an existing name from the same device refreshes its kind, wake target, session id and directory; an empty value keeps the stored one. From another device it is a 409.
+- `wake_target` is `tmux:<socket>:<pane>`, `herdr:<pane id>`, or `headless` for an agent with no terminal, which the link wakes by running one headless turn on `session_id` in `dir`.
 
 ### Messages
 
@@ -117,6 +118,7 @@ Statuses: `open`, `claimed`, `submitted`, `done`, `cancelled`. `blocked` is a fl
 - **Lease.** `heartbeat` extends it. When it runs out the task goes back to `open`, the owner is cleared and the lead is told. The old owner's later calls on the task get 403.
 - **Submit** needs at least one evidence item. Typed items: `commit:<sha>`, `pr:<url>`, `file:<path>`, `test:<command> -> <result>`. Anything else is free text. The hub stores evidence and does not verify it.
 - **Reject** returns the task to its owner as `claimed` with a new lease.
+- **Unclaimed.** An assigned task that could be claimed and is not, for 10 minutes, is reported to the lead once (`task.unclaimed`).
 
 ### Events
 
@@ -142,7 +144,7 @@ Append-only: the database rejects updates and deletes. A row is `{seq, actor, ac
 
 Actors: `admin`, `hub`, `human:<name>`, `device:<name>`, `agent:<name>`.
 
-Actions: `hub.init`, `device.add`, `device.join`, `device.revoke`, `human.add`, `project.add`, `agent.register`, `agent.role`, `agent.state`, `message.send`, `message.delivered`, `inbox.read`, `task.create`, `task.assign`, `task.claim`, `task.heartbeat`, `task.release`, `task.block`, `task.submit`, `task.accept`, `task.reject`, `task.cancel`, `task.lease_expired`, `wake`, `wake.failed`, `denied`.
+Actions: `hub.init`, `device.add`, `device.join`, `device.revoke`, `human.add`, `project.add`, `agent.register`, `agent.role`, `agent.state`, `message.send`, `message.delivered`, `inbox.read`, `task.create`, `task.assign`, `task.claim`, `task.heartbeat`, `task.release`, `task.block`, `task.submit`, `task.accept`, `task.reject`, `task.cancel`, `task.lease_expired`, `task.unclaimed`, `wake`, `wake.failed`, `denied`.
 
 ## The link's local socket
 
@@ -151,6 +153,10 @@ Actions: `hub.init`, `device.add`, `device.join`, `device.revoke`, `human.add`, 
 - `/v1/...` is forwarded to the hub with the device credential. The caller sends `Handloom-Agent`. Any `Authorization` header from the caller is replaced.
 - `POST /local/activity` (with `Handloom-Agent`): the agent did something. The link extends the leases of that agent's claimed tasks, at most every 2 minutes, and moves a `blocked` agent back to `working`.
 - `GET /local/status`: device name, hub URL, protocol.
+
+## MCP
+
+`handloom mcp` is an MCP server over stdio (newline-delimited JSON-RPC 2.0; `initialize`, `ping`, `tools/list`, `tools/call`). Its tools are the agent verbs: `handloom_whoami`, `handloom_agents`, `handloom_inbox`, `handloom_send`, `handloom_task_list`, `handloom_task_show`, `handloom_task_claim`, `handloom_task_heartbeat`, `handloom_task_release`, `handloom_task_block`, `handloom_task_submit`, and for the lead `handloom_task_create`, `handloom_task_assign`, `handloom_task_accept`, `handloom_task_reject`, `handloom_task_cancel`. Each call goes through the link's socket as the agent named by `$HANDLOOM_AGENT` (or `.handloom/agent`), exactly as the command line does. A rejected call comes back as a tool result with `isError: true` and the hub's reason.
 
 ## Wake nudge
 

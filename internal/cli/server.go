@@ -39,6 +39,7 @@ func (e *env) hub(args []string) error {
 	addr := fs.String("addr", "127.0.0.1:7420", "listen address")
 	lease := fs.Duration("lease", 15*time.Minute, "task lease")
 	sweep := fs.Duration("sweep", 5*time.Second, "how often expired leases are collected")
+	unclaimed := fs.Duration("unclaimed", 10*time.Minute, "tell the lead when an assigned task stays unclaimed this long")
 	if _, err := fs.need(args, 0, 0, "hub init|serve [--data DIR] [--addr A] [--lease D]"); err != nil {
 		return err
 	}
@@ -71,7 +72,7 @@ func (e *env) hub(args []string) error {
 		}
 		defer db.Close()
 		logger := log.New(e.err, "hub ", log.LstdFlags)
-		h := hub.New(db, hub.Options{Lease: *lease, Sweep: *sweep, Log: logger})
+		h := hub.New(db, hub.Options{Lease: *lease, Sweep: *sweep, Unclaimed: *unclaimed, Log: logger})
 		ln, err := net.Listen("tcp", *addr)
 		if err != nil {
 			return err

@@ -25,11 +25,12 @@ import (
 )
 
 type Options struct {
-	Lease   time.Duration    // task lease; default 15 minutes
-	Sweep   time.Duration    // how often expired leases are collected; default 5 seconds
-	MsgRate int              // messages per minute per sender; default 60
-	Now     func() time.Time // clock, replaceable in tests
-	Log     *log.Logger
+	Lease     time.Duration    // task lease; default 15 minutes
+	Sweep     time.Duration    // how often expired leases are collected; default 5 seconds
+	Unclaimed time.Duration    // tell the lead when an assigned task stays unclaimed this long; default 10 minutes
+	MsgRate   int              // messages per minute per sender; default 60
+	Now       func() time.Time // clock, replaceable in tests
+	Log       *log.Logger
 }
 
 type Hub struct {
@@ -47,6 +48,9 @@ func New(db *sql.DB, opt Options) *Hub {
 	}
 	if opt.Sweep <= 0 {
 		opt.Sweep = 5 * time.Second
+	}
+	if opt.Unclaimed <= 0 {
+		opt.Unclaimed = 10 * time.Minute
 	}
 	if opt.MsgRate <= 0 {
 		opt.MsgRate = 60
@@ -85,6 +89,9 @@ func (h *Hub) Sweep() error {
 	defer tx.Rollback()
 	c := &call{h: h, tx: tx, p: &principal{kind: kindHub}, now: h.opt.Now()}
 	if err := c.expireLeases(); err != nil {
+		return err
+	}
+	if err := c.reportUnclaimed(); err != nil {
 		return err
 	}
 	if err := tx.Commit(); err != nil {

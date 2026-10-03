@@ -99,3 +99,57 @@ Checked against the installed CLI (2.1.288 on GB10) with a logging hook, and aga
 5. Section 8: "Adapters send heartbeats while the agent is `working`" should be tied to activity (D15).
 6. Section 10, adapter table: add that Claude Code refuses bypass mode as root, so headless and unattended agents on root-only machines need an allowlist (E1), and that the instructions block must tell agents nobody is watching (E6).
 7. Section 8: say what happens when an assigned task is never claimed (F1).
+
+---
+
+# M2 decisions
+
+## Environment findings (M2)
+
+**E7. Codex on GB10 is logged out.** `codex exec` there fails with "Your access token could not be refreshed. Please log out and sign in again" (codex-cli 0.144.5, only in `~/.nvm/versions/node/v20.20.2/bin`). Codex on Mantis (0.160.0) works. The Codex worker runs on Mantis.
+
+**E8. Pi has no working cloud model on either machine.** GB10: `pi auth check --provider openai-codex` returns `invalid`; the default model is the local Qwen. Mantis: Pi's OpenRouter key answers `403 Key limit exceeded`. So the only model Pi can use is the local Qwen. The owner's rule for the local model (work goes to it through OMP in a detached tmux run, one at a time, no input typed into a running session) does not fit a handloom worker that is woken by typed nudges, so no Pi worker was run without the owner's say. `test/e2e/m2.sh` adds a Pi worker when `PI_MODEL` is set.
+
+**E9. OMP exists only on GB10 and uses the local Qwen. OpenCode on Mantis has no credentials** (a free model did not answer within 60 seconds). Neither adapter ran against a model.
+
+## Codex facts, verified on Mantis (codex-cli 0.160.0, as root)
+
+- Hooks have the same shape as Claude Code's: `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PermissionRequest`, `Stop`, `SessionEnd`; JSON on stdin with `session_id`, `cwd`, `hook_event_name`, `stop_hook_active`; the hook inherits the environment.
+- A `Stop` hook that prints `{"decision":"block","reason":"..."}` makes Codex continue with the reason (tested: it answered the reason's request, then stopped).
+- A project's `.codex/hooks.json` is loaded, with or without a git repository. Codex runs a hook only after the user has reviewed it: the TUI shows a "Hooks need review" dialog once and stores a hash in `~/.codex/config.toml`. `codex exec` has no dialog; there, and for unattended agents, `--dangerously-bypass-hook-trust` runs the hooks without the stored review.
+- The same hooks given both in the project file and inline (`-c hooks.Stop=...`) fire twice. Register them in one place only.
+- **In the TUI, `SessionStart` fires at the first prompt, not at launch.** Until then handloom would not know the agent exists.
+- Hooks run outside the sandbox. The agent's shell commands run inside it. In `workspace-write` the sandbox blocks unix sockets, inside or outside the workspace, and `--add-dir` does not help; only `sandbox_workspace_write.network_access=true` opens them. Writes outside the workspace are refused, also as root.
+- MCP servers run outside the sandbox. With approval policy `never`, an MCP tool call fails ("requires approval, but approval policy is never") unless the server has `default_tools_approval_mode = "approve"`.
+- Codex adds a `[projects."<dir>"]` trust entry to `~/.codex/config.toml` for a directory it runs in. The probe entries were removed by hand; the e2e run leaves one entry for `/root/hltest/codex-project`.
+
+## Design choices (M2)
+
+**D22. One hook handler for every kind.** `handloom hook <kind>` reads the Claude-shaped hook JSON. Claude Code and Codex call it directly. Pi, OMP and OpenCode get a small shim (extension or plugin) that turns their own events into the same JSON and calls the same command. For the end-of-turn delivery the shim reads the handler's `decision: block` answer and gives the reason to the agent as a user message.
+
+**D23. Codex uses handloom through MCP, with the sandbox left on.** The alternative, turning on network access in the sandbox so the `handloom` command can reach the link's socket, gives the agent's shell the whole network. The MCP server runs outside the sandbox and offers only the handloom verbs. The tools are pre-approved (`default_tools_approval_mode = "approve"`) because nobody is there to approve them; scopes are still enforced by the hub. Nothing is written to `~/.codex/config.toml` by handloom: the MCP server is given on the command line.
+
+**D24. `handloom run <name> -- <command>`.** Because Codex's `SessionStart` comes late, the agent is started through `handloom run`, which records the terminal and directory, reports the agent idle and then becomes the command. It works for any kind.
+
+**D25. `--dangerously-bypass-hook-trust` in the e2e script.** This skips Codex's review of hooks; it is not the approvals-and-sandbox bypass. The script uses it because the hooks were written a moment earlier by `handloom adapter install` and because the review would otherwise be stored in the owner's Codex config on every run. A person starting Codex by hand answers the review dialog once instead.
+
+**D26. Headless resume is opt-in.** An agent is woken by a headless turn only if its wake target is `headless`: set by `handloom register --wake-target headless`, or by the hooks when the agent runs with `HANDLOOM_HEADLESS=1` (the link sets this for the turns it starts). An interactive agent that has gone offline is not resumed behind its owner's back; the lead is told instead. The design's wording ("no live terminal but a session id") would also cover that case; it can be widened later.
+
+**D27. Headless commands are a table with overrides.** Defaults per kind are in `internal/link/headless.go`; `$HANDLOOM_HOME/headless.json` replaces one, for an absolute path or extra flags. Only the Claude Code line ran against the real CLI. A headless agent's project is not "trusted" by Claude Code, which then ignores the project's allow rules, so the e2e passes the allowlist on the command line through this file.
+
+**D28. The agent's working directory is stored.** A headless turn must run in the agent's project. `register` and the session-start hook send `dir`.
+
+**D29. MCP server written by hand.** About 300 lines: `initialize`, `ping`, `tools/list`, `tools/call` over newline-delimited JSON-RPC. No new dependency. Each tool call runs the same code as the command line, so scopes, errors and the audit log are identical. A failed command is a tool result with `isError`, so the agent can read the reason.
+
+**D30. A blocked agent is reported after 30 seconds, not at once.** With approval policy `never`, Codex fires `PermissionRequest` and then denies the call itself; the agent is "blocked" for a moment. Reporting that to the lead was noise.
+
+**D31. Unclaimed assigned tasks are reported** (finding F1). If an assigned task that could be claimed stays unclaimed for 10 minutes (`handloom hub serve --unclaimed`), the hub tells the lead once and logs `task.unclaimed`.
+
+**D32. Adapter files.** Codex: `.codex/hooks.json`. Pi: `.pi/extensions/handloom.ts` (needs `pi --approve`). OMP: `.handloom/omp-extension.ts`, loaded with `omp -e`. OpenCode: `.opencode/plugins/handloom.js`. All put the protocol block in `AGENTS.md`. handloom never writes to `~/.codex`, `~/.pi`, `~/.omp` or `~/.config/opencode`.
+
+## Should change in DESIGN.md (M2)
+
+1. Section 10, Codex row: hooks exist and match Claude Code's; end-of-turn delivery works through the Stop hook; `notify` is not needed. Add the sandbox finding and that MCP is how a sandboxed Codex reaches handloom (D23), and the late `SessionStart` (D24).
+2. Section 10, Pi row: turn-end delivery is `agent_settled` plus `pi.sendUserMessage`; unverified against a model.
+3. Section 9, step 3: say whether an interactive agent that went offline may be resumed headless (D26).
+4. Section 12: `dir` on agents, wake method `headless`, `task.unclaimed`.

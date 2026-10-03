@@ -954,3 +954,57 @@ func TestEveryActionIsAudited(t *testing.T) {
 		t.Fatalf("denied row actor %q, want agent:observer", denied.Actor)
 	}
 }
+
+// An assigned task that nobody claims is reported to the lead once. Leases
+// cannot catch this: there is no owner yet.
+func TestUnclaimedAssignedTaskIsReported(t *testing.T) {
+	e := newEnv(t)
+	t1 := e.create(e.lead(), api.TaskCreateReq{Title: "one", AssignedTo: "worker"})
+	t2 := e.create(e.lead(), api.TaskCreateReq{Title: "two", AssignedTo: "worker2", DependsOn: []int64{t1.ID}})
+	e.create(e.lead(), api.TaskCreateReq{Title: "free for all"}) // unassigned: never reported
+	sweep := func() []api.Message {
+		t.Helper()
+		if err := e.hub.Sweep(); err != nil {
+			t.Fatal(err)
+		}
+		return e.inbox(e.lead())
+	}
+	e.clock.advance(9 * time.Minute)
+	if m := sweep(); len(m) != 0 {
+		t.Fatalf("reported too early: %+v", m)
+	}
+	e.clock.advance(2 * time.Minute)
+	m := sweep()
+	if len(m) != 1 || !strings.Contains(m[0].Body, "Task #1 (one) is assigned to worker and has not been claimed for 10m0s") {
+		t.Fatalf("lead inbox: %+v", m)
+	}
+	if !e.audited("task.unclaimed", "task:1") {
+		t.Fatal("no task.unclaimed in audit log")
+	}
+	e.clock.advance(30 * time.Minute)
+	if m := sweep(); len(m) != 0 {
+		t.Fatalf("reported twice, or reported a task whose dependency is not done: %+v", m)
+	}
+
+	// Task 2's clock starts when its dependency is accepted.
+	e.ok(e.worker(), "POST", taskPath(t1.ID, "claim"), nil, nil)
+	e.ok(e.worker(), "POST", taskPath(t1.ID, "submit"), evidence, nil)
+	e.inbox(e.lead())
+	e.ok(e.lead(), "POST", taskPath(t1.ID, "accept"), nil, nil)
+	e.clock.advance(9 * time.Minute)
+	if m := sweep(); len(m) != 0 {
+		t.Fatalf("task 2 reported too early: %+v", m)
+	}
+	e.clock.advance(2 * time.Minute)
+	if m := sweep(); len(m) != 1 || !strings.Contains(m[0].Body, "Task #2 (two) is assigned to worker2") {
+		t.Fatalf("lead inbox: %+v", m)
+	}
+	// A claimed task is the lease's business, not this check's.
+	e.ok(e.worker2(), "POST", taskPath(t2.ID, "claim"), nil, nil)
+	e.ok(e.worker2(), "POST", taskPath(t2.ID, "release"), nil, nil)
+	e.inbox(e.lead())
+	e.clock.advance(11 * time.Minute)
+	if m := sweep(); len(m) != 1 || !strings.Contains(m[0].Body, "has not been claimed") {
+		t.Fatalf("a released, assigned task is unclaimed again: %+v", m)
+	}
+}

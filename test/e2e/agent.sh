@@ -19,14 +19,16 @@ mkdir -p "$dir/.claude"
 "$handloom" adapter install claude --name "$name" --dir "$dir"
 
 # Test agents must never stop at an approval prompt: the wake ladder would
-# see "blocked". Bypass mode is refused for root, so both machines get the
-# same allowlist instead: file edits inside the project, and the few
-# read-only commands the job needs. handloom itself is allowed by the adapter.
+# see "blocked" and the job would hang. Bypass mode is refused for root, so
+# both machines run in "dontAsk" mode with the same allowlist: a tool call
+# outside the list is denied with an error the agent can read, never asked
+# about. handloom itself is allowed by the adapter.
 cat >"$dir/.claude/settings.json" <<'JSON'
 {
   "permissions": {
-    "defaultMode": "acceptEdits",
+    "defaultMode": "dontAsk",
     "allow": [
+      "Read", "Glob", "Grep", "Write", "Edit",
       "Bash(uname *)", "Bash(uname)", "Bash(hostname)", "Bash(hostname *)",
       "Bash(cat *)", "Bash(ls *)", "Bash(ls)", "Bash(echo *)", "Bash(printf *)", "Bash(wc *)"
     ]

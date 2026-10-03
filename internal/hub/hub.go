@@ -199,7 +199,9 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	if v == nil {
 		v = map[string]any{"ok": true}
 	}
-	json.NewEncoder(w).Encode(v)
+	enc := json.NewEncoder(w)
+	enc.SetEscapeHTML(false)
+	enc.Encode(v)
 }
 
 func (h *Hub) writeErr(w http.ResponseWriter, err error) {

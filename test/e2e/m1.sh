@@ -7,8 +7,8 @@
 # What this script does and does not do:
 #   - It starts the hub, two links and two Claude Code sessions (each in tmux).
 #   - It types exactly one thing into an agent: the brief, into the lead.
-#     Before that it may press Enter on Claude Code's "trust this folder"
-#     dialog, which appears once per new directory.
+#     Before that it answers Claude Code's "trust this folder" dialog (Down,
+#     Enter), which appears once per new directory.
 #   - After the brief it only reads: the board, the audit log, the panes.
 #     The worker gets no human input at all; handloom wakes it.
 #   - It passes only if the audit log shows the whole job. It does not
@@ -83,11 +83,19 @@ wait_ready() {
   local agent="$1" tm="$2" i pane
   for i in $(seq 90); do
     pane="$($tm capture-pane -p -t "$agent" 2>/dev/null || true)"
-    if grep -qiE 'trust (this|the files in this) folder|Do you trust' <<<"$pane"; then
-      echo "    $agent: accepting Claude Code's trust-this-folder dialog (Enter)"
-      $tm send-keys -t "$agent" Enter
+    if grep -q 'Yes, I trust this folder' <<<"$pane"; then
+      # The dialog's default is "No, exit" when the folder pre-approves
+      # permissions, so move the cursor to "Yes" before confirming.
+      if grep -qE '❯ *Yes, I trust this folder' <<<"$pane"; then
+        echo "    $agent: confirming Claude Code's trust-this-folder dialog (Enter)"
+        $tm send-keys -t "$agent" Enter
+        sleep 2
+      else
+        echo "    $agent: trust-this-folder dialog: moving to \"Yes, I trust this folder\" (Down)"
+        $tm send-keys -t "$agent" Down
+        sleep 1
+      fi
       KEYS=$((KEYS + 1))
-      sleep 2
       continue
     fi
     if [ "$(agent_field "$agent" state)" = idle ]; then
@@ -106,7 +114,7 @@ sleep 3
 SETUP_KEYS=$KEYS
 
 # ---- the one human input ----
-BRIEF="You are the lead of a handloom team. I will not be available again, so do not ask me anything. Use the handloom command for all coordination; your CLAUDE.md explains it. The job: collect three facts from the worker agent $WORKER, which runs on another machine. Create exactly three handloom tasks, all assigned to $WORKER. First task: run uname -r and write the output to kernel.txt. Second task: run hostname and write the output to hostname.txt. Third task, which must depend on the first task: write summary.txt with two lines, the kernel version and then the hostname. Every task must ask for evidence of the form test:cat <file> -> <content>. After creating the tasks, end your turn; handloom wakes you when work is submitted. When woken, read your inbox, check each submitted task with handloom task show, accept it if the evidence shows the file content and reject it with a reason if not. When all three tasks are done, say DONE and stop."
+BRIEF="You are the lead of a handloom team. I will not be available again, so do not ask me anything. Use the handloom command for all coordination; your CLAUDE.md explains it. The job: collect three facts from the worker agent $WORKER, which runs on another machine. Create exactly three handloom tasks, all assigned to $WORKER. First task: run uname -r and write the output to kernel.txt. Second task: run hostname and write the output to hostname.txt. Third task, which must depend on the first task: write summary.txt with two lines, the kernel version and then the hostname. Every task must ask for evidence of the form test:cat <file> -> <content>. After creating the tasks, end your turn; handloom wakes you when work is submitted. When woken, read your inbox and check each submitted task with handloom task show. The files are on the worker's machine and you cannot read them, so judge the evidence text: accept the task if the evidence shows the file content, reject it with a reason if not. When all three tasks are done, say DONE and stop."
 
 say "the first brief (the only thing typed into an agent after setup)"
 echo "$BRIEF" | fold -s -w 110 | sed 's/^/    /'
@@ -193,7 +201,7 @@ humans = [r for r in rows if r["actor"].startswith("human:") or r["actor"] == "a
 check("no human or admin action after the brief", not humans)
 actors = sorted({r["actor"] for r in rows if r["action"].startswith("task.")})
 check("task actions came only from the two agents %s" % actors, set(actors) <= {lead, worker})
-print("    keys typed by this script: %s Enter(s) on the trust dialog during setup, then the brief; nothing after" % setup_keys)
+print("    keys typed by this script: %s key(s) on the trust dialogs during setup, then the brief; nothing after" % setup_keys)
 sys.exit(0 if ok else 1)
 PY
 

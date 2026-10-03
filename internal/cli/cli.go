@@ -53,6 +53,7 @@ Device:
   handloom link status
   handloom adapter install <kind> --name N [--dir D]  install an agent adapter in a project
                                                   (kinds: claude, codex, pi, omp, opencode)
+  handloom run <name> -- <command...>                 start an agent CLI as a registered, wakeable agent
   handloom mcp                                        MCP server (stdio) offering the agent verbs as tools
 
 Hub and administration (HANDLOOM_HUB and HANDLOOM_TOKEN set to the hub URL and a token):
@@ -121,6 +122,8 @@ func Main(args []string, stdout, stderr io.Writer) int {
 		err = e.adapter(rest)
 	case "mcp":
 		err = e.mcp(rest)
+	case "run":
+		err = e.run(rest)
 	default:
 		err = usageErr("unknown command %q; run `handloom help`", cmd)
 	}

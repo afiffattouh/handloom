@@ -32,6 +32,7 @@ type Options struct {
 	Renudge      time.Duration // nudge again when delivered mail stays unread this long; default 5m
 	UnknownAfter time.Duration // two unanswered nudges for this long mark the agent unknown; default 10m
 	Heartbeat    time.Duration // extend leases of an active agent this often; default 2m
+	BlockedGrace time.Duration // an agent must be blocked this long before the lead is told; default 30s
 	Tick         time.Duration // how often the ladder runs without events; default 10s
 	PollWait     int           // long-poll seconds; default 25
 
@@ -63,6 +64,7 @@ func New(opt Options) *Link {
 	def(&opt.Renudge, 5*time.Minute)
 	def(&opt.UnknownAfter, 10*time.Minute)
 	def(&opt.Heartbeat, 2*time.Minute)
+	def(&opt.BlockedGrace, 30*time.Second)
 	def(&opt.Tick, 10*time.Second)
 	def(&opt.HeadlessTimeout, 15*time.Minute)
 	if opt.HeadlessRun == nil {

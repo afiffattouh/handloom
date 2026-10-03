@@ -54,11 +54,12 @@ var adapterSpecs = map[string]*adapterSpec{
 			{"SessionStart", ""}, {"UserPromptSubmit", ""}, {"PostToolUse", ""}, {"PermissionRequest", ""},
 			{"Stop", ""}, {"SessionEnd", ""},
 		},
-		start: "Start `codex` in that directory, inside tmux or herdr. Codex asks you to review the hooks once\n" +
-			"(unattended: --dangerously-bypass-hook-trust). Its sandbox blocks the link's socket for shell\n" +
-			"commands, so give it the handloom tools:\n" +
-			"  codex -c mcp_servers.handloom.command={{handloom}} -c 'mcp_servers.handloom.args=[\"mcp\"]'\n" +
-			"or allow the socket: codex -c sandbox_workspace_write.network_access=true",
+		start: "Start Codex in that directory, inside tmux or herdr, through `handloom run` (Codex's own\n" +
+			"session-start hook fires only at the first prompt, so handloom must be told the agent is there):\n" +
+			"  handloom run {{name}} -- codex -c 'mcp_servers.handloom.command=\"{{handloom}}\"' -c 'mcp_servers.handloom.args=[\"mcp\"]'\n" +
+			"Codex asks you to review the hooks once (unattended: --dangerously-bypass-hook-trust).\n" +
+			"Its sandbox blocks the link's socket for shell commands; the MCP server above gives it the\n" +
+			"handloom verbs as tools instead. Or allow the socket: -c sandbox_workspace_write.network_access=true",
 	},
 	"pi": {
 		instructions: "AGENTS.md",
@@ -210,7 +211,7 @@ func (e *env) installAdapter(kind string, spec *adapterSpec, root, name, project
 		return err
 	}
 	fmt.Fprintf(e.out, "  instructions: %s\n", path)
-	fmt.Fprintln(e.out, strings.NewReplacer("{{handloom}}", bin, "{{dir}}", root).Replace(spec.start))
+	fmt.Fprintln(e.out, strings.NewReplacer("{{handloom}}", bin, "{{dir}}", root, "{{name}}", a.Name).Replace(spec.start))
 	return nil
 }
 

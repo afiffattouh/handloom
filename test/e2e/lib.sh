@@ -134,7 +134,8 @@ e2e_setup() {
 
   join="$(admin device add "$REMOTE_DEVICE" --json | sed -n 's/.*"token": "\(.*\)".*/\1/p')"
   rsh "HANDLOOM_HOME=$REMOTE_DIR/home $REMOTE_DIR/bin/handloom link join $HUB_URL $join" | head -1
-  rsh "tmux -L hltest new-session -d -s hltest-link 'HANDLOOM_HOME=$REMOTE_DIR/home $REMOTE_DIR/bin/handloom link run ${LINK_FLAGS:-} >$REMOTE_DIR/link.log 2>&1'"
+  # The link's PATH is what headless turns inherit, so handloom must be on it.
+  rsh "tmux -L hltest new-session -d -s hltest-link 'PATH=$REMOTE_DIR/bin:\$PATH HANDLOOM_HOME=$REMOTE_DIR/home $REMOTE_DIR/bin/handloom link run ${LINK_FLAGS:-} >$REMOTE_DIR/link.log 2>&1'"
 
   for i in $(seq 50); do
     [ -S "$OUT/home/link.sock" ] && rsh "test -S $REMOTE_DIR/home/link.sock" && break

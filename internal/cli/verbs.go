@@ -4,11 +4,14 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"os/exec"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"handloom/internal/api"
+	"handloom/internal/client"
 )
 
 // ---- administration ----
@@ -525,4 +528,35 @@ func ago(t time.Time) string {
 		return fmt.Sprintf("%dm ago", int(d.Minutes()))
 	}
 	return t.Local().Format("2006-01-02 15:04")
+}
+
+// run starts an agent CLI as a registered handloom agent: `handloom run <name> --
+// <command...>`. It records where the agent lives (terminal, directory) and
+// reports it idle, then replaces itself with the command. This matters for
+// CLIs whose own session-start hook fires only at the first prompt (Codex's
+// TUI): without it handloom would not know the agent is there to be woken.
+func (e *env) run(args []string) error {
+	fs := e.flags("run")
+	kind := fs.String("kind", "", "agent kind, if the agent is not registered yet")
+	pos, err := fs.need(args, 2, -1, "run <name> [--kind K] -- <command> [args...]")
+	if err != nil {
+		return err
+	}
+	name, command := pos[0], pos[1:]
+	path, err := exec.LookPath(command[0])
+	if err != nil {
+		return err
+	}
+	dir, _ := os.Getwd()
+	c := client.Socket(client.SocketPath(), name)
+	var a api.Agent
+	req := api.RegisterReq{Name: name, Kind: *kind, WakeTarget: wakeTarget(), Dir: dir}
+	if err := c.Post("/v1/agents", req, &a); err != nil {
+		return fmt.Errorf("register %s: %w", name, err)
+	}
+	if err := c.Post("/v1/agents/"+url.PathEscape(name)+"/state", api.StateReq{State: api.StateIdle}, nil); err != nil {
+		return err
+	}
+	os.Setenv("HANDLOOM_AGENT", name)
+	return syscall.Exec(path, command, os.Environ())
 }

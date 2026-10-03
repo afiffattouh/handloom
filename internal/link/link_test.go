@@ -237,6 +237,11 @@ func TestLadderNeverTypesIntoWorkingOrBlocked(t *testing.T) {
 
 	f.state(f.worker, "blocked")
 	f.ladder()
+	if len(f.audit("wake.failed")) != 0 {
+		t.Fatal("a prompt that may be answered in a moment was reported at once")
+	}
+	f.advance(31 * time.Second)
+	f.ladder()
 	f.ladder()
 	if f.driver.count() != 0 {
 		t.Fatal("typed into a blocked agent")
@@ -259,6 +264,7 @@ func TestLadderNeverTypesIntoWorkingOrBlocked(t *testing.T) {
 	f.state(f.worker, "working")
 	f.ladder()
 	f.state(f.worker, "blocked")
+	f.advance(31 * time.Second)
 	f.ladder()
 	if len(f.audit("wake.failed")) != 2 || f.driver.count() != 0 {
 		t.Fatal("a new blocked episode was not reported")

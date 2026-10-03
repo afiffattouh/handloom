@@ -79,7 +79,11 @@ func (l *Link) decide(a api.DeviceAgent, m *memo, now time.Time) decision {
 		return decision{doNudge, ""}
 	default:
 		// Never type into a blocked agent; offline and unknown agents have
-		// nobody to read the nudge.
+		// nobody to read the nudge. A prompt that is answered (or denied
+		// by policy) within the grace period is not worth a report.
+		if a.State == api.StateBlocked && now.Sub(a.StateAt) < l.opt.BlockedGrace {
+			return decision{}
+		}
 		return failOnce(a, m, "state_"+a.State)
 	}
 }

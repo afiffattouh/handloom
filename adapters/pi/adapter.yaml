@@ -1,0 +1,21 @@
+# Pi adapter. Pi has no command hooks; a small extension forwards its
+# lifecycle events to `handloom hook pi`. Written against the extension API of
+# pi 1.0.0 (docs/extensions.md, dist/core/extensions/types.d.ts).
+kind: pi
+detect: [pi]
+state:
+  method: extension
+  events:
+    session_start: SessionStart
+    agent_start: UserPromptSubmit
+    tool_execution_end: PostToolUse
+    agent_settled: Stop          # if handloom says block, the extension calls pi.sendUserMessage(reason)
+    session_shutdown: SessionEnd
+  install: .pi/extensions/handloom.ts in the project (needs project trust: `pi --approve`), or `pi -e <file>`
+turn_end_delivery: true
+wake:
+  terminal: true
+  headless: "pi -p --session {session_id} {prompt}"   # from --help; not run in the M2 tests
+mcp:
+  install: "pi mcp add -l handloom -- handloom mcp"
+instructions: AGENTS.md

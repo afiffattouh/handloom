@@ -41,10 +41,11 @@ const (
 
 // Wake methods reported by links.
 const (
-	WakeHook  = "hook"  // end-of-turn hook told the agent to continue
-	WakeTmux  = "tmux"  // nudge typed through tmux
-	WakeHerdr = "herdr" // nudge typed through herdr
-	WakeNone  = "none"  // no method applied; see reason
+	WakeHook     = "hook"     // end-of-turn hook told the agent to continue
+	WakeTmux     = "tmux"     // nudge typed through tmux
+	WakeHerdr    = "herdr"    // nudge typed through herdr
+	WakeHeadless = "headless" // one headless turn started on the agent's session
+	WakeNone     = "none"     // no method applied; see reason
 )
 
 type Error struct {
@@ -74,6 +75,7 @@ type Agent struct {
 	StateAt      time.Time `json:"state_at"`
 	WakeTarget   string    `json:"wake_target,omitempty"`
 	SessionID    string    `json:"session_id,omitempty"`
+	Dir          string    `json:"dir,omitempty"` // the agent's working directory on its device
 	RegisteredAt time.Time `json:"registered_at"`
 }
 
@@ -161,6 +163,7 @@ type RegisterReq struct {
 	Project    string `json:"project,omitempty"`
 	WakeTarget string `json:"wake_target,omitempty"`
 	SessionID  string `json:"session_id,omitempty"`
+	Dir        string `json:"dir,omitempty"`
 }
 
 type RoleReq struct {

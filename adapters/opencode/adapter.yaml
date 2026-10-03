@@ -1,0 +1,21 @@
+# OpenCode adapter. A plugin forwards OpenCode's events to `handloom hook opencode`.
+# Event names are taken from the plugin Herdr ships for OpenCode 1.18
+# (session.created, chat.message, permission.asked, session.idle,
+# session.deleted). Not run against a model in the M2 tests.
+kind: opencode
+detect: [opencode]
+state:
+  method: plugin
+  events:
+    session.created: SessionStart
+    chat.message: UserPromptSubmit
+    permission.asked: PermissionRequest
+    tool.execute.after: PostToolUse
+    session.idle: Stop          # if handloom says block, the plugin sends the reason as a prompt
+    session.deleted: SessionEnd
+  install: .opencode/plugins/handloom.js in the project
+turn_end_delivery: true     # through client.session.prompt; unverified
+wake:
+  terminal: true
+  headless: "opencode run --session {session_id} {prompt}"   # from --help; not run in the M2 tests
+instructions: AGENTS.md

@@ -1,6 +1,6 @@
 ## handloom
 
-You are {{name}}, a {{role}} in handloom project {{project}}. Other agents on other machines work with you through the `handloom` command.
+You are {{name}}, a {{role}} in handloom project {{project}}. Other agents on other machines work with you through handloom: the `handloom` command, or the `handloom_*` tools if your CLI offers them (same verbs, for example `handloom_inbox` for `handloom inbox`).
 
 - Run `handloom inbox` when told you have messages, and at the start of each session.
 - Before working on a task, read it with `handloom task show <id>` and claim it with `handloom task claim <id>`.

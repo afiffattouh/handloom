@@ -115,6 +115,12 @@ CREATE TRIGGER audit_no_update BEFORE UPDATE ON audit BEGIN SELECT RAISE(ABORT, 
 CREATE TRIGGER audit_no_delete BEFORE DELETE ON audit BEGIN SELECT RAISE(ABORT, 'audit is append-only'); END;
 CREATE TRIGGER event_no_update BEFORE UPDATE ON event BEGIN SELECT RAISE(ABORT, 'event is append-only'); END;
 CREATE TRIGGER event_no_delete BEFORE DELETE ON event BEGIN SELECT RAISE(ABORT, 'event is append-only'); END;
+`, `
+-- M2: the agent's working directory (headless resume runs there), and
+-- tracking of assigned tasks that nobody claims.
+ALTER TABLE agent ADD COLUMN dir TEXT NOT NULL DEFAULT '';
+ALTER TABLE task ADD COLUMN claimable_at INTEGER;                       -- when the assignee could first claim it
+ALTER TABLE task ADD COLUMN unclaimed_notified INTEGER NOT NULL DEFAULT 0;
 `}
 
 // Open opens (and migrates) the database at path. Use ":memory:" in tests.

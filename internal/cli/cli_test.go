@@ -17,6 +17,7 @@ import (
 	"handloom/internal/client"
 	"handloom/internal/hub"
 	"handloom/internal/link"
+	"handloom/internal/mcp"
 	"handloom/internal/store"
 )
 
@@ -178,7 +179,8 @@ func TestCoreLoopThroughCLI(t *testing.T) {
 	}
 }
 
-func hookInput(event, cwd string, extra string) *bytes.Buffer {
+// hookJSON builds the JSON an agent CLI sends to a hook.
+func hookJSON(event, cwd string, extra string) *bytes.Buffer {
 	return bytes.NewBufferString(`{"hook_event_name":"` + event + `","session_id":"sess-1","cwd":"` + cwd + `"` + extra + `}`)
 }
 
@@ -212,13 +214,13 @@ func TestClaudeAdapterInstallAndHooks(t *testing.T) {
 	if settings.Model != "opus" || settings.Permissions.Allow[0] != "Bash(git status)" || len(settings.Permissions.Allow) != 3 {
 		t.Fatalf("existing settings were not kept: %s", b)
 	}
-	for _, ev := range claudeHookEvents {
+	for _, ev := range adapterSpecs["claude"].events {
 		groups := settings.Hooks[ev.event]
 		want := 1
 		if ev.event == "Stop" {
 			want = 2 // the project's own Stop hook stays
 		}
-		if len(groups) != want || !strings.HasSuffix(groups[len(groups)-1].Hooks[0].Command, hookSuffix) {
+		if len(groups) != want || !strings.HasSuffix(groups[len(groups)-1].Hooks[0].Command, " hook claude") {
 			t.Fatalf("%s hooks: %+v", ev.event, groups)
 		}
 	}
@@ -235,7 +237,7 @@ func TestClaudeAdapterInstallAndHooks(t *testing.T) {
 		t.Helper()
 		var out bytes.Buffer
 		e := &env{out: &out, err: io.Discard}
-		if err := e.claudeHook(hookInput(event, dir, extra)); err != nil {
+		if err := e.agentHook("claude", hookJSON(event, dir, extra)); err != nil {
 			t.Fatalf("%s hook: %v", event, err)
 		}
 		return out.String()
@@ -290,7 +292,7 @@ func TestClaudeAdapterInstallAndHooks(t *testing.T) {
 
 	// A directory that is not a handloom agent: hooks do nothing.
 	var buf bytes.Buffer
-	if err := (&env{out: &buf, err: io.Discard}).claudeHook(hookInput("Stop", t.TempDir(), "")); err != nil || buf.Len() != 0 {
+	if err := (&env{out: &buf, err: io.Discard}).agentHook("claude", hookJSON("Stop", t.TempDir(), "")); err != nil || buf.Len() != 0 {
 		t.Fatalf("hook outside a handloom project: %v %q", err, buf.String())
 	}
 
@@ -298,8 +300,134 @@ func TestClaudeAdapterInstallAndHooks(t *testing.T) {
 	r.run("adapter", "remove", "claude", "--dir", dir)
 	b, _ = os.ReadFile(settingsPath)
 	md, _ = os.ReadFile(filepath.Join(dir, "CLAUDE.md"))
-	if strings.Contains(string(b), hookSuffix) || !strings.Contains(string(b), "/usr/bin/true") ||
+	if strings.Contains(string(b), " hook claude") || !strings.Contains(string(b), "/usr/bin/true") ||
 		string(md) != "# My project\n\nKeep this.\n" {
 		t.Fatalf("after remove:\n%s\n%s", b, md)
+	}
+}
+
+// Codex has the same hook shape as Claude Code; Pi, OMP and OpenCode get a
+// shim that forwards their events to `handloom hook <kind>`.
+func TestOtherAdapters(t *testing.T) {
+	r := newRig(t)
+	for kind, want := range map[string]struct{ file, contains, instructions string }{
+		"codex":    {".codex/hooks.json", " hook codex", "AGENTS.md"},
+		"pi":       {".pi/extensions/handloom.ts", `["hook", KIND]`, "AGENTS.md"},
+		"omp":      {".handloom/omp-extension.ts", `pi.on("agent_end"`, "AGENTS.md"},
+		"opencode": {".opencode/plugins/handloom.js", `"session.idle"`, "AGENTS.md"},
+	} {
+		dir := t.TempDir()
+		name := "agent-" + kind
+		r.run("adapter", "install", kind, "--name", name, "--dir", dir)
+		r.run("adapter", "install", kind, "--name", name, "--dir", dir)
+		b, err := os.ReadFile(filepath.Join(dir, want.file))
+		if err != nil || !strings.Contains(string(b), want.contains) || strings.Contains(string(b), "{{") {
+			t.Fatalf("%s: %s: %v\n%s", kind, want.file, err, b)
+		}
+		md, _ := os.ReadFile(filepath.Join(dir, want.instructions))
+		if !strings.Contains(string(md), "You are "+name+", a worker") || strings.Count(string(md), blockBegin) != 1 {
+			t.Fatalf("%s: instructions:\n%s", kind, md)
+		}
+		if kind == "codex" {
+			var doc struct {
+				Hooks map[string][]struct {
+					Hooks []struct{ Command string }
+				}
+			}
+			json.Unmarshal(b, &doc)
+			for _, ev := range adapterSpecs["codex"].events {
+				if len(doc.Hooks[ev.event]) != 1 { // exactly once: two Stop hooks would ask the hub twice
+					t.Fatalf("codex %s hooks: %+v", ev.event, doc.Hooks[ev.event])
+				}
+			}
+		}
+
+		// The hook handler is the same for every kind; it records kind,
+		// session and directory, and a headless agent's wake target.
+		t.Setenv("HANDLOOM_HEADLESS", "1")
+		var out bytes.Buffer
+		e := &env{out: &out, err: io.Discard}
+		if err := e.agentHook(kind, hookJSON("SessionStart", dir, "")); err != nil {
+			t.Fatal(err)
+		}
+		t.Setenv("HANDLOOM_HEADLESS", "")
+		var agents []api.Agent
+		json.Unmarshal([]byte(r.as(r.human, "agents", "--json")), &agents)
+		var a api.Agent
+		for _, x := range agents {
+			if x.Name == name {
+				a = x
+			}
+		}
+		if a.Kind != kind || a.SessionID != "sess-1" || a.Dir != dir || a.WakeTarget != "headless" || a.State != "idle" {
+			t.Fatalf("%s: registered as %+v", kind, a)
+		}
+		if out.Len() != 0 { // only Claude Code takes context from SessionStart output
+			t.Fatalf("%s: SessionStart printed %q", kind, out.String())
+		}
+		r.run("adapter", "remove", kind, "--dir", dir)
+		if _, err := os.Stat(filepath.Join(dir, want.file)); err == nil && kind != "codex" {
+			t.Fatalf("%s: %s left behind", kind, want.file)
+		}
+	}
+	if code, _, errs := r.exec("adapter", "install", "emacs", "--name", "x"); code != 1 || !strings.Contains(errs, "no adapter") {
+		t.Fatalf("unknown kind: %d %s", code, errs)
+	}
+}
+
+// The MCP server runs the same verbs as the command line, as the same agent.
+func TestMCPThroughRealHub(t *testing.T) {
+	r := newRig(t)
+	r.run("register", "lead", "--kind", "shell")
+	r.run("register", "worker", "--kind", "shell")
+	r.as(r.admin, "agent", "role", "lead", "lead")
+	r.agentOK("lead", "task", "create", "Do it", "--assign", "worker")
+
+	t.Setenv("HANDLOOM_AGENT", "worker")
+	call := func(name, arguments string) (string, bool) {
+		t.Helper()
+		var out bytes.Buffer
+		req := `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"` + name + `","arguments":` + arguments + `}}` + "\n"
+		err := mcp.Serve(strings.NewReader(req), &out, "test", func(argv []string) (string, string, int) {
+			var o, e strings.Builder
+			code := Main(argv, &o, &e)
+			return o.String(), e.String(), code
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var resp struct {
+			Result struct {
+				Content []struct{ Text string }
+				IsError bool
+			}
+		}
+		if err := json.Unmarshal(out.Bytes(), &resp); err != nil {
+			t.Fatalf("%v: %s", err, out.String())
+		}
+		return resp.Result.Content[0].Text, resp.Result.IsError
+	}
+	if text, isErr := call("handloom_inbox", `{}`); isErr || !strings.Contains(text, "Task #1 is assigned to you") {
+		t.Fatalf("inbox: %v %s", isErr, text)
+	}
+	if text, isErr := call("handloom_task_claim", `{"id":1}`); isErr || !strings.Contains(text, "claimed") {
+		t.Fatalf("claim: %v %s", isErr, text)
+	}
+	if text, isErr := call("handloom_task_submit", `{"id":1,"evidence":[]}`); !isErr || !strings.Contains(text, "evidence is required") {
+		t.Fatalf("submit without evidence: %v %s", isErr, text)
+	}
+	if text, isErr := call("handloom_task_submit", `{"id":1,"evidence":["test:x -> ok"],"note":"-n starts with a dash"}`); isErr || !strings.Contains(text, "submitted") {
+		t.Fatalf("submit: %v %s", isErr, text)
+	}
+	// Scopes hold: a worker cannot accept through MCP either.
+	if text, isErr := call("handloom_task_accept", `{"id":1}`); !isErr || !strings.Contains(text, "may not task.manage") {
+		t.Fatalf("accept as worker: %v %s", isErr, text)
+	}
+	if text, isErr := call("handloom_send", `{"to":"role:lead","text":"-- done --"}`); isErr || !strings.Contains(text, "Sent to lead") {
+		t.Fatalf("send: %v %s", isErr, text)
+	}
+	t.Setenv("HANDLOOM_AGENT", "")
+	if out := r.agentOK("lead", "inbox"); !strings.Contains(out, "-- done --") {
+		t.Fatalf("lead inbox: %s", out)
 	}
 }

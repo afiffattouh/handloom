@@ -1,0 +1,21 @@
+# OMP adapter. Same extension family as Pi. Event names are taken from the
+# extension Herdr ships for OMP 18.4 (session_start, agent_start, agent_end,
+# tool_approval_requested, tool_approval_resolved, tool_execution_end,
+# session_shutdown). Not run against a model in the M2 tests.
+kind: omp
+detect: [omp]
+state:
+  method: extension
+  events:
+    session_start: SessionStart
+    agent_start: UserPromptSubmit
+    tool_approval_requested: PermissionRequest
+    tool_execution_end: PostToolUse
+    agent_end: Stop
+    session_shutdown: SessionEnd
+  install: "omp -e <project>/.handloom/omp-extension.ts"
+turn_end_delivery: true     # through pi.sendUserMessage, as for Pi; unverified on OMP
+wake:
+  terminal: true
+  headless: "omp -p --resume {session_id} {prompt}"   # from --help; not run in the M2 tests
+instructions: AGENTS.md

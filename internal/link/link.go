@@ -35,6 +35,10 @@ type Options struct {
 	Tick         time.Duration // how often the ladder runs without events; default 10s
 	PollWait     int           // long-poll seconds; default 25
 
+	Headless        map[string][]string // per-kind headless command overrides
+	HeadlessTimeout time.Duration       // longest a headless turn may run; default 15m
+	HeadlessRun     HeadlessRun         // replaceable in tests
+
 	Log     *log.Logger
 	Now     func() time.Time
 	Drivers func(target string) (drivers.Driver, string, error) // replaceable in tests
@@ -60,6 +64,10 @@ func New(opt Options) *Link {
 	def(&opt.UnknownAfter, 10*time.Minute)
 	def(&opt.Heartbeat, 2*time.Minute)
 	def(&opt.Tick, 10*time.Second)
+	def(&opt.HeadlessTimeout, 15*time.Minute)
+	if opt.HeadlessRun == nil {
+		opt.HeadlessRun = execHeadless
+	}
 	if opt.PollWait <= 0 {
 		opt.PollWait = 25
 	}

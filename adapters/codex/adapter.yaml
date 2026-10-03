@@ -1,0 +1,30 @@
+# Codex adapter. Codex hooks have the same shape as Claude Code's (verified on
+# codex-cli 0.160.0): the same events, JSON on stdin, and a Stop hook that
+# prints {"decision":"block","reason":...} makes Codex continue.
+kind: codex
+detect: [codex]
+state:
+  method: hook
+  events:
+    SessionStart: register session id, directory and wake target, state idle
+    UserPromptSubmit: state working
+    PostToolUse: activity (extends task leases; blocked -> working)
+    PermissionRequest: state blocked
+    Stop: end-of-turn delivery, else state idle
+    SessionEnd: state offline
+  install: .codex/hooks.json in the project
+  trust: >
+    Codex runs a project hook only after you review it (it asks at the first
+    interactive start), or with --dangerously-bypass-hook-trust for unattended runs.
+turn_end_delivery: true
+wake:
+  terminal: true
+  headless: "codex exec resume {session_id} {prompt}"   # from --help; not run in the M2 tests
+sandbox: >
+  Hooks run outside Codex's sandbox. The agent's own shell commands run inside
+  it, and workspace-write blocks the link's unix socket. Either give the agent
+  the handloom verbs as MCP tools (the MCP server runs outside the sandbox), or
+  start Codex with -c sandbox_workspace_write.network_access=true.
+mcp:
+  install: "-c mcp_servers.handloom.command=<handloom> -c 'mcp_servers.handloom.args=[\"mcp\"]' on the command line, or `codex mcp add handloom -- handloom mcp`"
+instructions: AGENTS.md

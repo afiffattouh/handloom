@@ -15,6 +15,7 @@ type agentRow struct {
 	id, projectID, deviceID int64
 	name, kind, role        string
 	wakeTarget, sessionID   string
+	dir                     string
 	state                   string
 	stateAt, hookMsgID      int64
 	registeredAt            int64
@@ -25,12 +26,12 @@ func (a *agentRow) api() api.Agent {
 	return api.Agent{
 		Name: a.name, Kind: a.kind, Role: a.role, Project: a.project, Device: a.device,
 		State: a.state, StateAt: store.Time(a.stateAt), WakeTarget: a.wakeTarget,
-		SessionID: a.sessionID, RegisteredAt: store.Time(a.registeredAt),
+		SessionID: a.sessionID, Dir: a.dir, RegisteredAt: store.Time(a.registeredAt),
 	}
 }
 
 const agentSelect = `SELECT a.id, a.project_id, a.device_id, a.name, a.kind, a.role, a.wake_target,
-	a.session_id, a.state, a.state_at, a.hook_msg_id, a.registered_at, p.name, d.name
+	a.session_id, a.state, a.state_at, a.hook_msg_id, a.registered_at, p.name, d.name, a.dir
 	FROM agent a JOIN project p ON p.id = a.project_id JOIN device d ON d.id = a.device_id `
 
 type scanner interface{ Scan(...any) error }
@@ -38,7 +39,7 @@ type scanner interface{ Scan(...any) error }
 func scanAgent(s scanner) (*agentRow, error) {
 	a := &agentRow{}
 	err := s.Scan(&a.id, &a.projectID, &a.deviceID, &a.name, &a.kind, &a.role, &a.wakeTarget,
-		&a.sessionID, &a.state, &a.stateAt, &a.hookMsgID, &a.registeredAt, &a.project, &a.device)
+		&a.sessionID, &a.state, &a.stateAt, &a.hookMsgID, &a.registeredAt, &a.project, &a.device, &a.dir)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -138,18 +139,21 @@ func agentRegister(c *call) (any, error) {
 		}
 		// An empty wake target or session id keeps the recorded one, so a
 		// re-register from a hook without terminal variables loses nothing.
-		wake, session := a.wakeTarget, a.sessionID
+		wake, session, dir := a.wakeTarget, a.sessionID, a.dir
 		if req.WakeTarget != "" {
 			wake = req.WakeTarget
 		}
 		if req.SessionID != "" {
 			session = req.SessionID
 		}
-		if _, err := c.tx.Exec(`UPDATE agent SET kind = ?, wake_target = ?, session_id = ? WHERE id = ?`,
-			kind, wake, session, a.id); err != nil {
+		if req.Dir != "" {
+			dir = req.Dir
+		}
+		if _, err := c.tx.Exec(`UPDATE agent SET kind = ?, wake_target = ?, session_id = ?, dir = ? WHERE id = ?`,
+			kind, wake, session, dir, a.id); err != nil {
 			return nil, err
 		}
-		a.kind, a.wakeTarget, a.sessionID = kind, wake, session
+		a.kind, a.wakeTarget, a.sessionID, a.dir = kind, wake, session, dir
 		c.p.agent = a
 		if err := c.record(a.projectID, 0, "agent.register", "agent:"+a.name,
 			map[string]any{"kind": kind, "wake_target": wake, "session_id": session, "again": true}); err != nil {
@@ -168,9 +172,9 @@ func agentRegister(c *call) (any, error) {
 		return nil, notFound("no project %q", req.Project)
 	}
 	ms := store.Millis(c.now)
-	res, err := c.tx.Exec(`INSERT INTO agent(project_id, device_id, name, kind, role, wake_target, session_id, state, state_at, registered_at)
-		VALUES (?, ?, ?, ?, 'worker', ?, ?, 'unknown', ?, ?)`,
-		projectID, c.p.deviceID, req.Name, req.Kind, req.WakeTarget, req.SessionID, ms, ms)
+	res, err := c.tx.Exec(`INSERT INTO agent(project_id, device_id, name, kind, role, wake_target, session_id, dir, state, state_at, registered_at)
+		VALUES (?, ?, ?, ?, 'worker', ?, ?, ?, 'unknown', ?, ?)`,
+		projectID, c.p.deviceID, req.Name, req.Kind, req.WakeTarget, req.SessionID, req.Dir, ms, ms)
 	if err != nil {
 		return nil, err
 	}
@@ -339,7 +343,7 @@ func agentWake(c *call) (any, error) {
 		return nil, err
 	}
 	switch req.Method {
-	case api.WakeTmux, api.WakeHerdr:
+	case api.WakeTmux, api.WakeHerdr, api.WakeHeadless:
 		if err := c.markDelivered(a, req.Method); err != nil {
 			return nil, err
 		}
@@ -372,7 +376,7 @@ func agentWake(c *call) (any, error) {
 			}
 		}
 	default:
-		return nil, badRequest("method must be tmux, herdr or none")
+		return nil, badRequest("method must be tmux, herdr, headless or none")
 	}
 	return api.WakeResp{Messages: ids}, nil
 }

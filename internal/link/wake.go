@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"handloom/internal/api"
+	"handloom/internal/drivers"
 )
 
 // memo is what the link remembers about one local agent between ladder runs.
@@ -15,6 +16,7 @@ type memo struct {
 	reportedUnknown bool
 	failedReason    string // wake failure already reported to the lead; cleared when the state changes
 	state           string // agent state as last seen from the hub
+	headlessRunning bool   // a headless turn started by this link is still running
 	lastHeartbeat   time.Time
 }
 
@@ -45,19 +47,24 @@ type decision struct {
 //
 //  1. working: do nothing. The end-of-turn hook hands the mail over.
 //  2. idle with a terminal: type the nudge, at most once per NudgeEvery.
-//  3. headless resume: not in this version.
+//  3. no terminal but a saved session (wake target "headless"): run one
+//     headless turn on it. Such an agent is offline between turns.
 //  4. otherwise (blocked, offline, unknown, no terminal): report to the lead,
 //     once until the agent's state changes.
 func (l *Link) decide(a api.DeviceAgent, m *memo, now time.Time) decision {
 	if a.Unread == 0 {
 		return decision{}
 	}
-	switch a.State {
-	case api.StateWorking:
+	headless := a.WakeTarget == HeadlessTarget
+	switch {
+	case a.State == api.StateWorking:
 		return decision{}
-	case api.StateIdle:
+	case a.State == api.StateIdle, a.State == api.StateOffline && headless:
 		if a.WakeTarget == "" {
 			return failOnce(a, m, "no_wake_target")
+		}
+		if headless && m.headlessRunning {
+			return decision{} // its end-of-turn hook hands over new mail
 		}
 		if m.nudges >= 2 {
 			if !m.reportedUnknown && now.Sub(m.firstNudge) >= l.opt.UnknownAfter {
@@ -112,9 +119,17 @@ func (l *Link) step(ctx context.Context, a api.DeviceAgent) {
 
 	switch d.action {
 	case doNudge:
-		drv, target, err := l.opt.Drivers(a.WakeTarget)
-		if err == nil {
-			err = drv.Nudge(ctx, target, NudgeLine(a.Unread))
+		method := api.WakeHeadless
+		var err error
+		if a.WakeTarget == HeadlessTarget {
+			err = l.startHeadless(ctx, a, m, NudgeLine(a.Unread))
+		} else {
+			var drv drivers.Driver
+			var target string
+			if drv, target, err = l.opt.Drivers(a.WakeTarget); err == nil {
+				method = drv.Name()
+				err = drv.Nudge(ctx, target, NudgeLine(a.Unread))
+			}
 		}
 		if err != nil {
 			l.opt.Log.Printf("nudge %s: %v", a.Name, err)
@@ -135,8 +150,8 @@ func (l *Link) step(ctx context.Context, a api.DeviceAgent) {
 		m.lastNudge = now
 		m.failedReason = ""
 		l.mu.Unlock()
-		l.opt.Log.Printf("nudged %s through %s (%d unread)", a.Name, drv.Name(), a.Unread)
-		if err := l.hub.Do(ctx, "POST", "/v1/agents/"+a.Name+"/wake", api.WakeReq{Method: drv.Name()}, nil); err != nil {
+		l.opt.Log.Printf("woke %s through %s (%d unread)", a.Name, method, a.Unread)
+		if err := l.hub.Do(ctx, "POST", "/v1/agents/"+a.Name+"/wake", api.WakeReq{Method: method}, nil); err != nil {
 			l.opt.Log.Printf("report wake %s: %v", a.Name, err)
 		}
 	case doFail:

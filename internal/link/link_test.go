@@ -413,3 +413,114 @@ func TestSocketIsOwnerOnlyAndExclusive(t *testing.T) {
 		t.Fatal("a second link started on the same socket")
 	}
 }
+
+// ---- headless resume (wake ladder step 3) ----
+
+type headlessCall struct {
+	agent, dir string
+	argv       []string
+}
+
+// headlessFixture makes "worker" a headless agent and records the turns the
+// link starts instead of running them.
+func headlessFixture(t *testing.T) (*fixture, *[]headlessCall, chan error) {
+	f := newFixture(t)
+	var calls []headlessCall
+	done := make(chan error, 4)
+	f.link.opt.HeadlessRun = func(_ context.Context, agent, dir string, argv []string) (func() error, error) {
+		calls = append(calls, headlessCall{agent, dir, argv})
+		return func() error { return <-done }, nil
+	}
+	f.must(f.worker.Post("/v1/agents", api.RegisterReq{Name: "worker", Kind: "claude",
+		WakeTarget: HeadlessTarget, SessionID: "sess-9", Dir: "/work/project"}, nil))
+	f.state(f.lead, "working")
+	return f, &calls, done
+}
+
+func TestLadderHeadlessResume(t *testing.T) {
+	f, calls, done := headlessFixture(t)
+	f.state(f.worker, "offline") // a headless agent is offline between turns
+	f.mail("worker")
+	f.ladder()
+	if len(*calls) != 1 || f.driver.count() != 0 {
+		t.Fatalf("calls %v, typed nudges %d", *calls, f.driver.count())
+	}
+	c := (*calls)[0]
+	want := "claude -p --resume sess-9 You have 1 new handloom message. Run: handloom inbox"
+	if c.agent != "worker" || c.dir != "/work/project" || strings.Join(c.argv, " ") != want {
+		t.Fatalf("headless call: %+v", c)
+	}
+	wakes := f.audit("wake")
+	if len(wakes) != 1 || !strings.Contains(string(wakes[0].Payload), `"method":"headless"`) {
+		t.Fatalf("audit: %+v", wakes)
+	}
+	// While the turn runs, more mail starts no second turn: its Stop hook delivers.
+	f.advance(2 * time.Minute)
+	f.mail("worker")
+	f.ladder()
+	if len(*calls) != 1 {
+		t.Fatalf("second turn started while the first runs: %v", *calls)
+	}
+	// The turn ends; the unread mail gets a new turn.
+	done <- nil
+	waitFor(t, func() bool { f.ladder(); return len(*calls) == 2 })
+	done <- nil
+}
+
+func TestLadderHeadlessFailures(t *testing.T) {
+	f, calls, done := headlessFixture(t)
+	f.state(f.worker, "offline")
+	// A turn that ends with an error is reported to the lead.
+	f.mail("worker")
+	f.ladder()
+	done <- errors.New("exit status 1")
+	waitFor(t, func() bool { return len(f.audit("wake.failed")) == 1 })
+	if p := string(f.audit("wake.failed")[0].Payload); !strings.Contains(p, "headless turn failed: exit status 1") {
+		t.Fatalf("audit: %s", p)
+	}
+
+	// Overrides replace the command; a kind with no command cannot be woken.
+	f.link.opt.Headless = map[string][]string{"claude": {"/opt/claude", "--resume={session_id}", "-p", "{prompt}"}}
+	argv, err := f.link.headlessArgv(api.DeviceAgent{Agent: api.Agent{Kind: "claude", SessionID: "s", Dir: "/d"}}, "hi")
+	if err != nil || strings.Join(argv, " ") != "/opt/claude --resume=s -p hi" {
+		t.Fatalf("override: %v %v", argv, err)
+	}
+	for _, a := range []api.Agent{{Kind: "shell", SessionID: "s", Dir: "/d"}, {Kind: "claude", Dir: "/d"}, {Kind: "claude", SessionID: "s"}} {
+		if _, err := f.link.headlessArgv(api.DeviceAgent{Agent: a}, "hi"); err == nil {
+			t.Errorf("headless command built for %+v", a)
+		}
+	}
+	_ = calls
+}
+
+// An offline agent with a terminal target is not resumed headless: its
+// human closed it.
+func TestOfflineTerminalAgentIsNotResumed(t *testing.T) {
+	f := newFixture(t)
+	f.state(f.lead, "working")
+	called := false
+	f.link.opt.HeadlessRun = func(context.Context, string, string, []string) (func() error, error) {
+		called = true
+		return func() error { return nil }, nil
+	}
+	f.state(f.worker, "offline")
+	f.mail("worker")
+	f.ladder()
+	if called || f.driver.count() != 0 {
+		t.Fatal("woke an offline terminal agent")
+	}
+	if fails := f.audit("wake.failed"); len(fails) != 1 || !strings.Contains(string(fails[0].Payload), "state_offline") {
+		t.Fatalf("audit: %+v", fails)
+	}
+}
+
+func waitFor(t *testing.T, cond func() bool) {
+	t.Helper()
+	for i := 0; i < 200; i++ {
+		if cond() {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("condition not reached")
+}

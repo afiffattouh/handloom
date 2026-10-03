@@ -13,7 +13,21 @@ import (
 	"strings"
 
 	"handloom/internal/client"
+	"handloom/internal/mcp"
 )
+
+// mcp serves the agent verbs as MCP tools on stdin/stdout. Each tool call
+// runs the same code path as the matching command line.
+func (e *env) mcp(args []string) error {
+	if len(args) != 0 {
+		return usageErr("usage: handloom mcp")
+	}
+	return mcp.Serve(os.Stdin, e.out, Version, func(argv []string) (string, string, int) {
+		var out, errb strings.Builder
+		code := Main(argv, &out, &errb)
+		return out.String(), errb.String(), code
+	})
+}
 
 const usage = `handloom: coordination for coding agents across machines
 
@@ -37,7 +51,9 @@ Device:
   handloom link join <hub-url> <join-token>           exchange a join token for a device credential
   handloom link run                                   run the link daemon
   handloom link status
-  handloom adapter install claude --name N [--dir D]  install the Claude Code adapter in a project
+  handloom adapter install <kind> --name N [--dir D]  install an agent adapter in a project
+                                                  (kinds: claude, codex, pi, omp, opencode)
+  handloom mcp                                        MCP server (stdio) offering the agent verbs as tools
 
 Hub and administration (HANDLOOM_HUB and HANDLOOM_TOKEN set to the hub URL and a token):
   handloom hub init [--data DIR]                      create the database, print the admin token once
@@ -103,6 +119,8 @@ func Main(args []string, stdout, stderr io.Writer) int {
 		return e.hook(rest)
 	case "adapter":
 		err = e.adapter(rest)
+	case "mcp":
+		err = e.mcp(rest)
 	default:
 		err = usageErr("unknown command %q; run `handloom help`", cmd)
 	}
@@ -144,7 +162,16 @@ func (e *env) flags(name string) *flags {
 
 // parse accepts flags before, between and after positional arguments, and
 // returns the positionals.
+// A "--" ends the flags: everything after it is positional, even if it
+// starts with a dash.
 func (f *flags) parse(args []string) ([]string, error) {
+	var tail []string
+	for i, a := range args {
+		if a == "--" {
+			args, tail = args[:i], args[i+1:]
+			break
+		}
+	}
 	var pos []string
 	for {
 		if err := f.Parse(args); err != nil {
@@ -152,7 +179,7 @@ func (f *flags) parse(args []string) ([]string, error) {
 		}
 		args = f.Args()
 		if len(args) == 0 {
-			return pos, nil
+			return append(pos, tail...), nil
 		}
 		pos = append(pos, args[0])
 		args = args[1:]

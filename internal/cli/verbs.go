@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"handloom/internal/api"
-	"handloom/internal/drivers"
 )
 
 // ---- administration ----
@@ -175,6 +174,7 @@ func (e *env) register(args []string) error {
 	project := fs.String("project", "", "project (default \"default\")")
 	wake := fs.String("wake-target", "", "wake target (default: detected from $TMUX_PANE or $HERDR_PANE_ID)")
 	session := fs.String("session-id", "", "agent session id, if known")
+	dir := fs.String("dir", "", "the agent's working directory (default: the current directory)")
 	pos, err := fs.need(args, 1, 1, "register <name> [--kind K] [--project P]")
 	if err != nil {
 		return err
@@ -184,10 +184,13 @@ func (e *env) register(args []string) error {
 		return err
 	}
 	if *wake == "" && *kind != "shell" {
-		*wake = drivers.Detect() // a plain shell has no agent to read a nudge
+		*wake = wakeTarget() // a plain shell has no agent to read a nudge
+	}
+	if *dir == "" {
+		*dir, _ = os.Getwd()
 	}
 	var a api.Agent
-	req := api.RegisterReq{Name: pos[0], Kind: *kind, Project: *project, WakeTarget: *wake, SessionID: *session}
+	req := api.RegisterReq{Name: pos[0], Kind: *kind, Project: *project, WakeTarget: *wake, SessionID: *session, Dir: *dir}
 	if err := c.Post("/v1/agents", req, &a); err != nil {
 		return err
 	}

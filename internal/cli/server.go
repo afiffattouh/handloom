@@ -131,8 +131,13 @@ func (e *env) link(args []string) error {
 		if err != nil {
 			return err
 		}
+		headless, err := link.LoadHeadlessOverrides()
+		if err != nil {
+			return err
+		}
 		l := link.New(link.Options{
 			Hub: cfg.Hub, Device: cfg.Device, Credential: cfg.Credential, Socket: client.SocketPath(),
+			Headless:   headless,
 			NudgeEvery: *nudge, Renudge: *renudge, UnknownAfter: *unknown, Heartbeat: *heartbeat,
 			Log: log.New(e.err, "link ", log.LstdFlags),
 		})

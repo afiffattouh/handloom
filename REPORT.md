@@ -1,4 +1,4 @@
-# Report: handloom M0 and M1
+# Report: handloom M0, M1 and M2
 
 Date: 2026-10-03. Builder: Claude Code on GB10.
 
@@ -8,8 +8,9 @@ Date: 2026-10-03. Builder: Claude Code on GB10.
 |---|---|
 | **M0** | **Passes** on GB10 plus Mantis. |
 | **M1** | **Passes** on GB10 plus Mantis: three of four runs. The failed run is explained below and led to a fix. |
+| **M2** | **Partly passes.** Claude Code lead, Codex worker and a headless Claude Code worker finish the job (two runs of two). The check also asks for a Pi worker, which has not run: Pi has no working cloud model on either machine. |
 
-The owner logged in to Claude Code on Mantis during the build; before that M1 could only be rehearsed on GB10.
+The M0 and M1 sections below are as written for those milestones. M2 is in its own section at the end.
 
 ## What works
 
@@ -45,7 +46,7 @@ ok  	handloom/internal/hub	0.648s
 ok  	handloom/internal/link	0.099s
 ```
 
-97 tests and subtests pass, none fail. `TestScopeTable` checks every cell of the section 6 table: 15 verbs times 4 callers, 60 subtests. Each forbidden cell must return 403 and leave a `denied` audit row; each permitted cell must succeed.
+At M1: 97 tests and subtests pass, none fail (105 after M2). `TestScopeTable` checks every cell of the section 6 table: 15 verbs times 4 callers, 60 subtests. Each forbidden cell must return 403 and leave a `denied` audit row; each permitted cell must succeed.
 
 ### M0: GB10 plus Mantis (`test/e2e/m0.sh`, transcript `docs/evidence/m0-gb10-mantis.txt`)
 
@@ -174,3 +175,93 @@ Listed at the end of DECISIONS.md. In short: add the four API calls the wake lad
 - GB10: Go 1.27.1 in `~/.local/go`. The repo in `/home/user/projects/handloom` with local commits only; no remote, nothing pushed.
 - Mantis: `/root/hltest` (the test binary, link files and the worker's test project). Remove with `ssh mantis rm -rf /root/hltest`. The next e2e run recreates it.
 - No tmux session, Herdr pane or process from the tests is still running. Ports 7420 and 7421 are free.
+
+---
+
+# M2
+
+## Status
+
+The M2 check: the M1 scenario with a mixed team (at least a Claude lead plus Codex and Pi workers), and with one worker that has no terminal.
+
+| Part | Result |
+|---|---|
+| Claude Code lead, GB10 | passes |
+| Codex worker, Mantis (sandbox on, handloom through MCP) | passes |
+| Worker with no terminal (headless Claude Code, Mantis) | passes |
+| Pi worker | **not run** |
+
+**Why no Pi worker.** Pi's only working model is the local Qwen: on GB10 its OpenAI login is invalid (`pi auth check` says `invalid`), on Mantis its OpenRouter key answers `403 Key limit exceeded`. Your rule for the local model (work goes through OMP in a detached tmux run, no input typed into a running session) does not fit a handloom worker woken by typed nudges, so I did not run one without asking. To run the full check, either fix one cloud login for Pi, or allow the local model for this test:
+
+```
+PI_MODEL=<provider/model> test/e2e/m2.sh
+```
+
+## What was built
+
+- **`handloom hook <kind>`**: one handler for Claude Code, Codex, and the Pi, OMP and OpenCode shims.
+- **Codex adapter**: `.codex/hooks.json` and the instructions in `AGENTS.md`. Verified on Mantis: state hooks, Stop-hook delivery, terminal nudge.
+- **`handloom mcp`**: MCP server over stdio with the agent verbs as tools. Codex's sandbox blocks the link's socket; through MCP it uses handloom with the sandbox left on.
+- **`handloom run <name> -- <command>`**: starts an agent CLI as a registered, wakeable agent. Needed because Codex's session-start hook fires only at the first prompt.
+- **Headless resume** (wake ladder step 3): an agent with wake target `headless` is woken by one headless turn on its saved session.
+- **Pi, OMP and OpenCode adapters**: extension or plugin that forwards their events to `handloom hook`. Written from each CLI's extension API; installed and unit-tested; **not run against a model**.
+- **Unclaimed-task notice**: the hub tells the lead when an assigned task is not claimed for 10 minutes (the gap found in M1).
+- A blocked agent is reported to the lead after 30 seconds, not at once.
+
+## What does not work, or is not verified
+
+- **No Pi worker ran** (above).
+- **Pi, OMP and OpenCode adapters are unverified live.** Their shims may need changes once run: in particular the end-of-turn delivery (`pi.sendUserMessage` at `agent_settled`; `client.session.prompt` at `session.idle`).
+- **Headless commands for Codex, Pi, OMP and OpenCode** come from each CLI's `--help` and have not been run. Only `claude -p --resume` has.
+- **Codex on GB10 is logged out**, so Codex 0.144.5 there is untested. Mantis has 0.160.0.
+- **Codex records the test folder as trusted** in `~/.codex/config.toml` on Mantis (one entry, `/root/hltest/codex-project`). handloom does not write it; Codex does.
+- Two runs is a small sample.
+
+## Evidence
+
+Unit tests: 105 tests and subtests pass, none fail.
+
+`test/e2e/m2.sh`, two runs, both exit 0: `docs/evidence/m2-claude-codex-headless-run1.txt` and `-run2.txt`; the Codex terminal and the headless log of run 1 are beside them. M0 was rerun with the final code and passes.
+
+Audit log after the brief, run 2:
+
+```
+24  19:54:30.021Z  agent:hltest-lead      task.create  task:1  {"assigned_to":"hltest-codex","depends_on":[],"title":"Collect kernel release"}
+25  19:54:30.387Z  agent:hltest-lead      task.create  task:2  {"assigned_to":"hltest-headless","depends_on":[],"title":"Collect hostname"}
+26  19:54:30.542Z  device:hltest-mantis   wake         agent:hltest-codex     {"messages":[1],"method":"tmux"}
+27  19:54:30.629Z  device:hltest-mantis   wake         agent:hltest-headless  {"messages":[2],"method":"headless"}
+30  19:54:32.022Z  agent:hltest-lead      task.create  task:3  {"assigned_to":"hltest-codex","depends_on":[1],"title":"Collect architecture"}
+36  19:54:38.791Z  agent:hltest-headless  task.claim   task:2  {"owner":"hltest-headless"}
+38  19:54:42.658Z  agent:hltest-headless  task.submit  task:2  {"evidence":["test:cat hostname.txt -> ubuntu-4gb-hel1-1"],...}
+39  19:54:43.069Z  device:hltest-thinkstationpgx-2be0 wake  agent:hltest-lead  {"messages":[4],"method":"tmux"}
+43  19:54:46.219Z  agent:hltest-codex     task.claim   task:1  {"owner":"hltest-codex"}
+45  19:54:55.183Z  agent:hltest-lead      task.accept  task:2  {"owner":"hltest-headless"}
+47  19:54:58.022Z  agent:hltest-codex     task.submit  task:1  {"evidence":["test:cat kernel.txt -> 6.8.0-139-generic"],...}
+49  19:55:33.253Z  device:hltest-mantis   wake         agent:hltest-headless  {"messages":[5],"method":"headless"}
+56  19:55:51.575Z  device:hltest-thinkstationpgx-2be0 wake  agent:hltest-lead  {"messages":[6],"method":"tmux"}
+59  19:55:55.490Z  agent:hltest-lead      task.accept  task:1  {"owner":"hltest-codex"}
+60  19:55:56.013Z  device:hltest-mantis   wake         agent:hltest-codex     {"messages":[7,8],"method":"tmux"}
+64  19:56:03.505Z  agent:hltest-codex     task.claim   task:3  {"owner":"hltest-codex"}
+65  19:56:12.905Z  agent:hltest-codex     task.submit  task:3  {"evidence":["test:cat arch.txt -> x86_64"],...}
+67  19:56:51.581Z  device:hltest-thinkstationpgx-2be0 wake  agent:hltest-lead  {"messages":[9],"method":"tmux"}
+70  19:56:55.487Z  agent:hltest-lead      task.accept  task:3  {"owner":"hltest-codex"}
+```
+
+The script's checks on that log, all ok: the lead created three tasks spread over the two workers; each was claimed and submitted by its assignee and accepted by the lead; task 3 was claimed only after task 1 was accepted; the Codex worker was woken by typed nudges; the headless worker was woken only by headless turns; no human or admin action after the brief.
+
+Setup before the brief, done by the script: starting the agents, and one `claude -p` run that creates the headless worker's session, because a session must exist before it can be resumed.
+
+## How the Codex worker is started (from the run)
+
+```
+handloom run hltest-codex -- codex --enable hooks --dangerously-bypass-hook-trust -a never -s workspace-write \
+  -c 'mcp_servers.handloom.command="/root/hltest/bin/handloom"' -c 'mcp_servers.handloom.args=["mcp"]' \
+  -c 'mcp_servers.handloom.default_tools_approval_mode="approve"' \
+  -c 'mcp_servers.handloom.env={HANDLOOM_HOME="/root/hltest/home",HANDLOOM_AGENT="hltest-codex"}'
+```
+
+The sandbox and "never ask" stay on. `--dangerously-bypass-hook-trust` skips Codex's one-time review of the hooks handloom installed; it is not the approvals-and-sandbox bypass. The reasons are in DECISIONS.md (D23 to D25).
+
+## Decisions and design changes
+
+In DECISIONS.md under "M2 decisions". The main ones: Codex reaches handloom through MCP rather than by opening its sandbox to the network (D23); headless resume is opt-in, so an interactive agent that went offline is not resumed behind its owner's back (D26); the MCP server is hand-written with no new dependency (D29).

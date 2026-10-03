@@ -1,0 +1,150 @@
+
+== build
+local:  /home/user/projects/handloom/bin/handloom (handloom dev protocol handloom/1)
+remote: dist/handloom-linux-amd64 -> mantis:/root/hltest/bin/handloom
+
+== clean start
+
+== hub on model-host.example:7420
+this machine: {"ok":true,"protocol":"handloom/1"}
+mantis:      {"ok":true,"protocol":"handloom/1"}
+
+== devices and links
+Joined http://model-host.example:7420 as device hltest-thinkstationpgx-2be0. Credential saved in /home/user/projects/handloom/test/e2e/out/m1/home (mode 0600).
+Joined http://model-host.example:7420 as device hltest-mantis. Credential saved in /root/hltest/home (mode 0600).
+link is running: device hltest-thinkstationpgx-2be0, hub http://model-host.example:7420, handloom/1
+link is running: device hltest-mantis, hub http://model-host.example:7420, handloom/1
+hltest-mantis      joined      last seen 0s ago
+hltest-thinkstationpgx-2be0 joined      last seen 1s ago
+
+== Claude Code on mantis
+2.1.288 (Claude Code)
+  "loggedIn": true,
+  "authMethod": "claude.ai",
+
+== register agents; the admin makes hltest-lead the lead
+Registered hltest-lead (claude) as worker in project default on device hltest-thinkstationpgx-2be0.
+Registered hltest-worker (claude) as worker in project default on device hltest-mantis.
+hltest-lead is now lead in project default.
+
+== start Claude Code: lead on thinkstationpgx-2be0, worker on mantis (model sonnet)
+Claude Code adapter installed in /home/user/projects/handloom/test/e2e/out/m1/lead-project for hltest-lead (lead, project default).
+  hooks:        /home/user/projects/handloom/test/e2e/out/m1/lead-project/.claude/settings.local.json
+  instructions: /home/user/projects/handloom/test/e2e/out/m1/lead-project/CLAUDE.md
+  identity:     /home/user/projects/handloom/test/e2e/out/m1/lead-project/.handloom/agent
+Start `claude` in that directory, inside tmux or herdr so it can be woken.
+started hltest-lead in tmux session hltest-lead (tmux -L hltest attach -t hltest-lead)
+Claude Code adapter installed in /root/hltest/worker-project for hltest-worker (worker, project default).
+  hooks:        /root/hltest/worker-project/.claude/settings.local.json
+  instructions: /root/hltest/worker-project/CLAUDE.md
+  identity:     /root/hltest/worker-project/.handloom/agent
+Start `claude` in that directory, inside tmux or herdr so it can be woken.
+started hltest-worker in tmux session hltest-worker (tmux -L hltest attach -t hltest-worker)
+    hltest-lead: idle, session 7e607f67-d61d-4f4a-a5e1-e824a87078b8, wake target tmux:/tmp/tmux-1000/hltest:%2
+    hltest-worker: idle, session adf3d410-9591-45bc-baa4-3c15585981b3, wake target tmux:/tmp/tmux-0/hltest:%1
+
+== the first brief (the only thing typed into an agent after setup)
+    You are the lead of a handloom team. I will not be available again, so do not ask me anything. Use the handloom 
+    command for all coordination; your CLAUDE.md explains it. The job: collect three facts from the worker agent 
+    hltest-worker, which runs on another machine. Create exactly three handloom tasks, all assigned to 
+    hltest-worker. First task: run uname -r and write the output to kernel.txt. Second task: run hostname and 
+    write the output to hostname.txt. Third task, which must depend on the first task: write summary.txt with two 
+    lines, the kernel version and then the hostname. Every task must ask for evidence of the form test:cat <file> 
+    -> <content>. After creating the tasks, end your turn; handloom wakes you when work is submitted. When woken, 
+    read your inbox and check each submitted task with handloom task show. The files are on the worker's machine and 
+    you cannot read them, so judge the evidence text: accept the task if the evidence shows the file content, 
+    reject it with a reason if not. When all three tasks are done, say DONE and stop.
+    typed into hltest-lead at 18:53:22Z, after audit row 15. From here the script only reads.
+
+== waiting for the job (up to 500s)
+    +   0s  no tasks yet                                       hltest-lead=idle hltest-worker=idle
+    +   5s  #1:open #2:open                                    hltest-lead=working hltest-worker=working
+    +  10s  #1:open #2:open #3:open                            hltest-lead=idle hltest-worker=working
+    +  26s  #1:open #2:open #3:open                            hltest-lead=idle hltest-worker=idle
+
+== TIMEOUT: lead pane
+  submitted task with handloom task show. The files are on the worker's machine and you cannot read them, so judge the evidence text: accept the task if the
+  evidence shows the file content, reject it with a reason if not. When all three tasks are done, say DONE and stop.
+
+● Bash(handloom inbox; handloom agents; handloom task list)
+  ⎿  No new messages.
+     hltest-lead        lead     claude   working  on hltest-thinkstationpgx-2be0 since 2s ago
+     hltest-worker      worker   claude   idle     on hltest-mantis since 7s ago
+     No tasks.
+
+● Bash(handloom task create "Record kernel version" --body "Run uname -r and write the output to kernel.txt. Evidence required, of the form: test:cat kernel.txt ->
+      <conten…)
+  ⎿  Created #1   open      Record kernel version  (assigned to hltest-worker)
+
+● Bash(handloom task create "Record hostname" --body "Run hostname and write the output to hostname.txt. Evidence required, of the form: test:cat hostname.txt ->
+      <content>…)
+  ⎿  Created #2   open      Record hostname  (assigned to hltest-worker)
+
+● Bash(handloom task create "Write summary" --body "Write summary.txt with two lines: first the kernel version (contents of kernel.txt), then the hostname (contents
+      of hos…)
+  ⎿  Created #3   open      Write summary  (assigned to hltest-worker, depends on #1)
+
+● I created the three tasks, all assigned to hltest-worker:
+
+  - #1: run uname -r and write the output to kernel.txt.
+  - #2: run hostname and write the output to hostname.txt.
+  - #3: write summary.txt with the kernel version, then the hostname. It depends on #1.
+
+  Each task asks for evidence of the form test:cat <file> -> <content>. I'm ending my turn now, and handloom will wake me when work is submitted.
+
+✻ Cogitated for 7s · done 8:53 PM
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ don't ask on (shift+tab to cycle) · ← for agents
+
+
+
+
+
+
+== TIMEOUT: worker pane
+  ⎿  [1] from hub, about task #1, 18:53:26
+         Task #1 is assigned to you: Record kernel version. Read it with `handloom task show 1`, then claim it with `handloom task claim 1`.
+     [2] from hub, about task #2, 18:53:27
+     … +5 lines (ctrl+o to expand)
+
+● Bash(handloom task show 1; handloom task show 2)
+  ⎿  #1   open      Record kernel version  (assigned to hltest-worker)
+     created by agent:hltest-lead, 2026-10-03 18:53:26
+     … +5 lines (ctrl+o to expand)
+
+● Bash(handloom task claim 1 && handloom task claim 2 && uname -r > kernel.txt && hostname > hostname.txt && cat kernel.txt hostname.txt)
+  ⎿  Error: Permission to use Bash has been denied because Claude Code is running in don't ask mode. IMPORTANT: You *may* attempt to accomplish this action
+     using other tools that might naturally be used to accomplish this goal, e.g. using head instead of cat. But you *should not* attempt to work around this
+     denial in malicious ways, e.g. do not use your ability to run tests to execute non-test actions. You should only try to work around this restriction in
+     reasonable ways that do not attempt to bypass the intent behind this denial. If you believe this capability is essential to complete the user's request,
+     STOP and explain to the user what you were trying to do and why you need this permission. Let the user decide how to proceed.
+
+● I couldn't do tasks #1 and #2 because Bash was denied. The harness is in "don't ask" mode and rejected my last command. That command claimed both tasks, ran
+  uname -r and hostname, wrote kernel.txt and hostname.txt in /root/hltest/worker-project, and printed them.
+
+  I haven't claimed anything or written any files. The earlier handloom inbox and handloom task show calls went through, so only this command was blocked.
+
+  I need Bash to run handloom task claim and handloom task submit and to run the two system commands. Either allow those, or tell me another way to proceed. Task #3 is
+  still blocked on #1, so I'm leaving it alone.
+
+✻ Crunched for 16s · done 6:53 PM
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ allow Bash and continue
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ don't ask on (shift+tab to cycle) · ← for agents
+
+
+
+
+
+
+
+
+
+
+FAIL: the job did not finish in 500s (audit log in /home/user/projects/handloom/test/e2e/out/m1/audit.txt)
+exit=1

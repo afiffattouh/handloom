@@ -221,21 +221,30 @@ sleep 1
 wtmux send-keys -t "$WORKER" Enter
 for _ in $(seq 40); do [ "$(agent_field "$WORKER" state)" = working ] && break; sleep 0.5; done
 [ "$(agent_field "$WORKER" state)" = working ] || fail "extra: the worker did not start working"
-show human human send "$WORKER" "Extra check. Please run: handloom send role:lead hook-delivery-ok"
+show human human send "$WORKER" "Extra check: please reply with: handloom send role:lead hook-delivery-ok"
 verdict=""
-for _ in $(seq 60); do
+for _ in $(seq 40); do
   verdict="$(human audit --json | python3 -c '
 import json, sys
 rows = [r for r in json.load(sys.stdin) if r["seq"] > int(sys.argv[1])]
 worker = "agent:" + sys.argv[2]
 wakes = [r for r in rows if r["action"] == "wake" and r["target"] == worker]
+read = [r for r in rows if r["action"] == "inbox.read" and r["actor"] == worker]
+idle = [r for r in rows if r["action"] == "agent.state" and r["target"] == worker and r["payload"]["state"] == "idle"]
 reply = [r for r in rows if r["action"] == "message.send" and r["actor"] == worker]
-if wakes and reply:
-    print(wakes[0]["payload"]["method"])' "$EXTRA_AT" "$WORKER")"
+# Wait for the turn to end, so the transcript shows what the agent did with the mail.
+if wakes and read and idle and wakes[0]["seq"] < read[0]["seq"] < idle[-1]["seq"]:
+    print(wakes[0]["payload"]["method"], "replied" if reply else "no-reply")' "$EXTRA_AT" "$WORKER")"
   [ -n "$verdict" ] && break
   sleep 3
 done
-human audit | awk -v after="$EXTRA_AT" '$1 > after' | grep -E ' (wake|wake\.failed|message\.send|inbox\.read|agent\.state) ' || true
-[ "$verdict" = hook ] || fail "extra: expected the worker to be woken by the hook, got '${verdict:-nothing}'"
-echo "    ok   the worker was working, nothing was typed, the Stop hook delivered the mail and the worker acted on it"
+human audit | awk -v after="$EXTRA_AT" '$1 > after' | grep -E ' (wake|wake\.failed|message\.send|inbox\.read|agent\.state|denied) ' || true
 wtmux capture-pane -p -S -2000 -t "$WORKER" >"$OUT/worker-pane.txt"
+# The check is delivery: the hook held the turn and the agent read its inbox.
+# Whether the agent then does what a message asks is its own judgement.
+[ "${verdict%% *}" = hook ] || fail "extra: expected the worker to be woken by the hook and to read its inbox, got '${verdict:-nothing}'"
+echo "    ok   the worker was working, nothing was typed, the Stop hook delivered the mail and the worker read it"
+case "$verdict" in
+  *no-reply) echo "    note the worker read the message but did not send the reply it asked for (see $OUT/worker-pane.txt)" ;;
+  *) echo "    ok   the worker acted on the message and replied to the lead" ;;
+esac

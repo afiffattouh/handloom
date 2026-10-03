@@ -207,3 +207,35 @@ PY
 
 printf '\nM1 PASS: lead on %s and worker on %s finished the three-task job with no human input after the brief.\n' "$(hostname -s)" "$W_WHERE"
 echo "Evidence: $OUT/audit.txt, $OUT/lead-pane.txt, $OUT/worker-pane.txt"
+
+# ---- extra: the end-of-turn hook, live ----
+# The job above may or may not exercise wake ladder step 1, depending on
+# timing. This phase forces it: mail arrives while the worker is mid-turn, so
+# nothing may be typed, and the Stop hook must hand the mail over. It runs
+# after the M1 verdict and does type one prompt, into the worker.
+[ -z "${NO_EXTRA:-}" ] || exit 0
+say "extra, after the job: mail for a working agent is delivered by the end-of-turn hook"
+EXTRA_AT="$(human audit --json | python3 -c 'import json,sys; print(json.load(sys.stdin)[-1]["seq"])')"
+wtmux send-keys -t "$WORKER" -l "Write a note of about 200 words on why tests matter to note.txt, then print it with cat note.txt, then end your turn."
+sleep 1
+wtmux send-keys -t "$WORKER" Enter
+for _ in $(seq 40); do [ "$(agent_field "$WORKER" state)" = working ] && break; sleep 0.5; done
+[ "$(agent_field "$WORKER" state)" = working ] || fail "extra: the worker did not start working"
+show human human send "$WORKER" "Extra check. Please run: handloom send role:lead hook-delivery-ok"
+verdict=""
+for _ in $(seq 60); do
+  verdict="$(human audit --json | python3 -c '
+import json, sys
+rows = [r for r in json.load(sys.stdin) if r["seq"] > int(sys.argv[1])]
+worker = "agent:" + sys.argv[2]
+wakes = [r for r in rows if r["action"] == "wake" and r["target"] == worker]
+reply = [r for r in rows if r["action"] == "message.send" and r["actor"] == worker]
+if wakes and reply:
+    print(wakes[0]["payload"]["method"])' "$EXTRA_AT" "$WORKER")"
+  [ -n "$verdict" ] && break
+  sleep 3
+done
+human audit | awk -v after="$EXTRA_AT" '$1 > after' | grep -E ' (wake|wake\.failed|message\.send|inbox\.read|agent\.state) ' || true
+[ "$verdict" = hook ] || fail "extra: expected the worker to be woken by the hook, got '${verdict:-nothing}'"
+echo "    ok   the worker was working, nothing was typed, the Stop hook delivered the mail and the worker acted on it"
+wtmux capture-pane -p -S -2000 -t "$WORKER" >"$OUT/worker-pane.txt"

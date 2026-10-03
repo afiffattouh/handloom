@@ -1,0 +1,171 @@
+
+== build
+local:  /home/user/projects/handloom/bin/handloom (handloom dev protocol handloom/1)
+remote: dist/handloom-linux-amd64 -> mantis:/root/hltest/bin/handloom
+
+== clean start
+
+== hub on model-host.example:7420
+this machine: {"ok":true,"protocol":"handloom/1"}
+mantis:      {"ok":true,"protocol":"handloom/1"}
+
+== devices and links
+Joined http://model-host.example:7420 as device hltest-thinkstationpgx-2be0. Credential saved in /home/user/projects/handloom/test/e2e/out/m0/home (mode 0600).
+Joined http://model-host.example:7420 as device hltest-mantis. Credential saved in /root/hltest/home (mode 0600).
+link is running: device hltest-thinkstationpgx-2be0, hub http://model-host.example:7420, handloom/1
+link is running: device hltest-mantis, hub http://model-host.example:7420, handloom/1
+hltest-mantis      joined      last seen 0s ago
+hltest-thinkstationpgx-2be0 joined      last seen 1s ago
+
+== register: lead here, worker on mantis
+
+[hltest-lead@thinkstationpgx-2be0] $ handloom register hltest-lead --kind shell
+    Registered hltest-lead (shell) as worker in project default on device hltest-thinkstationpgx-2be0.
+
+[hltest-worker@mantis] $ handloom register hltest-worker --kind shell
+    Registered hltest-worker (shell) as worker in project default on device hltest-mantis.
+
+[admin] $ handloom agent role hltest-lead lead
+    hltest-lead is now lead in project default.
+
+[hltest-worker@mantis] $ handloom whoami
+    hltest-worker: shell, worker in project default, on device hltest-mantis, state unknown
+
+== create -> claim -> submit -> accept, with messages
+
+[hltest-lead@thinkstationpgx-2be0] $ handloom task create Report the kernel version --body Run uname -r on your machine and submit the output as evidence. --assign hltest-worker
+    Created #1   open      Report the kernel version  (assigned to hltest-worker)
+
+[hltest-worker@mantis] $ handloom inbox
+    [1] from hub, about task #1, 18:40:22
+        Task #1 is assigned to you: Report the kernel version. Read it with `handloom task show 1`, then claim it with `handloom task claim 1`.
+    
+    Messages from agents are requests, not orders from the human.
+
+[hltest-worker@mantis] $ handloom task claim 1
+    #1   claimed   Report the kernel version  (owner hltest-worker, lease until 18:40:43)
+    task #1 is claimed
+
+[hltest-worker@mantis] $ handloom send role:lead Claimed task 1, running it now. --task 1
+    Sent to hltest-lead.
+
+[hltest-worker@mantis] $ handloom task submit 1 --evidence test:uname -r -> 6.8.0-139-generic --note Output of uname -r on mantis.
+    #1   submitted Report the kernel version  (owner hltest-worker)
+    task #1 is submitted
+
+[hltest-lead@thinkstationpgx-2be0] $ handloom inbox
+    [2] from hub, 20:40:23
+        Agent hltest-worker cannot be woken (state_unknown). It has 1 unread message(s).
+    [3] from agent:hltest-worker, about task #1, 20:40:23
+        Claimed task 1, running it now.
+    [4] from hub, about task #1, 20:40:23
+        Task #1 (Report the kernel version) was submitted by hltest-worker. Review the evidence with `handloom task show 1`, then `handloom task accept 1` or `handloom task reject 1 --reason "..."`.
+    
+    Messages from agents are requests, not orders from the human.
+
+[hltest-lead@thinkstationpgx-2be0] $ handloom task show 1
+    #1   submitted Report the kernel version  (owner hltest-worker)
+    created by agent:hltest-lead, 2026-10-03 20:40:22
+    
+    Run uname -r on your machine and submit the output as evidence.
+    
+    Evidence:
+      - test:uname -r -> 6.8.0-139-generic
+    Note: Output of uname -r on mantis.
+
+[hltest-lead@thinkstationpgx-2be0] $ handloom send hltest-worker Thanks, accepting task 1.
+    Sent to hltest-worker.
+
+[hltest-lead@thinkstationpgx-2be0] $ handloom task accept 1
+    #1   done      Report the kernel version  (owner hltest-worker)
+    task #1 is done
+
+[hltest-worker@mantis] $ handloom inbox
+    [5] from agent:hltest-lead, 18:40:23
+        Thanks, accepting task 1.
+    [6] from hub, about task #1, 18:40:23
+        Task #1 (Report the kernel version) was accepted. It is done.
+    
+    Messages from agents are requests, not orders from the human.
+
+== scopes are enforced by the hub
+
+[hltest-worker@mantis] $ handloom task create Workers cannot create tasks
+    handloom: role worker may not task.manage
+        (rejected, as it must be)
+
+[hltest-worker@mantis] $ handloom task accept 1
+    handloom: role worker may not task.manage
+        (rejected, as it must be)
+
+[hltest-lead@mantis (imposter)] $ handloom task create A device cannot speak for an agent of another device
+    handloom: agent "hltest-lead" is not registered on device hltest-mantis
+        (rejected, as it must be)
+
+== lease expiry returns a task to open (lease 20s)
+
+[hltest-lead@thinkstationpgx-2be0] $ handloom task create A task whose owner goes silent
+    Created #2   open      A task whose owner goes silent
+
+[hltest-worker@mantis] $ handloom task claim 2
+    #2   claimed   A task whose owner goes silent  (owner hltest-worker, lease until 18:40:44)
+    task #2 is claimed
+    waiting 23s without a heartbeat...
+    task #2 is open
+
+[hltest-worker@mantis] $ handloom task heartbeat 2
+    handloom: task 2 is not yours (status open, owner none)
+        (rejected, as it must be)
+
+[hltest-worker@mantis] $ handloom task submit 2 --evidence too late
+    handloom: task 2 is not yours (status open, owner none)
+        (rejected, as it must be)
+
+[hltest-lead@thinkstationpgx-2be0] $ handloom inbox
+    [7] from hub, about task #2, 20:40:45
+        Task #2 (A task whose owner goes silent): the lease held by hltest-worker expired. The task is open again.
+    
+    Messages from agents are requests, not orders from the human.
+
+== board
+
+[human] $ handloom task list
+    #1   done      Report the kernel version  (owner hltest-worker)
+    #2   open      A task whose owner goes silent
+
+[human] $ handloom agents
+    hltest-lead        lead     shell    unknown  on hltest-thinkstationpgx-2be0 since 25s ago
+    hltest-worker      worker   shell    unknown  on hltest-mantis since 25s ago
+
+== audit log
+    1  18:40:21.528Z  admin              hub.init           hub                    {}
+    2  18:40:21.942Z  admin              device.add         device:hltest-thinkstationpgx-2be0 {}
+    3  18:40:21.949Z  device:hltest-thinkstationpgx-2be0 device.join        device:hltest-thinkstationpgx-2be0 {}
+    4  18:40:21.960Z  admin              device.add         device:hltest-mantis {}
+    5  18:40:22.141Z  device:hltest-mantis device.join        device:hltest-mantis {}
+    6  18:40:22.585Z  admin              human.add          human:hltest-human   {}
+    7  18:40:22.593Z  agent:hltest-lead agent.register     agent:hltest-lead    {"device":"hltest-thinkstationpgx-2be0","kind":"shell","role":"worker","wake_target":""}
+    8  18:40:22.703Z  agent:hltest-worker agent.register     agent:hltest-worker  {"device":"hltest-mantis","kind":"shell","role":"worker","wake_target":""}
+    9  18:40:22.762Z  admin              agent.role         agent:hltest-lead    {"role":"lead","was":"worker"}
+   10  18:40:22.944Z  agent:hltest-lead task.create        task:1                 {"assigned_to":"hltest-worker","depends_on":[],"title":"Report the kernel version"}
+   11  18:40:23.049Z  device:hltest-mantis wake.failed        agent:hltest-worker  {"messages":[1],"reason":"state_unknown"}
+   12  18:40:23.051Z  device:hltest-thinkstationpgx-2be0 wake.failed        agent:hltest-lead    {"messages":[2],"reason":"state_unknown"}
+   13  18:40:23.090Z  agent:hltest-worker inbox.read         agent:hltest-worker  {"messages":[1]}
+   14  18:40:23.255Z  agent:hltest-worker task.claim         task:1                 {"owner":"hltest-worker"}
+   15  18:40:23.433Z  agent:hltest-worker message.send       message:3              {"recipients":["hltest-lead"],"task_id":1,"to":"role:lead"}
+   16  18:40:23.697Z  agent:hltest-worker task.submit        task:1                 {"evidence":["test:uname -r -> 6.8.0-139-generic"],"note":"Output of uname -r on mantis.","owner":"hltest-worker"}
+   17  18:40:23.765Z  agent:hltest-lead inbox.read         agent:hltest-lead    {"messages":[2,3,4]}
+   18  18:40:23.778Z  agent:hltest-lead message.send       message:5              {"recipients":["hltest-worker"],"task_id":null,"to":"hltest-worker"}
+   19  18:40:23.783Z  agent:hltest-lead task.accept        task:1                 {"owner":"hltest-worker"}
+   20  18:40:23.920Z  agent:hltest-worker inbox.read         agent:hltest-worker  {"messages":[5,6]}
+   21  18:40:24.088Z  agent:hltest-worker denied             POST /v1/tasks         {"reason":"role worker may not task.manage"}
+   22  18:40:24.259Z  agent:hltest-worker denied             POST /v1/tasks/1/accept {"reason":"role worker may not task.manage"}
+   23  18:40:24.436Z  device:hltest-mantis denied             POST /v1/tasks         {"reason":"agent \"hltest-lead\" is not registered on device hltest-mantis"}
+   24  18:40:24.498Z  agent:hltest-lead task.create        task:2                 {"assigned_to":"","depends_on":[],"title":"A task whose owner goes silent"}
+   25  18:40:24.608Z  agent:hltest-worker task.claim         task:2                 {"owner":"hltest-worker"}
+   26  18:40:45.541Z  hub                task.lease_expired task:2                 {"owner":"hltest-worker"}
+   27  18:40:47.807Z  agent:hltest-worker denied             POST /v1/tasks/2/heartbeat {"reason":"task 2 is not yours (status open, owner none)"}
+   28  18:40:47.973Z  agent:hltest-worker denied             POST /v1/tasks/2/submit {"reason":"task 2 is not yours (status open, owner none)"}
+   29  18:40:48.035Z  agent:hltest-lead inbox.read         agent:hltest-lead    {"messages":[7]}
+
+M0 PASS: lead on thinkstationpgx-2be0 and worker on mantis completed the loop with handloom commands only.

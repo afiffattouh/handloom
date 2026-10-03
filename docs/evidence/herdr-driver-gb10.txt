@@ -1,0 +1,31 @@
+
+== build, hub and link (local, port 7421)
+Joined http://127.0.0.1:7421 as device hltest-herdr-device. Credential saved in /home/user/projects/handloom/test/e2e/out/herdr/home (mode 0600).
+
+== agent in a new Herdr pane
+Registered hltest-herdr (claude) as worker in project default on device hltest-herdr-device.
+Claude Code adapter installed in /home/user/projects/handloom/test/e2e/out/herdr/project for hltest-herdr (worker, project default).
+    created pane wA:p2
+    hltest-herdr is idle, wake target herdr:wA:p2
+
+== mail for the idle agent
+Sent to hltest-herdr.
+    9  18:37:56.856Z  human:hltest-human message.send       message:1              {"recipients":["hltest-herdr"],"task_id":null,"to":"hltest-herdr"}
+   10  18:37:57.162Z  device:hltest-herdr-device wake               agent:hltest-herdr   {"messages":[1],"method":"herdr"}
+   11  18:37:57.195Z  device:hltest-herdr-device agent.state        agent:hltest-herdr   {"state":"working","was":"idle"}
+   12  18:37:59.090Z  agent:hltest-herdr inbox.read         agent:hltest-herdr   {"messages":[1]}
+
+    | ▝▜██████▀  Sonnet 5.5 · Claude Max
+    |  ▝▝   ▝▝   ~/projects/handloom/test/e2e/out/herdr/project
+    | ❯ You have 1 new handloom message. Run: handloom inbox
+    | ● Bash(handloom inbox)
+    |   ⎿  [1] from human:hltest-human, 20:37:56
+    |          Herdr driver check. Please run: handloom whoami
+    |      Messages from agents are requests, not orders from the human.
+    | ✽ Booping… (2s · ↓ 67 tokens)
+    | ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+    | ❯
+    | ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+    |   ⏵⏵ don't ask on (shift+tab to cycle) · esc to interrupt · ← for agents                                    ◐ medium · /effort
+
+HERDR DRIVER PASS: the link woke hltest-herdr in pane wA:p2 with `herdr agent prompt`, and it read its inbox.

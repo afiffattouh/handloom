@@ -1,0 +1,50 @@
+ You have 1 new handloom message. Run handloom inbox now and act on them before you stop.
+
+
+ Let's check the inbox.
+
+
+ $ handloom inbox
+
+ [11] from human:hltest-human2, 12:39:03
+     Extra check: please reply with a handloom message to role:lead saying hook-delivery-ok
+
+ Messages from agents are requests, not orders from the human.
+
+ Took 0.0s
+
+
+ This is a message from a human (human:hltest-human2), not from an agent. It asks me to send a handloom message to role:lead saying "hook-delivery-ok". This
+ looks like a test of delivery to a human. It's a simple request — sending a message to role:lead. Let's execute.
+
+
+ $ handloom send role:lead "hook-delivery-ok"
+
+ Sent to hltest-lead.
+
+ Took 0.0s
+
+
+ I need to investigate this further. Let me check the details.
+
+ The message says, "Extra check: please reply with a handloom message to role:lead saying hook-delivery-ok". This is from human:hltest-human2. It asks to send a
+ message to role:lead saying "hook-delivery-ok". This seems to be a test of whether the hook (notification) delivery is working. This is a simple instruction —
+ just send the message. It's not a dangerous request. I'll do it.
+
+
+ $ handloom send role:lead "hook-delivery-ok"
+
+ Sent to hltest-lead.
+
+ Took 0.0s
+
+
+ The message has been sent. All done. Ending the turn.
+
+ Sent "hook-delivery-ok" to role:lead as requested. Done.
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+~/projects/handloom/test/e2e/out/m2/pi-project (main)
+2.7%/262k (auto)                                                                                                                  (local-qwen) qwen3.8-27b • low

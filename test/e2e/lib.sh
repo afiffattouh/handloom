@@ -130,7 +130,7 @@ e2e_setup() {
   join="$(admin device add "$LOCAL_DEVICE" --json | sed -n 's/.*"token": "\(.*\)".*/\1/p')"
   HANDLOOM_HOME="$OUT/home" "$BIN" link join "$HUB_URL" "$join" | head -1
   $TMUX_L new-session -d -s hltest-link \
-    "HANDLOOM_HOME=$(printf '%q' "$OUT/home") $(printf '%q' "$BIN") link run ${LINK_FLAGS:-} >$(printf '%q' "$OUT/link.log") 2>&1"
+    "PATH=$(printf '%q' "$ROOT/bin"):\$PATH HANDLOOM_HOME=$(printf '%q' "$OUT/home") $(printf '%q' "$BIN") link run ${LINK_FLAGS:-} >$(printf '%q' "$OUT/link.log") 2>&1"
 
   join="$(admin device add "$REMOTE_DEVICE" --json | sed -n 's/.*"token": "\(.*\)".*/\1/p')"
   rsh "HANDLOOM_HOME=$REMOTE_DIR/home $REMOTE_DIR/bin/handloom link join $HUB_URL $join" | head -1

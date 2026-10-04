@@ -29,7 +29,8 @@ var headlessCommands = map[string][]string{
 	"opencode": {"opencode", "run", "--session", "{session_id}", "{prompt}"},
 }
 
-// LoadHeadlessOverrides reads $HANDLOOM_HOME/headless.json, which may replace
+// LoadHeadlessOverrides reads $HANDLOOM_HOME/headless.json (next to the link's
+// socket), which may replace
 // the command for a kind, for example to give an absolute path or extra flags:
 //
 //	{"claude": ["/root/.local/bin/claude", "-p", "--resume", "{session_id}", "{prompt}"]}
@@ -51,7 +52,15 @@ func LoadHeadlessOverrides() (map[string][]string, error) {
 
 // headlessArgv builds the command for one headless turn.
 func (l *Link) headlessArgv(a api.DeviceAgent, prompt string) ([]string, error) {
-	tmpl := l.opt.Headless[a.Kind]
+	overrides := l.opt.Headless
+	if overrides == nil {
+		// Read at each use, so the file can be edited while the link runs.
+		var err error
+		if overrides, err = LoadHeadlessOverrides(); err != nil {
+			return nil, err
+		}
+	}
+	tmpl := overrides[a.Kind]
 	if tmpl == nil {
 		tmpl = headlessCommands[a.Kind]
 	}

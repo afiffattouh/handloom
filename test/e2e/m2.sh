@@ -4,7 +4,8 @@
 #
 #   lead      Claude Code, this machine, in tmux             woken by tmux nudge
 #   codex     Codex, $REMOTE, in tmux, handloom through MCP      woken by tmux nudge / Stop hook
-#   headless  Claude Code, $REMOTE, no terminal at all       woken by a headless turn on its session
+#   headless  Claude Code, $REMOTE (or this machine with    woken by a headless turn on its session
+#             HEADLESS_HOST=local), no terminal at all
 #   pi        Pi, this machine, in tmux (only if PI_MODEL is set)
 #
 # The lead creates one task per worker; the last task depends on the first.
@@ -14,7 +15,7 @@
 # run, because a session must exist before it can be resumed.
 #
 # Run: test/e2e/m2.sh
-#   PI_MODEL=provider/model   add a Pi worker using that model
+#   PI_MODEL=provider/model   add a Pi worker using that model (PI_THINKING, default low)
 #   CLAUDE_MODEL=sonnet  TIMEOUT=900  KEEP=1
 
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -36,23 +37,32 @@ R_HOME="$REMOTE_DIR/home" R_HL="$REMOTE_DIR/bin/handloom"
 rtmux() { rsh "$(printf '%q ' tmux -L hltest "$@")"; }
 ltmux() { $TMUX_L "$@"; }
 
-# The remote link learns how to run a headless Claude Code turn: absolute
-# path, and the allowlist on the command line (see the headless worker below).
-# It reads headless.json at start, so it is restarted.
+# Where the headless worker lives: the remote machine, or this one.
+HEADLESS_HOST="${HEADLESS_HOST:-remote}"
+if [ "$HEADLESS_HOST" = local ]; then
+  H_HOME="$OUT/home" H_DIR="$OUT/headless-project" H_CLAUDE="$LOCAL_CLAUDE" H_WHERE="$(hostname -s)" H_BIN="$ROOT/bin"
+  hsh() { env -u HERDR_ENV -u HERDR_PANE_ID -u TMUX -u TMUX_PANE bash -c "$1"; }
+  hhl() { lhl "$@"; }
+else
+  H_HOME="$R_HOME" H_DIR="$REMOTE_DIR/headless-project" H_CLAUDE="$REMOTE_CLAUDE" H_WHERE="$REMOTE" H_BIN="$REMOTE_DIR/bin"
+  hsh() { rsh "$1"; }
+  hhl() { rhl "$@"; }
+fi
+
+# The link on that machine learns how to run a headless Claude Code turn:
+# absolute path, and the allowlist on the command line (see the headless
+# worker below). The link reads headless.json each time it starts a turn.
 ALLOWED='Read,Write,Edit,Glob,Grep,Bash(handloom *),Bash(uname *),Bash(uname),Bash(hostname),Bash(cat *),Bash(ls *),Bash(echo *)'
-rsh "cat > $R_HOME/headless.json" <<EOF
-{"claude": ["$REMOTE_CLAUDE", "-p", "--model", "$MODEL", "--permission-mode", "dontAsk", "--allowedTools", "$ALLOWED", "--resume", "{session_id}", "{prompt}"]}
+hsh "cat > $H_HOME/headless.json" <<EOF
+{"claude": ["$H_CLAUDE", "-p", "--model", "$MODEL", "--permission-mode", "dontAsk", "--allowedTools", "$ALLOWED", "--resume", "{session_id}", "{prompt}"]}
 EOF
-rtmux kill-session -t hltest-link
-sleep 1
-rsh "tmux -L hltest new-session -d -s hltest-link 'PATH=$REMOTE_DIR/bin:\$PATH HANDLOOM_HOME=$R_HOME $R_HL link run >>$REMOTE_DIR/link.log 2>&1'"
-for _ in $(seq 50); do rsh "test -S $R_HOME/link.sock" && break; sleep 0.2; done
 
 say "the CLIs"
 echo "lead:     $("$LOCAL_CLAUDE" --version)"
 echo "codex:    $(rsh "$REMOTE_CODEX --version; $REMOTE_CODEX login status 2>&1 | head -1" | tr '\n' ' ')"
-echo "headless: $(rsh "$REMOTE_CLAUDE --version")"
-rsh "$REMOTE_CLAUDE auth status 2>&1 | grep -q '\"loggedIn\": true'" || fail "Claude Code on $REMOTE is not logged in"
+echo "headless: $(hsh "$H_CLAUDE --version") on $H_WHERE"
+hsh "cd /tmp && timeout 60 $H_CLAUDE -p --model $MODEL 'Reply with the single word OK.' </dev/null 2>&1 | tail -1 | grep -qx OK" ||
+  fail "Claude Code on $H_WHERE cannot run a turn (logged out?). Log in there, or run the headless worker on this machine: HEADLESS_HOST=local"
 WORKERS=("$CODEX" "$HEADLESS")
 if [ -n "${PI_MODEL:-}" ]; then
   [ -n "$LOCAL_PI" ] || fail "PI_MODEL is set but pi is not on PATH"
@@ -64,13 +74,14 @@ fi
 
 # ---- register; the admin makes the lead ----
 say "register agents; the admin makes $LEAD the lead"
-L_DIR="$OUT/lead-project" C_DIR="$REMOTE_DIR/codex-project" H_DIR="$REMOTE_DIR/headless-project" P_DIR="$OUT/pi-project"
+L_DIR="$OUT/lead-project" C_DIR="$REMOTE_DIR/codex-project" P_DIR="$OUT/pi-project"
 mkdir -p "$L_DIR" "$P_DIR"
-rsh "mkdir -p $C_DIR $H_DIR"
-lhl "$LEAD" register "$LEAD" --kind claude | head -1
-rhl "$CODEX" register "$CODEX" --kind codex --dir "$C_DIR" | head -1
-rhl "$HEADLESS" register "$HEADLESS" --kind claude --dir "$H_DIR" --wake-target headless | head -1
-[ -z "${PI_MODEL:-}" ] || lhl "$PI" register "$PI" --kind pi --dir "$P_DIR" | head -1
+rsh "mkdir -p $C_DIR"
+hsh "mkdir -p $H_DIR"
+lhl "$LEAD" register "$LEAD" --kind claude | sed -n 1p
+rhl "$CODEX" register "$CODEX" --kind codex --dir "$C_DIR" | sed -n 1p
+hhl "$HEADLESS" register "$HEADLESS" --kind claude --dir "$H_DIR" --wake-target headless | sed -n 1p
+[ -z "${PI_MODEL:-}" ] || lhl "$PI" register "$PI" --kind pi --dir "$P_DIR" | sed -n 1p
 admin agent role "$LEAD" lead
 
 # ---- lead: Claude Code in tmux (as in M1) ----
@@ -83,7 +94,7 @@ say "lead: Claude Code on $(hostname -s)"
 # nobody is there to approve them. The hook trust flag skips the review of
 # the hooks `handloom adapter install` just wrote.
 say "codex worker: Codex on $REMOTE"
-rhl "$CODEX" adapter install codex --name "$CODEX" --dir "$C_DIR" | head -1
+rhl "$CODEX" adapter install codex --name "$CODEX" --dir "$C_DIR" | sed -n 1p
 rsh "cat > $REMOTE_DIR/start-codex.sh" <<START
 #!/bin/sh
 # Starts the Codex test worker. Written by test/e2e/m2.sh.
@@ -101,18 +112,18 @@ rtmux new-session -d -s "$CODEX" -x 160 -y 50 -c "$C_DIR" "sh $REMOTE_DIR/start-
 # Its project is not "trusted" in Claude Code's sense (nobody ever opened it
 # interactively), so the allowlist is passed on the command line, both for
 # the first run and, through headless.json, for every turn the link starts.
-say "headless worker: Claude Code on $REMOTE, no terminal"
-rhl "$HEADLESS" adapter install claude --name "$HEADLESS" --dir "$H_DIR" | head -1
+say "headless worker: Claude Code on $H_WHERE, no terminal"
+hhl "$HEADLESS" adapter install claude --name "$HEADLESS" --dir "$H_DIR" | sed -n 1p
 SESSION_ID="$(cat /proc/sys/kernel/random/uuid)"
 echo "    creating its session ($SESSION_ID) with one headless run: setup, before the brief"
-rsh "cd $H_DIR && PATH=$REMOTE_DIR/bin:\$PATH HANDLOOM_HOME=$R_HOME HANDLOOM_AGENT=$HEADLESS HANDLOOM_HEADLESS=1 timeout 120 $REMOTE_CLAUDE -p --model $MODEL --permission-mode dontAsk --allowedTools '$ALLOWED' --session-id $SESSION_ID 'You are a handloom worker with no terminal. handloom will wake you when there is work. For now reply with the single word READY.' </dev/null" | tail -2 | sed 's/^/    /'
+hsh "cd $H_DIR && PATH=$H_BIN:\$PATH HANDLOOM_HOME=$H_HOME HANDLOOM_AGENT=$HEADLESS HANDLOOM_HEADLESS=1 timeout 120 $H_CLAUDE -p --model $MODEL --permission-mode dontAsk --allowedTools '$ALLOWED' --session-id $SESSION_ID 'You are a handloom worker with no terminal. handloom will wake you when there is work. For now reply with the single word READY.' </dev/null" | tail -2 | sed 's/^/    /'
 
 # ---- pi worker (optional) ----
 if [ -n "${PI_MODEL:-}" ]; then
   say "pi worker: Pi on $(hostname -s), model $PI_MODEL"
-  lhl "$PI" adapter install pi --name "$PI" --dir "$P_DIR" | head -1
+  lhl "$PI" adapter install pi --name "$PI" --dir "$P_DIR" | sed -n 1p
   $TMUX_L new-session -d -s "$PI" -x 160 -y 50 -c "$P_DIR" \
-    "env -u HERDR_ENV -u HERDR_PANE_ID -u HERDR_SOCKET_PATH HANDLOOM_HOME='$OUT/home' PATH='$ROOT/bin':\"\$PATH\" '$LOCAL_PI' --approve --model '$PI_MODEL'"
+    "env -u HERDR_ENV -u HERDR_PANE_ID -u HERDR_SOCKET_PATH HANDLOOM_HOME='$OUT/home' PATH='$ROOT/bin':\"\$PATH\" '$LOCAL_PI' --approve --model '$PI_MODEL' --thinking '${PI_THINKING:-low}'"
 fi
 
 agent_field() { human agents --json | python3 -c "
@@ -175,7 +186,7 @@ save_evidence() {
   human audit --json >"$OUT/audit.json" || true
   $TMUX_L capture-pane -p -S -2000 -t "$LEAD" >"$OUT/lead-pane.txt" 2>/dev/null || true
   rtmux capture-pane -p -S -2000 -t "$CODEX" >"$OUT/codex-pane.txt" 2>/dev/null || true
-  rsh "cat $R_HOME/headless-$HEADLESS.log 2>/dev/null" >"$OUT/headless.log" || true
+  hsh "cat $H_HOME/headless-$HEADLESS.log 2>/dev/null" >"$OUT/headless.log" || true
   [ -z "${PI_MODEL:-}" ] || $TMUX_L capture-pane -p -S -2000 -t "$PI" >"$OUT/pi-pane.txt" 2>/dev/null || true
 }
 while :; do

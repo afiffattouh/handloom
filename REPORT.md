@@ -8,7 +8,7 @@ Date: 2026-10-03. Builder: Claude Code on GB10.
 |---|---|
 | **M0** | **Passes** on GB10 plus Mantis. |
 | **M1** | **Passes** on GB10 plus Mantis: three of four runs. The failed run is explained below and led to a fix. |
-| **M2** | **Partly passes.** Claude Code lead, Codex worker and a headless Claude Code worker finish the job (three runs of three). The check also asks for a Pi worker, which has not run: Pi has no working cloud model on either machine. |
+| **M2** | **Passes**: Claude Code lead, Codex worker, Pi worker and a headless Claude Code worker finished the job (one run with the full cast; three more without Pi). Caveats: Pi ran on the local Qwen, and in the full-cast run the headless worker was on GB10 because Claude Code's login on Mantis had expired again. |
 
 The M0 and M1 sections below are as written for those milestones. M2 is in its own section at the end.
 
@@ -184,18 +184,19 @@ Listed at the end of DECISIONS.md. In short: add the four API calls the wake lad
 
 The M2 check: the M1 scenario with a mixed team (at least a Claude lead plus Codex and Pi workers), and with one worker that has no terminal.
 
-| Part | Result |
-|---|---|
-| Claude Code lead, GB10 | passes |
-| Codex worker, Mantis (sandbox on, handloom through MCP) | passes |
-| Worker with no terminal (headless Claude Code, Mantis) | passes |
-| Pi worker | **not run** |
+| Agent | Where | Woken by | Result |
+|---|---|---|---|
+| Claude Code lead | GB10, tmux | typed nudge | passes |
+| Codex worker (sandbox on, handloom through MCP) | Mantis, tmux | typed nudge, Stop hook | passes |
+| Pi worker (local Qwen, thinking low) | GB10, tmux | typed nudge, end-of-turn extension | passes |
+| Worker with no terminal (Claude Code) | Mantis in runs 1 to 3; GB10 in the full-cast run | headless turn on its session | passes |
 
-**Why no Pi worker.** Pi's only working model is the local Qwen: on GB10 its OpenAI login is invalid (`pi auth check` says `invalid`), on Mantis its OpenRouter key answers `403 Key limit exceeded`. Your rule for the local model (work goes through OMP in a detached tmux run, no input typed into a running session) does not fit a handloom worker woken by typed nudges, so I did not run one without asking. To run the full check, either fix one cloud login for Pi, or allow the local model for this test:
+Full cast, one run, exit 0: `docs/evidence/m2-full-cast-run1.txt`. Without Pi, three runs, all exit 0: `m2-claude-codex-headless-run1.txt` to `-run3.txt`.
 
-```
-PI_MODEL=<provider/model> test/e2e/m2.sh
-```
+Two things to know about the full-cast run:
+
+- **Pi ran on the local Qwen**, as the owner chose. Pi has no working cloud model: on GB10 its OpenAI login is invalid, on Mantis its OpenRouter key is over its limit. One Pi session, thinking low.
+- **The headless worker ran on GB10, not Mantis.** Claude Code on Mantis answered "OAuth session expired and could not be refreshed" on the second day. `HEADLESS_HOST=local` moves that worker to this machine; Codex on Mantis still makes the run cross two machines. With the login renewed, `PI_MODEL=local-qwen/qwen3.8-27b test/e2e/m2.sh` runs the headless worker on Mantis again.
 
 ## What was built
 
@@ -204,26 +205,46 @@ PI_MODEL=<provider/model> test/e2e/m2.sh
 - **`handloom mcp`**: MCP server over stdio with the agent verbs as tools. Codex's sandbox blocks the link's socket; through MCP it uses handloom with the sandbox left on.
 - **`handloom run <name> -- <command>`**: starts an agent CLI as a registered, wakeable agent. Needed because Codex's session-start hook fires only at the first prompt.
 - **Headless resume** (wake ladder step 3): an agent with wake target `headless` is woken by one headless turn on its saved session.
-- **Pi, OMP and OpenCode adapters**: extension or plugin that forwards their events to `handloom hook`. Written from each CLI's extension API; installed and unit-tested; **not run against a model**.
+- **Pi adapter**: an extension that forwards Pi's events to `handloom hook`. Verified live: registration, state, terminal nudge, end-of-turn delivery.
+- **OMP and OpenCode adapters**: the same idea, written from each CLI's extension API; installed and unit-tested; **not run against a model**.
 - **Unclaimed-task notice**: the hub tells the lead when an assigned task is not claimed for 10 minutes (the gap found in M1).
 - A blocked agent is reported to the lead after 30 seconds, not at once.
 
 ## What does not work, or is not verified
 
-- **No Pi worker ran** (above).
-- **Pi, OMP and OpenCode adapters are unverified live.** Their shims may need changes once run: in particular the end-of-turn delivery (`pi.sendUserMessage` at `agent_settled`; `client.session.prompt` at `session.idle`).
+- **OMP and OpenCode adapters are unverified live.** OMP exists only on GB10; OpenCode on Mantis has no credentials. Their shims may need changes once run.
+- **One full-cast run** is a small sample, and Pi was only tried with the local Qwen.
+- **Claude Code on Mantis is logged out again** ("OAuth session expired"). M1 and the Mantis headless worker need `ssh -t mantis /root/.local/bin/claude`, then `/login`.
 - **Headless commands for Codex, Pi, OMP and OpenCode** come from each CLI's `--help` and have not been run. Only `claude -p --resume` has.
 - **Codex on GB10 is logged out**, so Codex 0.144.5 there is untested. Mantis has 0.160.0.
 - **Codex records the test folder as trusted** in `~/.codex/config.toml` on Mantis (one entry, `/root/hltest/codex-project`). handloom does not write it; Codex does. During probing Codex had also added entries for my probe folders and their hooks; I removed exactly those lines from that file by hand (the diff is in DECISIONS.md terms: two `[projects]` blocks and two `[hooks.state]` entries, all for `/root/hltest-probe*`).
-- Three runs is a small sample.
 
 ## Evidence
 
-Unit tests: 105 tests and subtests pass, none fail.
+Unit tests: 105 tests and subtests pass, none fail. M0 was rerun with the M2 code and passes.
 
-`test/e2e/m2.sh`, three runs, all exit 0: `docs/evidence/m2-claude-codex-headless-run1.txt`, `-run2.txt` and `-run3.txt`; the Codex terminal and the headless log of run 1 are beside them. M0 was rerun with the final code and passes.
+Pi's end-of-turn delivery, live, after the full-cast run (`docs/evidence/m2-pi-hook-delivery.txt`). Mail was sent while Pi was mid-turn; nothing was typed; the extension handed it over and Pi replied to the lead:
 
-Audit log after the brief, run 2:
+```
+90  10:39:03.488Z  human:hltest-human2  message.send  message:11
+91  10:39:30.836Z  device:hltest-thinkstationpgx-2be0 wake  agent:hltest-pi  {"messages":[11],"method":"hook"}
+92  10:39:31.659Z  agent:hltest-pi      inbox.read    agent:hltest-pi  {"messages":[11]}
+93  10:39:34.224Z  agent:hltest-pi      message.send  message:12  {"recipients":["hltest-lead"],"to":"role:lead"}
+```
+
+Full-cast run, the Pi worker's rows (the whole log is in the transcript):
+
+```
+37  10:36:08.297Z  agent:hltest-lead  task.create  task:3  {"assigned_to":"hltest-pi","depends_on":[1],"title":"Record machine architecture"}
+38  10:36:08.706Z  device:hltest-thinkstationpgx-2be0 wake  agent:hltest-pi  {"messages":[3],"method":"tmux"}
+67  10:37:23.346Z  agent:hltest-lead  task.accept  task:1  {"owner":"hltest-codex"}
+68  10:37:23.768Z  device:hltest-thinkstationpgx-2be0 wake  agent:hltest-pi  {"messages":[8],"method":"tmux"}
+74  10:37:25.708Z  agent:hltest-pi    task.claim   task:3  {"owner":"hltest-pi"}
+76  10:37:29.277Z  agent:hltest-pi    task.submit  task:3  {"evidence":["test:cat arch.txt -> aarch64"],"note":"Recorded machine architecture as aarch64"}
+82  10:38:33.254Z  agent:hltest-lead  task.accept  task:3  {"owner":"hltest-pi"}
+```
+
+Audit log after the brief, run 2 of the three runs without Pi:
 
 ```
 24  19:54:30.021Z  agent:hltest-lead      task.create  task:1  {"assigned_to":"hltest-codex","depends_on":[],"title":"Collect kernel release"}

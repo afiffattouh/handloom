@@ -39,7 +39,7 @@ if [ "$WORKER_HOST" = local ]; then
   W_HOME="$OUT/home2" W_DIR="$OUT/worker-project" W_HL="$BIN" W_CLAUDE="$LOCAL_CLAUDE" W_WHERE="$(hostname -s) (second device)"
   mkdir -p "$W_HOME"
   join="$(admin device add hltest-local2 --json | sed -n 's/.*"token": "\(.*\)".*/\1/p')"
-  HANDLOOM_HOME="$W_HOME" "$BIN" link join "$HUB_URL" "$join" | head -1
+  HANDLOOM_HOME="$W_HOME" "$BIN" link join "$HUB_URL" "$join" | sed -n 1p
   $TMUX_L new-session -d -s hltest-link2 "HANDLOOM_HOME='$W_HOME' '$BIN' link run >'$OUT/link2.log' 2>&1"
   for _ in $(seq 50); do [ -S "$W_HOME/link.sock" ] && break; sleep 0.2; done
   wsh() { bash -c "$1"; }
@@ -59,8 +59,8 @@ wsh "mkdir -p '$W_DIR'"
 
 # ---- agents ----
 say "register agents; the admin makes $LEAD the lead"
-lhl "$LEAD" register "$LEAD" --kind claude | head -1
-wsh "env -u HERDR_ENV -u HERDR_PANE_ID -u TMUX -u TMUX_PANE HANDLOOM_HOME='$W_HOME' '$W_HL' register '$WORKER' --kind claude" | head -1
+lhl "$LEAD" register "$LEAD" --kind claude | sed -n 1p
+wsh "env -u HERDR_ENV -u HERDR_PANE_ID -u TMUX -u TMUX_PANE HANDLOOM_HOME='$W_HOME' '$W_HL' register '$WORKER' --kind claude" | sed -n 1p
 admin agent role "$LEAD" lead
 
 say "start Claude Code: lead on $(hostname -s), worker on $W_WHERE (model $MODEL)"

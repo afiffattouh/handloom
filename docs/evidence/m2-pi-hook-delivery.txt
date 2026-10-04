@@ -1,0 +1,11 @@
+   89  10:39:02.964Z  device:hltest-thinkstationpgx-2be0 agent.state        agent:hltest-pi      {"state":"working","was":"idle"}
+   90  10:39:03.488Z  human:hltest-human2 message.send       message:11             {"recipients":["hltest-pi"],"task_id":null,"to":"hltest-pi"}
+   91  10:39:30.836Z  device:hltest-thinkstationpgx-2be0 wake               agent:hltest-pi      {"messages":[11],"method":"hook"}
+   92  10:39:31.659Z  agent:hltest-pi  inbox.read         agent:hltest-pi      {"messages":[11]}
+   93  10:39:34.224Z  agent:hltest-pi  message.send       message:12             {"recipients":["hltest-lead"],"task_id":null,"to":"role:lead"}
+   94  10:39:34.640Z  device:hltest-thinkstationpgx-2be0 wake               agent:hltest-lead    {"messages":[12],"method":"tmux"}
+   95  10:39:34.675Z  device:hltest-thinkstationpgx-2be0 agent.state        agent:hltest-lead    {"state":"working","was":"idle"}
+   96  10:39:36.251Z  agent:hltest-lead inbox.read         agent:hltest-lead    {"messages":[12]}
+   97  10:39:37.649Z  device:hltest-thinkstationpgx-2be0 agent.state        agent:hltest-lead    {"state":"idle","was":"working"}
+   98  10:39:37.664Z  agent:hltest-pi  message.send       message:13             {"recipients":["hltest-lead"],"task_id":null,"to":"role:lead"}
+   99  10:39:38.624Z  device:hltest-thinkstationpgx-2be0 agent.state        agent:hltest-pi      {"state":"idle","was":"working"}

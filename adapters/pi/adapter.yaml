@@ -1,6 +1,7 @@
 # Pi adapter. Pi has no command hooks; a small extension forwards its
 # lifecycle events to `handloom hook pi`. Written against the extension API of
-# pi 1.0.0 (docs/extensions.md, dist/core/extensions/types.d.ts).
+# pi 1.0.0 (docs/extensions.md, dist/core/extensions/types.d.ts) and run live
+# with the local Qwen: registration, state, terminal nudge, end-of-turn delivery.
 kind: pi
 detect: [pi]
 state:

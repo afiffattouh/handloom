@@ -108,7 +108,9 @@ Checked against the installed CLI (2.1.288 on GB10) with a logging hook, and aga
 
 **E7. Codex on GB10 is logged out.** `codex exec` there fails with "Your access token could not be refreshed. Please log out and sign in again" (codex-cli 0.144.5, only in `~/.nvm/versions/node/v20.20.2/bin`). Codex on Mantis (0.160.0) works. The Codex worker runs on Mantis.
 
-**E8. Pi has no working cloud model on either machine.** GB10: `pi auth check --provider openai-codex` returns `invalid`; the default model is the local Qwen. Mantis: Pi's OpenRouter key answers `403 Key limit exceeded`. So the only model Pi can use is the local Qwen. The owner's rule for the local model (work goes to it through OMP in a detached tmux run, one at a time, no input typed into a running session) does not fit a handloom worker that is woken by typed nudges, so no Pi worker was run without the owner's say. `test/e2e/m2.sh` adds a Pi worker when `PI_MODEL` is set.
+**E8. Pi has no working cloud model on either machine.** GB10: `pi auth check --provider openai-codex` returns `invalid`; the default model is the local Qwen. Mantis: Pi's OpenRouter key answers `403 Key limit exceeded`. So the only model Pi can use is the local Qwen. The owner's rule for the local model (work goes to it through OMP in a detached tmux run, one at a time, no input typed into a running session) does not fit a handloom worker that is woken by typed nudges, so I asked. The owner chose the local Qwen for this test. The Pi worker ran as one session with `--thinking low` (`PI_MODEL=local-qwen/qwen3.8-27b test/e2e/m2.sh`). It did the job; once it sent the same reply twice.
+
+**E10. Claude Code's login on Mantis expired overnight** ("OAuth session expired and could not be refreshed"). `m2.sh` now checks that the headless worker's Claude Code can run a turn, and `HEADLESS_HOST=local` puts that worker on this machine.
 
 **E9. OMP exists only on GB10 and uses the local Qwen. OpenCode on Mantis has no credentials** (a free model did not answer within 60 seconds). Neither adapter ran against a model.
 
@@ -150,6 +152,6 @@ Checked against the installed CLI (2.1.288 on GB10) with a logging hook, and aga
 ## Should change in DESIGN.md (M2)
 
 1. Section 10, Codex row: hooks exist and match Claude Code's; end-of-turn delivery works through the Stop hook; `notify` is not needed. Add the sandbox finding and that MCP is how a sandboxed Codex reaches handloom (D23), and the late `SessionStart` (D24).
-2. Section 10, Pi row: turn-end delivery is `agent_settled` plus `pi.sendUserMessage`; unverified against a model.
+2. Section 10, Pi row: turn-end delivery is `agent_settled` plus `pi.sendUserMessage` (verified on pi 1.0.0); project extensions load with `pi --approve`.
 3. Section 9, step 3: say whether an interactive agent that went offline may be resumed headless (D26).
 4. Section 12: `dir` on agents, wake method `headless`, `task.unclaimed`.

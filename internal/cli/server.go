@@ -40,13 +40,27 @@ func (e *env) hub(args []string) error {
 	lease := fs.Duration("lease", 15*time.Minute, "task lease")
 	sweep := fs.Duration("sweep", 5*time.Second, "how often expired leases are collected")
 	unclaimed := fs.Duration("unclaimed", 10*time.Minute, "tell the lead when an assigned task stays unclaimed this long")
-	if _, err := fs.need(args, 0, 0, "hub init|serve [--data DIR] [--addr A] [--lease D]"); err != nil {
+	if _, err := fs.need(args, 0, 0, "hub init|serve|install|uninstall [--data DIR] [--addr A] [--lease D]"); err != nil {
 		return err
 	}
 	dir := dataDir(*data)
 	dbPath := filepath.Join(dir, "handloom.db")
 
 	switch sub {
+	case "install":
+		abs, err := filepath.Abs(dir)
+		if err != nil {
+			return err
+		}
+		if _, err := os.Stat(filepath.Join(abs, "handloom.db")); err != nil {
+			return fmt.Errorf("no database in %s: run `handloom hub init --data %s` first", abs, abs)
+		}
+		return e.installService(service{
+			name: "handloom-hub", description: "handloom hub",
+			args: []string{"hub", "serve", "--data", abs, "--addr", *addr, "--lease", lease.String(), "--unclaimed", unclaimed.String()},
+		})
+	case "uninstall":
+		return e.uninstallService("handloom-hub")
 	case "init":
 		if err := os.MkdirAll(dir, 0o700); err != nil {
 			return err
@@ -93,7 +107,7 @@ func (e *env) hub(args []string) error {
 		}
 		return nil
 	}
-	return usageErr("usage: handloom hub init|serve")
+	return usageErr("usage: handloom hub init|serve|install|uninstall")
 }
 
 func (e *env) link(args []string) error {
@@ -140,6 +154,24 @@ func (e *env) link(args []string) error {
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
 		return l.Run(ctx)
+	case "install":
+		fs := e.flags("link install")
+		if _, err := fs.need(args, 0, 0, "link install"); err != nil {
+			return err
+		}
+		if _, err := client.LoadLinkConfig(); err != nil {
+			return err
+		}
+		home, err := filepath.Abs(client.Home())
+		if err != nil {
+			return err
+		}
+		return e.installService(service{
+			name: "handloom-link", description: "handloom link (device daemon)",
+			args: []string{"link", "run"}, env: map[string]string{"HANDLOOM_HOME": home},
+		})
+	case "uninstall":
+		return e.uninstallService("handloom-link")
 	case "status":
 		fs := e.flags("link status")
 		if _, err := fs.need(args, 0, 0, "link status"); err != nil {
@@ -154,5 +186,5 @@ func (e *env) link(args []string) error {
 		})
 		return nil
 	}
-	return usageErr("usage: handloom link join|run|status")
+	return usageErr("usage: handloom link join|run|install|uninstall|status")
 }

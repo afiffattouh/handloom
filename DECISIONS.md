@@ -155,3 +155,7 @@ Checked against the installed CLI (2.1.288 on GB10) with a logging hook, and aga
 2. Section 10, Pi row: turn-end delivery is `agent_settled` plus `pi.sendUserMessage` (verified on pi 1.0.0); project extensions load with `pi --approve`.
 3. Section 9, step 3: say whether an interactive agent that went offline may be resumed headless (D26).
 4. Section 12: `dir` on agents, wake method `headless`, `task.unclaimed`.
+
+## Setup script
+
+**D33. `handloom link install` and `handloom hub install` write systemd units; `scripts/setup.sh` drives them over ssh.** The design names `handloom link install` (section 14). Root gets a system unit, anyone else a user unit (with lingering, so it survives logout). The unit copies the installing shell's PATH, because the link starts agent CLIs for headless turns. The script builds on the machine it runs from and cross-compiles for the server, so the server needs nothing installed. Linux and systemd only; launchd, prebuilt releases and a Docker image stay in M4. Tested on GB10 (user service) and Mantis (system service): hub, two devices, a message between them, rerun, status, remove. The test install was removed afterwards.

@@ -431,3 +431,27 @@ func TestMCPThroughRealHub(t *testing.T) {
 		t.Fatalf("lead inbox: %s", out)
 	}
 }
+
+func TestServiceUnit(t *testing.T) {
+	s := service{name: "handloom-link", description: "handloom link (device daemon)", args: []string{"link", "run"},
+		env: map[string]string{"HANDLOOM_HOME": "/home/a b/.config/handloom"}}
+	unit := s.unitText("/usr/local/bin/handloom", "/root", "/usr/bin:/bin", true)
+	for _, want := range []string{
+		"ExecStart=/usr/local/bin/handloom link run\n",
+		"Restart=always\n",
+		"Environment=PATH=/usr/local/bin:/usr/bin:/bin\n", // the binary's directory first: agents call `handloom`
+		`Environment="HANDLOOM_HOME=/home/a b/.config/handloom"` + "\n",
+		"Environment=HOME=/root\n",
+		"WantedBy=multi-user.target\n",
+	} {
+		if !strings.Contains(unit, want) {
+			t.Errorf("system unit lacks %q:\n%s", want, unit)
+		}
+	}
+	hub := service{name: "handloom-hub", description: "handloom hub", args: []string{"hub", "serve", "--data", "/var/lib/handloom", "--addr", "100.1.2.3:7420"}}
+	unit = hub.unitText("/home/u/.local/bin/handloom", "/home/u", "/usr/bin", false)
+	if !strings.Contains(unit, "ExecStart=/home/u/.local/bin/handloom hub serve --data /var/lib/handloom --addr 100.1.2.3:7420\n") ||
+		!strings.Contains(unit, "WantedBy=default.target\n") {
+		t.Fatalf("user unit:\n%s", unit)
+	}
+}

@@ -20,7 +20,7 @@ Status: milestones M0 and M1 of [DESIGN.md](DESIGN.md), and most of M2. See [REP
 - **MCP server** (`handloom mcp`): the agent verbs as tools, for agents whose sandbox cannot reach the link.
 - **Audit log**: every action, append-only.
 
-Not here yet: the web board, asking the human (`handloom ask`), packaging.
+Not here yet: the web board, asking the human (`handloom ask`), release packaging (prebuilt binaries, Docker image, macOS service).
 
 ## Build
 
@@ -31,7 +31,28 @@ go test ./...
 
 One static binary. Cross-compile with `CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build ...`.
 
-## Try it
+## Set up a server
+
+`scripts/setup.sh` does it over ssh from this repo: it builds handloom for the server's CPU, copies the binary, and runs the hub or the link as a systemd service that starts at boot. `local` instead of an ssh name sets up this machine.
+
+```
+scripts/setup.sh hub vps                                   # prints the admin token once: store it
+export HANDLOOM_TOKEN=hva_...
+scripts/setup.sh device vps    --hub http://100.x.y.z:7420   # the hub's own machine
+scripts/setup.sh device laptop --hub http://100.x.y.z:7420   # every other machine
+scripts/setup.sh status laptop
+scripts/setup.sh remove laptop --purge
+```
+
+- The hub listens on the server's Tailscale address by default (`--addr` to change). It is plain HTTP: keep it on a private network.
+- `device` needs a join token. With `HANDLOOM_TOKEN` set to the admin token the script creates the device itself; otherwise pass `--join-token`.
+- Linux with systemd only. Root gets a system service and `/usr/local/bin/handloom`; other users get a user service and `~/.local/bin/handloom`.
+- Running it again is safe: it replaces the binary, keeps the credential and restarts the service.
+- `remove` never deletes the hub's data.
+
+After that, add agents on each machine (below). The script needs Go on the machine you run it from, or `--binary` with a prebuilt handloom.
+
+## By hand
 
 On the machine that runs the hub (bind it to a private address):
 
@@ -52,7 +73,7 @@ On each device:
 
 ```
 handloom link join http://100.x.y.z:7420 hvj_...
-handloom link run                                 # keep it running
+handloom link run                                 # keep it running, or: handloom link install
 ```
 
 In a project directory on a device, for a Claude Code agent:
@@ -98,6 +119,7 @@ internal/client/     HTTP client and link configuration
 internal/api/        wire types
 adapters/            instruction snippets; per kind: manifest and, for pi/omp/opencode, the shim
 docs/protocol.md     the API, version handloom/1
+scripts/setup.sh     set up a server: hub or device, as a service
 test/e2e/            two-machine scenarios
 ```
 

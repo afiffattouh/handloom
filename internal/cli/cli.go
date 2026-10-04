@@ -49,7 +49,8 @@ Agent verbs (run inside an agent's shell, through the local link):
 
 Device:
   handloom link join <hub-url> <join-token>           exchange a join token for a device credential
-  handloom link run                                   run the link daemon
+  handloom link run                                   run the link daemon in the foreground
+  handloom link install | uninstall                   run it as a systemd service, now and at boot
   handloom link status
   handloom adapter install <kind> --name N [--dir D]  install an agent adapter in a project
                                                   (kinds: claude, codex, pi, omp, opencode)
@@ -59,6 +60,7 @@ Device:
 Hub and administration (HANDLOOM_HUB and HANDLOOM_TOKEN set to the hub URL and a token):
   handloom hub init [--data DIR]                      create the database, print the admin token once
   handloom hub serve [--data DIR] [--addr A] [--lease 15m]
+  handloom hub install [--data DIR] [--addr A] | uninstall     run the hub as a systemd service
   handloom device add <name> | list | revoke <name>   (admin)
   handloom human add <name>                           (admin)
   handloom project add <name> | list                  (admin)

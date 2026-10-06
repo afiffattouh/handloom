@@ -35,7 +35,7 @@ const (
 	maxForm      = 64 << 10
 )
 
-var pageNames = []string{"setup", "login", "inbox", "closed", "message", "devices", "settings", "invite", "agents", "profiles", "profile"}
+var pageNames = []string{"setup", "login", "inbox", "closed", "message", "devices", "settings", "invite", "agents", "profiles", "profile", "jobs", "jobform", "job"}
 
 type pageData struct {
 	Title  string
@@ -204,6 +204,12 @@ func (h *Hub) webRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /devices", web(h.authed(h.webDevices)))
 	mux.HandleFunc("POST /devices", web(h.authed(h.webDeviceAdd)))
 	mux.HandleFunc("POST /devices/{name}/revoke", web(h.authed(h.webDeviceRevoke)))
+	mux.HandleFunc("GET /jobs", web(h.authed(h.webJobs)))
+	mux.HandleFunc("GET /jobs/new", web(h.authed(h.webJobNewForm)))
+	mux.HandleFunc("POST /jobs", web(h.authed(h.webJobCreate)))
+	mux.HandleFunc("GET /jobs/{id}", web(h.authed(h.webJob)))
+	mux.HandleFunc("POST /jobs/{id}/close", web(h.authed(h.webJobClose)))
+	mux.HandleFunc("POST /jobs/{id}/resume", web(h.authed(h.webJobResume)))
 	mux.HandleFunc("GET /agents", web(h.authed(h.webAgents)))
 	mux.HandleFunc("POST /agents/spawn", web(h.authed(h.webSpawn)))
 	mux.HandleFunc("GET /profiles", web(h.authed(h.webProfiles)))
@@ -515,10 +521,14 @@ func (h *Hub) authed(fn func(*webReq) error) http.HandlerFunc {
 			store.TouchSession(tx, sess.IDHash, nowMs)
 		}
 		c := &call{h: h, tx: tx, r: r, now: now, p: &principal{kind: kindHuman, name: human.Name, role: human.Role}}
-		q := &webReq{w: w, r: r, c: c, human: human, sess: sess, now: now}
+		tw := &trackWriter{ResponseWriter: w}
+		q := &webReq{w: tw, r: r, c: c, human: human, sess: sess, now: now}
 		if err := fn(q); err != nil {
 			if !errors.Is(err, errHandled) {
 				h.opt.Log.Printf("web %s %s: %v", r.Method, r.URL.Path, err)
+				if !tw.wrote { // never leave the browser with an empty page
+					h.render(w, 500, "message", pageData{Title: "Error", Error: "Something went wrong on the hub. It has been logged."})
+				}
 			}
 			return
 		}
@@ -672,4 +682,21 @@ func ResetPassword(db *sql.DB, name string, now time.Time) (string, error) {
 		return "", err
 	}
 	return string(pw), tx.Commit()
+}
+
+// trackWriter notices whether a handler wrote anything.
+type trackWriter struct {
+	http.ResponseWriter
+	wrote bool
+}
+
+func (t *trackWriter) WriteHeader(code int) { t.wrote = true; t.ResponseWriter.WriteHeader(code) }
+func (t *trackWriter) Write(b []byte) (int, error) {
+	t.wrote = true
+	return t.ResponseWriter.Write(b)
+}
+func (t *trackWriter) Flush() {
+	if f, ok := t.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
 }

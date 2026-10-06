@@ -107,6 +107,11 @@ func jobResume(c *call) (any, error) {
 	if err := c.decode(&req); err != nil {
 		return nil, err
 	}
+	return c.resumeJob(id, req.Lead)
+}
+
+func (c *call) resumeJob(id int64, lead string) (any, error) {
+	req := api.JobResumeReq{Lead: lead}
 	j, err := c.job(id)
 	if err != nil {
 		return nil, err

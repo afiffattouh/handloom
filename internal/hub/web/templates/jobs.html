@@ -1,0 +1,14 @@
+{{define "content"}}
+<h1>Jobs</h1>
+{{with .Extra}}
+{{if .CanStart}}<p><a class="button" href="/jobs/new">New job</a></p>{{end}}
+{{range .Jobs}}
+<article class="card">
+  <header><strong><a href="/jobs/{{.ID}}">#{{.ID}} {{.Title}}</a></strong> <span class="muted">{{.Status}} · {{.Ago}}</span></header>
+  <p class="muted">lead: {{if .Lead}}{{.Lead}}{{else}}none yet{{end}} · tasks: {{.Counts}}{{if .Repo}} · repo on {{.Device}}{{end}}{{if .Confidential}} · confidential{{end}}</p>
+</article>
+{{else}}
+<p class="muted">No jobs yet.{{if .CanStart}} Start the first one.{{end}}</p>
+{{end}}
+{{end}}
+{{end}}

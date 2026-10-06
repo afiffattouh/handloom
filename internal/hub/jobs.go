@@ -98,6 +98,12 @@ func jobNew(c *call) (any, error) {
 	if err := c.decode(&req); err != nil {
 		return nil, err
 	}
+	return c.createJob(req)
+}
+
+// createJob is the work of starting a job, for the API and the web form. The
+// caller has checked that a human is asking.
+func (c *call) createJob(req api.JobNewReq) (any, error) {
 	req.Title = strings.TrimSpace(req.Title)
 	if req.Title == "" {
 		return nil, badRequest("a job needs a title")
@@ -246,6 +252,11 @@ func jobClose(c *call) (any, error) {
 	if err := c.decode(&req); err != nil {
 		return nil, err
 	}
+	return c.closeJob(id, req.Cancel)
+}
+
+func (c *call) closeJob(id int64, cancel bool) (any, error) {
+	req := api.JobCloseReq{Cancel: cancel}
 	t, err := c.job(id)
 	if err != nil {
 		return nil, err

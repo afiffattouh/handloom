@@ -48,6 +48,13 @@
 <section aria-labelledby="review">
   <h2 id="review">To review</h2>
   {{range .ToReview}}
+  {{if eq .Kind "job-done"}}
+  <article class="card attention">
+    <header><strong>Job #{{.ID}} {{.Title}}</strong> <span class="muted">{{.Ago}}</span></header>
+    <p class="text muted">{{.Detail}}</p>
+    <p><a class="button" href="/jobs/{{.ID}}">Open the job</a></p>
+  </article>
+  {{else}}
   <article class="card">
     <header><strong>#{{.ID}} {{.Title}}</strong> <span class="muted">by {{.Who}} · {{.Ago}}</span></header>
     {{if .Detail}}<p class="text muted">{{.Detail}}</p>{{end}}
@@ -62,6 +69,7 @@
     </div>
     {{end}}
   </article>
+  {{end}}
   {{else}}
     <p class="muted">Nothing to review.</p>
   {{end}}

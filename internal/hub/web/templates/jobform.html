@@ -1,0 +1,34 @@
+{{define "content"}}
+<h1>New job</h1>
+<p class="muted">Describe the work. Handloom starts a lead agent from the profile you pick; the lead plans the tasks and starts workers. You review the result.</p>
+{{with .Extra}}
+<form method="post" action="/jobs" class="stack">
+  <input type="hidden" name="csrf" value="{{$.CSRF}}">
+  <label>What should be done, in one line <input name="title" required maxlength="200" value="{{index .Form "title"}}" placeholder="Fix the failing date parser"></label>
+  <label>The brief: context, what done looks like, what to avoid
+    <textarea name="body" rows="8" placeholder="The tests in parser_test.go fail for dates before 1970. Fix parser.go. Done when ./check.sh passes. Do not change the public API.">{{index .Form "body"}}</textarea></label>
+
+  <fieldset>
+    <legend>Where the work happens</legend>
+    <label>Device
+      <select name="device" required>
+        {{range .Devices}}<option value="{{.}}"{{if eq . (index $.Extra.Form "device")}} selected{{end}}>{{.}}</option>{{else}}<option value="">no device has joined yet</option>{{end}}
+      </select>
+    </label>
+    <label>Repository on that device (optional; each agent gets its own copy to work in)
+      <input name="repo" value="{{index .Form "repo"}}" placeholder="/home/me/projects/app"></label>
+    <label>Check command (optional; the device runs it after an agent submits, in that agent's copy)
+      <input name="verify" value="{{index .Form "verify"}}" placeholder="./check.sh"></label>
+  </fieldset>
+
+  <label>Lead profile: what the lead may do and know
+    <select name="lead_profile" required>
+      {{range .Profiles}}<option value="{{.Name}}"{{if eq .Name (index $.Extra.Form "lead_profile")}} selected{{end}}>{{.Name}} (v{{.Version}}, {{.Runtime}})</option>{{else}}<option value="">make a profile first</option>{{end}}
+    </select>
+  </label>
+  {{if .AllowConf}}<label class="check"><input type="checkbox" name="confidential" value="1"> This job handles confidential material (only local-model profiles may be used)</label>{{end}}
+  <button type="submit">Start the job</button>
+</form>
+{{if not .Profiles}}<p class="muted">The lead is started from a profile, so you need one first: <a href="/profiles/new">make a profile</a>.</p>{{end}}
+{{end}}
+{{end}}

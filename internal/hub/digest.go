@@ -1,6 +1,7 @@
 package hub
 
 import (
+	"database/sql"
 	"fmt"
 	"strings"
 	"time"
@@ -91,6 +92,32 @@ func (c *call) digest() (*api.Digest, error) {
 			d.Running = append(d.Running, item)
 		}
 	}
+
+	// Jobs whose every task is done wait for a human to look and close them.
+	jrows, err := c.tx.Query(`SELECT j.id, j.title, j.updated_at, (SELECT max(t.updated_at) FROM task t WHERE t.job_id = j.id)
+		FROM task j WHERE j.kind = 'job' AND j.status = 'open' `+strings.Replace(extra, "t.project_id", "j.project_id", 1)+`
+		AND EXISTS (SELECT 1 FROM task t WHERE t.job_id = j.id AND t.kind = 'task' AND t.status = 'done')
+		AND NOT EXISTS (SELECT 1 FROM task t WHERE t.job_id = j.id AND t.kind = 'task' AND t.status IN ('open', 'claimed', 'submitted'))`, ex...)
+	if err != nil {
+		return nil, err
+	}
+	var ready []api.DigestItem
+	for jrows.Next() {
+		var id, upd int64
+		var title string
+		var last sql.NullInt64
+		if err := jrows.Scan(&id, &title, &upd, &last); err != nil {
+			jrows.Close()
+			return nil, err
+		}
+		at := store.Time(upd)
+		if last.Valid {
+			at = store.Time(last.Int64)
+		}
+		ready = append(ready, api.DigestItem{Kind: "job-done", ID: id, Title: title, Detail: "Every task is done. Look over the result, then close the job.", At: at})
+	}
+	jrows.Close()
+	d.ToReview = append(ready, d.ToReview...)
 
 	// Agents, and a silent lead.
 	extra, ex = scope("a")

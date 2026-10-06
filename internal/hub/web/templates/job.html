@@ -1,0 +1,72 @@
+{{define "content"}}
+{{with .Extra}}
+<h1>#{{.Job.ID}} {{.Job.Title}}</h1>
+<p class="muted">{{.Job.Status}} · lead: {{if .Job.Lead}}{{.Job.Lead}}{{else}}none{{end}}{{if .Job.Repo}} · repository {{.Job.Repo}} on {{.Job.Device}}{{end}}{{if .Job.Confidential}} · confidential{{end}}</p>
+{{if .Body}}<pre class="cmd">{{.Body}}</pre>{{end}}
+{{if .Job.Verify}}<p class="muted">Checked by the device after each submit: <code>{{.Job.Verify}}</code></p>{{end}}
+
+{{if .Ready}}
+<article class="card attention">
+  <header><strong>Every task is done.</strong></header>
+  <p>Look over the result, then close the job.</p>
+  {{if .CanAct}}<form method="post" action="/jobs/{{.Job.ID}}/close" class="inline"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button type="submit">Close the job as done</button></form>{{end}}
+</article>
+{{end}}
+
+<section aria-labelledby="tasks">
+  <h2 id="tasks">Tasks</h2>
+  {{range .Tasks}}
+  <article class="card">
+    <header><strong>#{{.ID}} {{.Title}}</strong> <span class="muted">{{.Status}}{{if .Owner}} · {{.Owner}}{{end}} · {{.Ago}}</span></header>
+    {{if .DependsOn}}<p class="muted">after {{range .DependsOn}}#{{.}} {{end}}</p>{{end}}
+    {{if .Evidence}}<p class="text muted">{{range $i, $e := .Evidence}}{{if $i}}; {{end}}{{$e}}{{end}}</p>{{end}}
+    {{if .Check}}<p class="check-result {{if .CheckOK}}ok{{else}}bad{{end}}">checked by {{.Check.Device}}: {{.Words}}</p>
+    {{if and (not .CheckOK) .Check.Tail}}<pre class="cmd">{{.Check.Tail}}</pre>{{end}}{{end}}
+    {{if eq .Status "submitted"}}<p><a href="/inbox">Review it in the inbox</a></p>{{end}}
+  </article>
+  {{else}}
+  <p class="muted">No tasks yet. The lead is planning.</p>
+  {{end}}
+</section>
+
+<section aria-labelledby="team">
+  <h2 id="team">Team</h2>
+  {{range .Team}}
+  <p class="row"><span><span class="state state-{{.State}}" aria-hidden="true">{{.Glyph}}</span> <strong>{{.Name}}</strong> <span class="muted">{{.Role}} · {{.Kind}} · {{.Device}}</span></span> <span class="muted">{{.State}} · {{.Ago}}</span></p>
+  {{else}}
+  <p class="muted">Nobody yet.</p>
+  {{end}}
+  {{if .Attach}}
+  <details><summary>Look over an agent's shoulder</summary>
+    <p class="muted">Run this on the device that runs it (detach with Ctrl-b d):</p>
+    {{range .Attach}}<pre class="cmd">{{.Cmd}}</pre>{{end}}
+  </details>
+  {{end}}
+</section>
+
+<section aria-labelledby="activity">
+  <h2 id="activity">Recent activity</h2>
+  {{range .Activity}}<p class="row"><span class="text">{{.Text}}</span> <span class="muted">{{.Ago}}</span></p>{{else}}<p class="muted">Nothing yet.</p>{{end}}
+</section>
+
+{{if and .CanAct .Open}}
+<section aria-labelledby="manage">
+  <h2 id="manage">Manage</h2>
+  <details><summary>The lead stopped? Hand the job to another agent</summary>
+    <form method="post" action="/jobs/{{.Job.ID}}/resume" class="stack">
+      <input type="hidden" name="csrf" value="{{$.CSRF}}">
+      <label>New lead <select name="lead">{{range .Agents}}<option value="{{.}}">{{.}}</option>{{else}}<option value="">no free agent: start one on the Agents page</option>{{end}}</select></label>
+      <button type="submit" class="secondary">Make it the lead</button>
+    </form>
+  </details>
+  <details><summary>Cancel the job</summary>
+    <form method="post" action="/jobs/{{.Job.ID}}/close" class="stack">
+      <input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="cancel" value="1">
+      <p class="muted">Cancels the job and every task that is not done.</p>
+      <button type="submit" class="secondary">Cancel the job</button>
+    </form>
+  </details>
+</section>
+{{end}}
+{{end}}
+{{end}}

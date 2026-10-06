@@ -174,6 +174,7 @@ func (h *Hub) Handler() http.Handler {
 	v1("POST /admin/projects", adminProjectAdd)
 	v1("GET /projects", projectList)
 	v1("GET /audit", auditList)
+	v1("GET /digest", digestGet)
 
 	v1("POST /agents", agentRegister)
 	v1("GET /agents", agentList)

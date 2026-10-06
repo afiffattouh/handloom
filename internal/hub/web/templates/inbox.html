@@ -1,4 +1,96 @@
 {{define "content"}}
 <h1>Inbox</h1>
-<p class="muted">Signed in as {{.Human.Name}}. The inbox arrives in the next commit.</p>
+<div id="inbox" data-seq="{{.Extra.Seq}}">{{template "inboxbody" .}}</div>
+<p id="stale" class="notice" hidden>New activity. <button type="button" id="refresh" class="link">Refresh</button></p>
+<script src="/static/app.js" defer></script>
+{{end}}
+
+{{define "inboxbody"}}
+{{with .Extra}}
+<p class="summary">{{len .NeedsYou}} need you · {{len .ToReview}} to review · {{len .Running}} running</p>
+
+<section aria-labelledby="needs">
+  <h2 id="needs">Needs you</h2>
+  {{range .NeedsYou}}
+    {{if eq .Kind "escalation"}}
+    <article class="card attention">
+      <header><strong>{{.Who}} asks</strong> <span class="muted">{{.Ago}}</span></header>
+      <p class="text">{{.Title}}</p>
+      {{if $.Extra.CanAct}}
+      <form method="post" action="/inbox/escalations/{{.ID}}/answer" class="answer">
+        <input type="hidden" name="csrf" value="{{$.CSRF}}">
+        {{if .Options}}
+          <div class="buttons">{{range .Options}}<button type="submit" name="answer" value="{{.}}">{{.}}</button>{{end}}</div>
+        {{else}}
+          <label>Your answer <textarea name="answer" rows="3" required maxlength="4000"></textarea></label>
+          <button type="submit">Send answer</button>
+        {{end}}
+      </form>
+      {{end}}
+    </article>
+    {{else if eq .Kind "blocked"}}
+    <article class="card attention">
+      <header><strong>{{.Who}} is blocked</strong> on task #{{.ID}} <span class="muted">{{.Ago}}</span></header>
+      <p class="text">{{.Title}}</p>
+      <p class="text muted">{{.Detail}}</p>
+    </article>
+    {{else}}
+    <article class="card attention">
+      <header><strong>{{.Title}}</strong> <span class="muted">{{.Ago}}</span></header>
+    </article>
+    {{end}}
+  {{else}}
+    <p class="muted">Nothing needs you.</p>
+  {{end}}
+</section>
+
+<section aria-labelledby="review">
+  <h2 id="review">To review</h2>
+  {{range .ToReview}}
+  <article class="card">
+    <header><strong>#{{.ID}} {{.Title}}</strong> <span class="muted">by {{.Who}} · {{.Ago}}</span></header>
+    {{if .Detail}}<p class="text muted">{{.Detail}}</p>{{end}}
+    {{if $.Extra.CanAct}}
+    <div class="buttons">
+      <form method="post" action="/inbox/tasks/{{.ID}}/accept"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button type="submit">Accept</button></form>
+      <form method="post" action="/inbox/tasks/{{.ID}}/reject" class="reject">
+        <input type="hidden" name="csrf" value="{{$.CSRF}}">
+        <input name="reason" placeholder="What needs changing" required maxlength="500" aria-label="Reason for sending #{{.ID}} back">
+        <button type="submit" class="secondary">Send back</button>
+      </form>
+    </div>
+    {{end}}
+  </article>
+  {{else}}
+    <p class="muted">Nothing to review.</p>
+  {{end}}
+</section>
+
+<section aria-labelledby="running">
+  <h2 id="running">Running</h2>
+  {{range .Running}}
+  <p class="row"><span>#{{.ID}} {{.Title}}</span> <span class="muted">{{.Who}} · {{.Ago}}</span></p>
+  {{else}}
+    <p class="muted">Nothing is running.</p>
+  {{end}}
+</section>
+
+<section aria-labelledby="agents">
+  <h2 id="agents">Agents</h2>
+  {{range .Agents}}
+  <p class="row"><span><span class="state state-{{.State}}" aria-hidden="true">{{.Glyph}}</span> {{.Name}} <span class="muted">{{.Role}} · {{.Kind}} · {{.Device}}</span></span> <span class="muted">{{.State}} · {{.Ago}}</span></p>
+  {{else}}
+    <p class="muted">No agents registered.</p>
+  {{end}}
+</section>
+
+<section aria-labelledby="activity">
+  <h2 id="activity">Recent activity</h2>
+  {{range .Activity}}
+  <p class="row"><span class="text">{{.Text}}</span> <span class="muted">{{.Ago}}</span></p>
+  {{else}}
+    <p class="muted">Nothing yet.</p>
+  {{end}}
+</section>
+{{end}}
 {{end}}

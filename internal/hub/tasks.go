@@ -452,20 +452,25 @@ func taskReject(c *call) (any, error) {
 	if err := c.decode(&req); err != nil {
 		return nil, err
 	}
-	if strings.TrimSpace(req.Reason) == "" {
+	return c.rejectTask(t, req.Reason)
+}
+
+// rejectTask does the work for the API and the web UI; the caller has checked the scope.
+func (c *call) rejectTask(t *taskRow, reason string) (any, error) {
+	if strings.TrimSpace(reason) == "" {
 		return nil, badRequest("a reason is required to reject a task")
 	}
 	if t.status != api.StatusSubmitted {
 		return nil, conflict("task %d is %s; only a submitted task can be rejected", t.id, t.status)
 	}
 	// Back to claimed, with a fresh lease for the owner.
-	if err := c.touch(t, `status = 'claimed', reject_reason = ?, lease_expires_at = ?`, req.Reason, c.leaseUntil()); err != nil {
+	if err := c.touch(t, `status = 'claimed', reject_reason = ?, lease_expires_at = ?`, reason, c.leaseUntil()); err != nil {
 		return nil, err
 	}
-	if err := c.record(t.projectID, 0, "task.reject", t.target(), map[string]any{"owner": t.ownerName, "reason": req.Reason}); err != nil {
+	if err := c.record(t.projectID, 0, "task.reject", t.target(), map[string]any{"owner": t.ownerName, "reason": reason}); err != nil {
 		return nil, err
 	}
-	if err := c.notifyOwner(t, fmt.Sprintf("Task #%d (%s) was rejected: %s. It is yours again; fix it and submit again.", t.id, t.title, req.Reason)); err != nil {
+	if err := c.notifyOwner(t, fmt.Sprintf("Task #%d (%s) was rejected: %s. It is yours again; fix it and submit again.", t.id, t.title, reason)); err != nil {
 		return nil, err
 	}
 	return c.reload(t)

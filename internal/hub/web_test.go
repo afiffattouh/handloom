@@ -31,6 +31,7 @@ type webEnv struct {
 	srv   *httptest.Server
 	clock *clock
 	code  string
+	admin string
 	http  *http.Client
 }
 
@@ -42,7 +43,8 @@ func newWebEnv(t *testing.T, opt Options) *webEnv {
 	}
 	t.Cleanup(func() { db.Close() })
 	cl := &clock{t: time.Date(2026, 10, 6, 9, 0, 0, 0, time.UTC)}
-	if _, err := store.Init(db, cl.now()); err != nil {
+	admin, err := store.Init(db, cl.now())
+	if err != nil {
 		t.Fatal(err)
 	}
 	opt.Now = cl.now
@@ -56,7 +58,7 @@ func newWebEnv(t *testing.T, opt Options) *webEnv {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &webEnv{t: t, hub: h, srv: srv, clock: cl, code: code, http: &http.Client{
+	return &webEnv{t: t, hub: h, srv: srv, clock: cl, code: code, admin: admin, http: &http.Client{
 		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 	}}
 }

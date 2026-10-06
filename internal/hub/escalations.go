@@ -239,11 +239,21 @@ func escalationAnswer(c *call) (any, error) {
 	if err := c.decode(&req); err != nil {
 		return nil, err
 	}
-	req.Answer = strings.TrimSpace(req.Answer)
-	if req.Answer == "" {
+	e, err := c.answerEscalation(id, req.Answer)
+	if err != nil {
+		return nil, err
+	}
+	return e.api(), nil
+}
+
+// answerEscalation does the work for the API and the web UI. The caller has
+// already checked the scope.
+func (c *call) answerEscalation(id int64, answer string) (*escalationRow, error) {
+	answer = strings.TrimSpace(answer)
+	if answer == "" {
 		return nil, badRequest("the answer is empty")
 	}
-	if len(req.Answer) > maxAnswerLength {
+	if len(answer) > maxAnswerLength {
 		return nil, badRequest("the answer is larger than %d bytes", maxAnswerLength)
 	}
 	e, err := c.escalation(id)
@@ -256,7 +266,7 @@ func escalationAnswer(c *call) (any, error) {
 	if len(e.options) > 0 {
 		ok := false
 		for _, o := range e.options {
-			ok = ok || o == req.Answer
+			ok = ok || o == answer
 		}
 		if !ok {
 			return nil, badRequest("the answer must be one of: %s", strings.Join(e.options, ", "))
@@ -264,7 +274,7 @@ func escalationAnswer(c *call) (any, error) {
 	}
 	by := c.p.actor() // human:<name>
 	if _, err := c.tx.Exec(`UPDATE escalation SET answer = ?, answered_by = ?, answered_at = ? WHERE id = ?`,
-		req.Answer, by, store.Millis(c.now), e.id); err != nil {
+		answer, by, store.Millis(c.now), e.id); err != nil {
 		return nil, err
 	}
 	asker, err := c.agentByID(e.fromID)
@@ -276,18 +286,14 @@ func escalationAnswer(c *call) (any, error) {
 		t := e.taskID.Int64
 		taskID = &t
 	}
-	body := fmt.Sprintf("Answer to your question #%d (%q): %s", e.id, clip(e.question, 120), req.Answer)
+	body := fmt.Sprintf("Answer to your question #%d (%q): %s", e.id, clip(e.question, 120), answer)
 	if _, err := c.insertMessage(by, asker, asker.name, taskID, body); err != nil {
 		return nil, err
 	}
 	if err := c.record(e.projectID, 0, "escalation.answer", e.target(), map[string]any{"by": by}); err != nil {
 		return nil, err
 	}
-	e, err = c.escalation(id)
-	if err != nil {
-		return nil, err
-	}
-	return e.api(), nil
+	return c.escalation(id)
 }
 
 func clip(s string, n int) string {

@@ -28,3 +28,20 @@ button.link { background: none; color: var(--accent); padding: .3rem .4rem; min-
 .error { background: var(--err-bg); color: var(--err); }
 .notice { background: var(--ok-bg); color: var(--ok); }
 code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .9em; }
+h2 { font-size: 1rem; margin: 1.6rem 0 .6rem; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+.summary { color: var(--muted); margin: 0 0 .5rem; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: .8rem 1rem; margin: 0 0 .7rem; }
+.card.attention { border-left: 4px solid var(--accent); }
+.card header { display: flex; justify-content: space-between; gap: .6rem; flex-wrap: wrap; }
+.text { white-space: pre-wrap; overflow-wrap: anywhere; margin: .4rem 0; }
+.row { display: flex; justify-content: space-between; gap: .8rem; flex-wrap: wrap; margin: .25rem 0; }
+.buttons { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; margin-top: .5rem; }
+.buttons form { margin: 0; display: flex; gap: .4rem; flex-wrap: wrap; }
+button.secondary { background: none; color: var(--accent); border: 1px solid var(--accent); }
+textarea { font: inherit; padding: .55rem .65rem; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--text); width: 100%; }
+.answer { margin-top: .5rem; display: grid; gap: .5rem; }
+.reject input { min-width: 12rem; }
+.state { display: inline-block; width: 1.1em; text-align: center; }
+.state-working { color: var(--accent); }
+.state-blocked { color: var(--err); font-weight: 700; }
+[hidden] { display: none !important; }

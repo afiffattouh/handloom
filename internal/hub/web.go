@@ -9,6 +9,7 @@ import (
 	"embed"
 	"encoding/base64"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"html/template"
 	"io/fs"
@@ -195,6 +196,11 @@ func (h *Hub) webRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /login", web(h.webLoginPost))
 	mux.HandleFunc("POST /logout", web(h.authed(h.webLogout)))
 	mux.HandleFunc("GET /inbox", web(h.authed(h.webInbox)))
+	mux.HandleFunc("GET /inbox/fragment", web(h.authed(h.webInboxFragment)))
+	mux.HandleFunc("POST /inbox/escalations/{id}/answer", web(h.authed(h.webAnswer)))
+	mux.HandleFunc("POST /inbox/tasks/{id}/accept", web(h.authed(h.webAccept)))
+	mux.HandleFunc("POST /inbox/tasks/{id}/reject", web(h.authed(h.webReject)))
+	mux.HandleFunc("GET /ui/stream", web(h.webStream))
 	static, _ := fs.Sub(webFS, "web/static")
 	files := http.StripPrefix("/static/", http.FileServerFS(static))
 	mux.HandleFunc("GET /static/", func(w http.ResponseWriter, r *http.Request) {
@@ -414,44 +420,53 @@ func (q *webReq) page(status int, page string, d pageData) {
 	q.c.h.render(q.w, status, page, d)
 }
 
+// lookupSession resolves the session cookie to a session and a human. It
+// returns nil, nil for a missing, unknown or expired session (and deletes an
+// expired one).
+func (h *Hub) lookupSession(q store.Querier, r *http.Request, now time.Time) (*store.Session, *store.Human, error) {
+	cookie, err := r.Cookie(h.cookieName())
+	if err != nil || cookie.Value == "" {
+		return nil, nil, nil
+	}
+	idHash := sha(cookie.Value)
+	sess, err := store.SessionByHash(q, idHash)
+	if err != nil || sess == nil {
+		return nil, nil, err
+	}
+	nowMs := store.Millis(now)
+	if nowMs > sess.ExpiresAt || nowMs-sess.LastSeenAt > h.opt.SessionIdle.Milliseconds() {
+		return nil, nil, store.DeleteSession(q, idHash)
+	}
+	human, err := store.HumanByID(q, sess.HumanID)
+	if err != nil || human == nil {
+		return nil, nil, err
+	}
+	return sess, human, nil
+}
+
 // authed wraps a handler that needs a signed-in human. Unsafe methods also
 // need the session's CSRF token and a matching Origin.
 func (h *Hub) authed(fn func(*webReq) error) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		now := h.opt.Now()
-		cookie, err := r.Cookie(h.cookieName())
-		if err != nil || cookie.Value == "" {
-			h.toLogin(w, r)
-			return
-		}
 		tx, err := h.db.BeginTx(r.Context(), nil)
 		if err != nil {
 			h.render(w, 500, "message", pageData{Title: "Error", Error: "Something went wrong."})
 			return
 		}
 		defer tx.Rollback()
-		idHash := sha(cookie.Value)
-		sess, err := store.SessionByHash(tx, idHash)
+		sess, human, err := h.lookupSession(tx, r, now)
 		if err != nil {
 			h.render(w, 500, "message", pageData{Title: "Error", Error: "Something went wrong."})
 			return
 		}
+		if sess == nil {
+			tx.Commit() // keeps the deletion of an expired session
+			h.clearCookie(w)
+			h.toLogin(w, r)
+			return
+		}
 		nowMs := store.Millis(now)
-		if sess == nil || nowMs > sess.ExpiresAt || nowMs-sess.LastSeenAt > h.opt.SessionIdle.Milliseconds() {
-			if sess != nil {
-				store.DeleteSession(tx, idHash)
-				tx.Commit()
-			}
-			h.clearCookie(w)
-			h.toLogin(w, r)
-			return
-		}
-		human, err := store.HumanByID(tx, sess.HumanID)
-		if err != nil || human == nil {
-			h.clearCookie(w)
-			h.toLogin(w, r)
-			return
-		}
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
 			if !h.looseSameOrigin(r) {
 				h.render(w, 403, "message", pageData{Title: "Refused", Error: "The request did not come from this site."})
@@ -470,12 +485,14 @@ func (h *Hub) authed(fn func(*webReq) error) http.HandlerFunc {
 			}
 		}
 		if nowMs-sess.LastSeenAt > 60_000 {
-			store.TouchSession(tx, idHash, nowMs)
+			store.TouchSession(tx, sess.IDHash, nowMs)
 		}
 		c := &call{h: h, tx: tx, r: r, now: now, p: &principal{kind: kindHuman, name: human.Name, role: human.Role}}
 		q := &webReq{w: w, r: r, c: c, human: human, sess: sess, now: now}
 		if err := fn(q); err != nil {
-			h.opt.Log.Printf("web %s %s: %v", r.Method, r.URL.Path, err)
+			if !errors.Is(err, errHandled) {
+				h.opt.Log.Printf("web %s %s: %v", r.Method, r.URL.Path, err)
+			}
 			return
 		}
 		if err := tx.Commit(); err != nil {
@@ -586,12 +603,6 @@ func (h *Hub) webLogout(q *webReq) error {
 	}
 	h.clearCookie(q.w)
 	http.Redirect(q.w, q.r, "/login", http.StatusSeeOther)
-	return nil
-}
-
-// webInbox is a placeholder until the inbox lands in the next commit.
-func (h *Hub) webInbox(q *webReq) error {
-	q.page(200, "inbox", pageData{Title: "Inbox"})
 	return nil
 }
 

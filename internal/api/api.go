@@ -243,6 +243,34 @@ type BlockReq struct {
 	Reason string `json:"reason"` // empty clears the flag
 }
 
+// DigestItem is one line of the digest: something that needs a human, waits
+// for review, or is running.
+type DigestItem struct {
+	Kind    string    `json:"kind"`         // escalation | blocked | lead-silent | submitted | running
+	ID      int64     `json:"id,omitempty"` // escalation or task number
+	Title   string    `json:"title"`
+	Detail  string    `json:"detail,omitempty"`
+	Who     string    `json:"who,omitempty"`
+	Options []string  `json:"options,omitempty"`
+	At      time.Time `json:"at"`
+}
+
+type Activity struct {
+	At   time.Time `json:"at"`
+	Text string    `json:"text"`
+}
+
+// Digest is what the inbox, the phone and the TUI show. One query, so the
+// surfaces cannot disagree.
+type Digest struct {
+	NeedsYou []DigestItem `json:"needs_you"`
+	ToReview []DigestItem `json:"to_review"`
+	Running  []DigestItem `json:"running"`
+	Agents   []Agent      `json:"agents"`
+	Activity []Activity   `json:"activity"`
+	Seq      int64        `json:"seq"` // newest event; clients refetch when it moves
+}
+
 type AskReq struct {
 	Question string   `json:"question"`
 	Options  []string `json:"options,omitempty"`

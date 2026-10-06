@@ -814,7 +814,11 @@ func taskList(c *call) (any, error) {
 	}
 	out := make([]api.Task, 0, len(rows))
 	for _, t := range rows {
-		out = append(out, t.api())
+		a := t.api()
+		if a.Merge, err = c.mergeOf(t.id); err != nil {
+			return nil, err
+		}
+		out = append(out, a)
 	}
 	return out, nil
 }

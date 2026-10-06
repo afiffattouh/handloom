@@ -1,0 +1,175 @@
+package profile
+
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+func good() *Spec {
+	return &Spec{Description: "reads", Kind: "claude", Tools: Tools{Allow: []string{"shell", "read"}, DenyCommands: []string{"rm", "git push"}},
+		Prompt: "Be careful.", Skills: []File{{Path: "cite/SKILL.md", Content: "---\nname: cite\n---\nCite."}, {Path: "cite/examples/one.md", Content: "x"}}}
+}
+
+func TestNormalizeFillsDefaultsAndAcceptsAGoodSpec(t *testing.T) {
+	s := good()
+	if bad := Normalize(s); len(bad) != 0 {
+		t.Fatalf("problems: %v", bad)
+	}
+	if s.Runtime != Cloud || s.Kind != "claude" || s.Tools.Allow[0] != "read" {
+		t.Fatalf("defaults or order: %+v", s)
+	}
+}
+
+func TestNormalizeRefusesWhatIsNotPlain(t *testing.T) {
+	cases := map[string]func(*Spec){
+		"kind":               func(s *Spec) { s.Kind = "emacs" },
+		"runtime":            func(s *Spec) { s.Runtime = "moon" },
+		"model":              func(s *Spec) { s.Model = "x; rm -rf /" },
+		"tool":               func(s *Spec) { s.Tools.Allow = append(s.Tools.Allow, "root") },
+		"deny wildcard":      func(s *Spec) { s.Tools.DenyCommands = []string{"rm *"} },
+		"deny quote":         func(s *Spec) { s.Tools.DenyCommands = []string{`rm "x"`} },
+		"deny bracket":       func(s *Spec) { s.Tools.DenyCommands = []string{"rm)"} },
+		"deny without shell": func(s *Spec) { s.Tools.Allow = []string{"read"} },
+		"skill traversal":    func(s *Spec) { s.Skills = append(s.Skills, File{Path: "../evil/SKILL.md", Content: "x"}) },
+		"skill absolute":     func(s *Spec) { s.Skills = append(s.Skills, File{Path: "/etc/passwd", Content: "x"}) },
+		"skill dotdot":       func(s *Spec) { s.Skills = append(s.Skills, File{Path: "a/../../b/SKILL.md", Content: "x"}) },
+		"skill backslash":    func(s *Spec) { s.Skills = append(s.Skills, File{Path: `a\b/SKILL.md`, Content: "x"}) },
+		"skill no folder":    func(s *Spec) { s.Skills = append(s.Skills, File{Path: "SKILL.md", Content: "x"}) },
+		"skill no SKILL.md":  func(s *Spec) { s.Skills = append(s.Skills, File{Path: "lonely/notes.md", Content: "x"}) },
+		"skill big": func(s *Spec) {
+			s.Skills = append(s.Skills, File{Path: "big/SKILL.md", Content: strings.Repeat("x", maxSkillFile+1)})
+		},
+		"prompt big": func(s *Spec) { s.Prompt = strings.Repeat("x", maxPrompt+1) },
+	}
+	for name, mutate := range cases {
+		s := good()
+		mutate(s)
+		if bad := Normalize(s); len(bad) == 0 {
+			t.Errorf("%s: accepted", name)
+		}
+	}
+}
+
+func TestHashChangesWithContentOnly(t *testing.T) {
+	a, b := good(), good()
+	Normalize(a)
+	Normalize(b)
+	if Hash(a) != Hash(b) {
+		t.Fatal("equal specs hash differently")
+	}
+	b.Prompt += " More."
+	if Hash(a) == Hash(b) {
+		t.Fatal("a changed prompt keeps the hash")
+	}
+}
+
+func TestDirectoryRoundTrip(t *testing.T) {
+	s := good()
+	Normalize(s)
+	dir := filepath.Join(t.TempDir(), "researcher")
+	if err := WriteDir(dir, "researcher", s); err != nil {
+		t.Fatal(err)
+	}
+	name, back, err := ReadDir(dir)
+	if err != nil || name != "researcher" {
+		t.Fatalf("read: %q %v", name, err)
+	}
+	Normalize(back)
+	if Hash(back) != Hash(s) {
+		t.Fatalf("round trip changed the profile:\n%+v\n%+v", s, back)
+	}
+	if got := SkillNames(back); len(got) != 1 || got[0] != "cite" {
+		t.Fatalf("skills: %v", got)
+	}
+}
+
+func TestReadDirRefusesSymlinksAndUnknownKeys(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "profile.yaml"), []byte("name: x\nkind: claude\nsurprise: 1\n"), 0o644)
+	if _, _, err := ReadDir(dir); err == nil {
+		t.Fatal("an unknown key in profile.yaml was ignored")
+	}
+	os.WriteFile(filepath.Join(dir, "profile.yaml"), []byte("name: x\nkind: claude\n"), 0o644)
+	os.MkdirAll(filepath.Join(dir, "skills", "s"), 0o755)
+	os.WriteFile(filepath.Join(dir, "skills", "s", "SKILL.md"), []byte("ok"), 0o644)
+	os.Symlink("/etc/passwd", filepath.Join(dir, "skills", "s", "leak.md"))
+	if _, _, err := ReadDir(dir); err == nil || !strings.Contains(err.Error(), "regular file") {
+		t.Fatalf("a symlink in a skill: %v", err)
+	}
+}
+
+func TestClaudeArgv(t *testing.T) {
+	s := good()
+	Normalize(s)
+	argv := strings.Join(ClaudeArgv(s, ""), " ")
+	for _, want := range []string{"claude --setting-sources project,local --permission-mode dontAsk --allowedTools Bash(handloom:*) Read Glob Grep Bash",
+		"--disallowedTools Bash(rm:*) Bash(git push:*)"} {
+		if !strings.Contains(argv, want) {
+			t.Errorf("argv lacks %q: %s", want, argv)
+		}
+	}
+	if strings.Contains(argv, "Write") || strings.Contains(argv, "WebFetch") {
+		t.Errorf("a tool the profile does not allow is allowed: %s", argv)
+	}
+	if strings.Contains(argv, "--model") {
+		t.Error("model set without one")
+	}
+	s.Model = "sonnet"
+	if got := strings.Join(ClaudeArgv(s, "opus"), " "); !strings.HasSuffix(got, "--model opus") {
+		t.Errorf("the spawn's model should win: %s", got)
+	}
+	if got := strings.Join(ClaudeArgv(s, ""), " "); !strings.HasSuffix(got, "--model sonnet") {
+		t.Errorf("the profile's model: %s", got)
+	}
+	// A profile that allows nothing still lets the agent talk to the hub.
+	none := &Spec{Kind: "claude"}
+	Normalize(none)
+	if got := strings.Join(ClaudeArgv(none, ""), " "); !strings.Contains(got, "Bash(handloom:*)") || strings.Contains(got, "Read") {
+		t.Errorf("an empty profile: %s", got)
+	}
+}
+
+func TestInstallSkillsStaysInsideItsDirectory(t *testing.T) {
+	dir := t.TempDir()
+	s := good()
+	Normalize(s)
+	if err := InstallSkills(dir, s); err != nil {
+		t.Fatal(err)
+	}
+	if b, err := os.ReadFile(filepath.Join(dir, ".claude", "skills", "cite", "SKILL.md")); err != nil || !strings.Contains(string(b), "Cite.") {
+		t.Fatalf("skill file: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".claude", "skills", "cite", "examples", "one.md")); err != nil {
+		t.Fatal(err)
+	}
+	// The hub could be wrong or hostile: the installer checks again.
+	for _, p := range []string{"../escape.md", "/abs.md", "a/../../b.md", `a\b.md`} {
+		if err := InstallSkills(t.TempDir(), &Spec{Skills: []File{{Path: p, Content: "x"}}}); err == nil {
+			t.Errorf("installed %q", p)
+		}
+	}
+	// A symlink planted in the work directory is not followed.
+	d2 := t.TempDir()
+	outside := t.TempDir()
+	os.MkdirAll(filepath.Join(d2, ".claude", "skills", "cite"), 0o755)
+	os.Symlink(filepath.Join(outside, "target"), filepath.Join(d2, ".claude", "skills", "cite", "SKILL.md"))
+	if err := InstallSkills(d2, s); err == nil {
+		t.Fatal("wrote through a symlink")
+	}
+	if _, err := os.Stat(filepath.Join(outside, "target")); err == nil {
+		t.Fatal("the symlink target was written")
+	}
+}
+
+func TestEnforcementIsHonest(t *testing.T) {
+	s := good()
+	Normalize(s)
+	text := strings.Join(Enforcement(s), "\n")
+	for _, want := range []string{"allowed: shell", "refused by Claude Code: web", "the shell command rm", "not enforced: file paths", "not enforced: time"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("enforcement lacks %q:\n%s", want, text)
+		}
+	}
+}

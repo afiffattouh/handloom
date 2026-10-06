@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"handloom/internal/api"
+	"handloom/internal/profile"
 	"handloom/internal/store"
 )
 
@@ -31,21 +32,31 @@ type spawnRow struct {
 	createdBy               string
 	created, updated        int64
 	device, project         string
+	profileName             string
+	profileVersion          int
+	profileHash             string
 }
 
 func (s *spawnRow) api() api.Spawn {
 	return api.Spawn{ID: s.id, Name: s.name, Kind: s.kind, Model: s.model, Device: s.device, Job: nullInt(s.job),
-		Project: s.project, Status: s.status, Pane: s.pane, Error: s.errText, CreatedBy: s.createdBy, CreatedAt: store.Time(s.created)}
+		Project: s.project, Profile: profileRef(s.profileName, s.profileVersion), Status: s.status, Pane: s.pane, Error: s.errText, CreatedBy: s.createdBy, CreatedAt: store.Time(s.created)}
+}
+
+func profileRef(name string, version int) string {
+	if name == "" {
+		return ""
+	}
+	return fmt.Sprintf("%s@%d", name, version)
 }
 
 const spawnSelect = `SELECT s.id, s.project_id, s.device_id, s.job_id, s.name, s.kind, s.model, s.status, s.pane, s.error,
-	s.created_by, s.created_at, s.updated_at, d.name, p.name FROM spawn s JOIN device d ON d.id = s.device_id
+	s.created_by, s.created_at, s.updated_at, d.name, p.name, s.profile_name, s.profile_version, s.profile_hash FROM spawn s JOIN device d ON d.id = s.device_id
 	JOIN project p ON p.id = s.project_id `
 
 func scanSpawn(s scanner) (*spawnRow, error) {
 	r := &spawnRow{}
 	err := s.Scan(&r.id, &r.projectID, &r.deviceID, &r.job, &r.name, &r.kind, &r.model, &r.status, &r.pane, &r.errText,
-		&r.createdBy, &r.created, &r.updated, &r.device, &r.project)
+		&r.createdBy, &r.created, &r.updated, &r.device, &r.project, &r.profileName, &r.profileVersion, &r.profileHash)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -111,6 +122,23 @@ func spawnNew(c *call) (any, error) {
 	if err := checkName("agent", req.Name); err != nil {
 		return nil, err
 	}
+	var prof *profileRow
+	if req.Profile != "" {
+		name, version, err := parseProfileRef(req.Profile)
+		if err != nil {
+			return nil, err
+		}
+		if prof, err = c.profileVersion(name, version); err != nil {
+			return nil, err
+		}
+		if req.Kind != "" && req.Kind != prof.spec.Kind {
+			return nil, badRequest("profile %s is for %s agents, not %s", prof.name, prof.spec.Kind, req.Kind)
+		}
+		req.Kind = prof.spec.Kind
+	}
+	if req.Kind == "" {
+		req.Kind = "claude"
+	}
 	if !spawnKinds[req.Kind] {
 		return nil, badRequest("cannot start %q agents; kinds: %s", req.Kind, spawnKindList())
 	}
@@ -149,6 +177,16 @@ func spawnNew(c *call) (any, error) {
 			return nil, err2
 		}
 	}
+	// Confidential work stays on a model that runs on the owner's own machines.
+	if job.Valid {
+		j, err := c.task(job.Int64)
+		if err != nil {
+			return nil, err
+		}
+		if j.confidential && (prof == nil || prof.spec.Runtime != profile.Local) {
+			return nil, badRequest("job %d is confidential: start its agents from a profile whose runtime is local", j.id)
+		}
+	}
 	if existing, err := c.agentByName(req.Name); err != nil {
 		return nil, err
 	} else if existing != nil {
@@ -165,8 +203,12 @@ func spawnNew(c *call) (any, error) {
 		return nil, &apiError{429, "rate_limited", "too many spawn requests; slow down"}
 	}
 	ms := store.Millis(c.now)
-	res, err := c.tx.Exec(`INSERT INTO spawn(project_id, device_id, job_id, name, kind, model, status, created_by, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)`, projectID, deviceID, nullAny(job), req.Name, req.Kind, req.Model, c.p.actor(), ms, ms)
+	pn, pv, ph := "", 0, ""
+	if prof != nil {
+		pn, pv, ph = prof.name, prof.version, prof.hash
+	}
+	res, err := c.tx.Exec(`INSERT INTO spawn(project_id, device_id, job_id, name, kind, model, status, created_by, created_at, updated_at, profile_name, profile_version, profile_hash)
+		VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?)`, projectID, deviceID, nullAny(job), req.Name, req.Kind, req.Model, c.p.actor(), ms, ms, pn, pv, ph)
 	if err != nil {
 		return nil, conflict("%q is already being started", req.Name)
 	}
@@ -176,7 +218,7 @@ func spawnNew(c *call) (any, error) {
 		return nil, err
 	}
 	if err := c.record(projectID, 0, "spawn.request", fmt.Sprintf("spawn:%d", id),
-		map[string]any{"name": s.name, "kind": s.kind, "device": s.device, "job": nullInt(job)}); err != nil {
+		map[string]any{"name": s.name, "kind": s.kind, "device": s.device, "job": nullInt(job), "profile": profileRef(pn, pv), "hash": ph}); err != nil {
 		return nil, err
 	}
 	// The link of that device is waiting on its event poll.

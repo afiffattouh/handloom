@@ -222,6 +222,12 @@ func (h *Hub) Handler() http.Handler {
 	v1("GET /spawns/{id}", spawnGet)
 	v1("POST /spawns/{id}/report", spawnReport)
 	v1("GET /device/spawns", deviceSpawns)
+	v1("GET /device/spawns/{id}/profile", spawnProfile)
+
+	v1("POST /profiles", profileNew)
+	v1("GET /profiles", profileList)
+	v1("GET /profiles/{name}", profileGet)
+	v1("GET /profiles/{name}/versions", profileVersions)
 
 	v1("POST /agents", agentRegister)
 	v1("GET /agents", agentList)

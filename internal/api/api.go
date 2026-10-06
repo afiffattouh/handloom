@@ -5,6 +5,8 @@ package api
 import (
 	"encoding/json"
 	"time"
+
+	"handloom/internal/profile"
 )
 
 const Version = "handloom/1"
@@ -290,7 +292,8 @@ type Spawn struct {
 	Device    string    `json:"device"`
 	Project   string    `json:"project"`
 	Job       *int64    `json:"job,omitempty"`
-	Status    string    `json:"status"` // pending | launching | started | failed
+	Profile   string    `json:"profile,omitempty"` // name@version it is pinned to
+	Status    string    `json:"status"`            // pending | launching | started | failed
 	Pane      string    `json:"pane,omitempty"`
 	Error     string    `json:"error,omitempty"`
 	CreatedBy string    `json:"created_by"`
@@ -299,7 +302,8 @@ type Spawn struct {
 
 type SpawnReq struct {
 	Name    string `json:"name"`
-	Kind    string `json:"kind"`
+	Kind    string `json:"kind,omitempty"`
+	Profile string `json:"profile,omitempty"` // name or name@version; what the agent may do and know
 	Model   string `json:"model,omitempty"`
 	Device  string `json:"device,omitempty"` // humans; a lead's agents start on the lead's own device
 	Job     int64  `json:"job,omitempty"`    // humans; a lead's agents join the lead's own job
@@ -320,6 +324,31 @@ const (
 	SpawnStarted   = "started"
 	SpawnFailed    = "failed"
 )
+
+// ProfileInfo is a profile in a list.
+type ProfileInfo struct {
+	Name        string    `json:"name"`
+	Version     int       `json:"version"`
+	Hash        string    `json:"hash"`
+	Description string    `json:"description,omitempty"`
+	Kind        string    `json:"kind"`
+	Runtime     string    `json:"runtime"`
+	Tools       []string  `json:"tools"`
+	Skills      []string  `json:"skills,omitempty"`
+	CreatedBy   string    `json:"created_by"`
+	CreatedAt   time.Time `json:"created_at"`
+}
+
+// ProfileFull is one version of a profile with everything in it.
+type ProfileFull struct {
+	ProfileInfo
+	Spec profile.Spec `json:"spec"`
+}
+
+type ProfileReq struct {
+	Name string       `json:"name"`
+	Spec profile.Spec `json:"spec"`
+}
 
 type AgentJobReq struct {
 	Job int64 `json:"job"` // 0 removes the agent from its job

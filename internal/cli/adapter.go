@@ -127,7 +127,9 @@ func (e *env) adapter(args []string) error {
 	return usageErr("usage: handloom %s", synopsis)
 }
 
-func (e *env) installAdapter(kind string, spec *adapterSpec, root, name, project string, permissions bool) error {
+// installAdapter wires an agent kind to handloom in the project at root. extra
+// is further instructions (a profile's prompt) added to the protocol block.
+func (e *env) installAdapter(kind string, spec *adapterSpec, root, name, project string, permissions bool, extra ...string) error {
 	if st, err := os.Stat(root); err != nil || !st.IsDir() {
 		return fmt.Errorf("%s is not a directory", root)
 	}
@@ -213,6 +215,11 @@ func (e *env) installAdapter(kind string, spec *adapterSpec, root, name, project
 	block, err := instructionsBlock(a)
 	if err != nil {
 		return err
+	}
+	for _, x := range extra {
+		if x = strings.TrimSpace(x); x != "" {
+			block += "\n\n" + x
+		}
 	}
 	path := filepath.Join(root, spec.instructions)
 	if err := writeBlock(path, block); err != nil {

@@ -75,7 +75,9 @@ Hub and administration (HANDLOOM_HUB and HANDLOOM_TOKEN set to the hub URL and a
   handloom project add <name> | list                  (admin)
   handloom agent role <name> <lead|worker|observer>   (admin, human)
   handloom agent job <name> <job id | 0>              move an agent into a job (admin, human)
-  handloom spawn <name> [--kind claude] [--model M] [--device D] [--job N]   start an agent in a terminal the link owns (lead, human)
+  handloom profiles                               the library: what an agent may do and know
+  handloom profile new <dir> | check <dir> | show <name> | export <name> <dir> | versions <name>   (new: owner)
+  handloom spawn <name> [--profile P] [--kind claude] [--model M] [--device D] [--job N]   start an agent in a terminal the link owns (lead, human)
   handloom spawns                                 list spawn requests and how they went
   handloom digest                                 what needs you, what waits for review, what runs
   handloom escalations [--status open|answered|all]   list the lead's questions (human)
@@ -133,6 +135,10 @@ func Main(args []string, stdout, stderr io.Writer) int {
 		err = e.inbox(rest)
 	case "healthcheck":
 		err = e.healthcheck(rest)
+	case "profile":
+		err = e.profile(rest)
+	case "profiles":
+		err = e.profiles(rest)
 	case "spawn":
 		err = e.spawn(rest)
 	case "spawns":

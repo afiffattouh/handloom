@@ -208,6 +208,24 @@ CREATE TABLE spawn (
 );
 CREATE UNIQUE INDEX spawn_live_name ON spawn(name) WHERE status IN ('pending', 'launching', 'started');
 CREATE INDEX spawn_device ON spawn(device_id, status);
+`, `
+-- C2: profiles. Immutable and versioned: a change is a new version, and a
+-- spawn is pinned to the exact version and hash it was asked for.
+CREATE TABLE profile (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  name       TEXT NOT NULL,
+  version    INTEGER NOT NULL,
+  hash       TEXT NOT NULL,
+  spec       TEXT NOT NULL,
+  created_by TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  UNIQUE (name, version)
+);
+CREATE TRIGGER profile_no_update BEFORE UPDATE ON profile BEGIN SELECT RAISE(ABORT, 'a profile version is immutable'); END;
+CREATE TRIGGER profile_no_delete BEFORE DELETE ON profile BEGIN SELECT RAISE(ABORT, 'a profile version is immutable'); END;
+ALTER TABLE spawn ADD COLUMN profile_name TEXT NOT NULL DEFAULT '';
+ALTER TABLE spawn ADD COLUMN profile_version INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE spawn ADD COLUMN profile_hash TEXT NOT NULL DEFAULT '';
 `}
 
 // Open opens (and migrates) the database at path. Use ":memory:" in tests.

@@ -680,3 +680,109 @@ func TestTrustClaudeDirDoesNothingWithoutAClaudeConfig(t *testing.T) {
 		t.Fatal("created a Claude Code config that was not there")
 	}
 }
+
+// ---- profiles ----
+
+func writeProfileDir(t *testing.T, dir string) {
+	t.Helper()
+	os.MkdirAll(filepath.Join(dir, "skills", "cite"), 0o755)
+	os.WriteFile(filepath.Join(dir, "profile.yaml"), []byte("name: researcher\ndescription: reads and writes\nkind: claude\ntools:\n  allow: [read, edit, shell]\n  deny_commands: [rm]\n"), 0o644)
+	os.WriteFile(filepath.Join(dir, "PROMPT.md"), []byte("Cite every source.\n"), 0o644)
+	os.WriteFile(filepath.Join(dir, "skills", "cite", "SKILL.md"), []byte("---\nname: cite\ndescription: how to cite\n---\nCite it."), 0o644)
+}
+
+func TestProfileVerbs(t *testing.T) {
+	r := newRig(t)
+	src := filepath.Join(t.TempDir(), "researcher")
+	writeProfileDir(t, src)
+
+	out := r.run("profile", "check", src)
+	for _, want := range []string{"valid profile", "allowed: shell", "refused by Claude Code: web", "the shell command rm", "not enforced: file paths"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("check lacks %q:\n%s", want, out)
+		}
+	}
+	bad := filepath.Join(t.TempDir(), "bad")
+	os.MkdirAll(bad, 0o755)
+	os.WriteFile(filepath.Join(bad, "profile.yaml"), []byte("name: x\ntools:\n  allow: [root]\n"), 0o644)
+	if code, out, _ := r.exec("profile", "check", bad); code == 0 || !strings.Contains(out, "unknown tool") {
+		t.Fatalf("check of a bad profile: %d %s", code, out)
+	}
+
+	// Writing needs the owner or the admin; a member cannot.
+	if code, _, errs := r.exec("profile", "new", src); code == 0 {
+		t.Fatalf("no credentials: %s", errs)
+	}
+	if code, _, errs := (func() (int, string, string) {
+		t.Setenv("HANDLOOM_HUB", r.hubURL)
+		t.Setenv("HANDLOOM_TOKEN", r.human)
+		return r.exec("profile", "new", src)
+	})(); code == 0 || !strings.Contains(errs, "owner") {
+		t.Fatalf("a member wrote a profile: %d %s", code, errs)
+	}
+	if out := r.as(r.admin, "profile", "new", src); !strings.Contains(out, "researcher: version 1") {
+		t.Fatalf("new: %s", out)
+	}
+	if out := r.as(r.admin, "profile", "new", src); !strings.Contains(out, "version 1") {
+		t.Fatalf("an unchanged profile should stay at version 1: %s", out)
+	}
+	if out := r.as(r.human, "profiles"); !strings.Contains(out, "researcher") || !strings.Contains(out, "skills: cite") {
+		t.Fatalf("profiles: %s", out)
+	}
+	if out := r.as(r.human, "profile", "show", "researcher"); !strings.Contains(out, "denied commands: rm") || !strings.Contains(out, "Cite every source.") {
+		t.Fatalf("show: %s", out)
+	}
+	// Export and import again gives the same version: nothing is lost on the way.
+	back := filepath.Join(t.TempDir(), "again")
+	r.as(r.human, "profile", "export", "researcher", back)
+	if out := r.as(r.admin, "profile", "new", back); !strings.Contains(out, "version 1") {
+		t.Fatalf("the exported profile differs from the original: %s", out)
+	}
+	if out := r.as(r.human, "profile", "versions", "researcher"); !strings.Contains(out, "v1") {
+		t.Fatalf("versions: %s", out)
+	}
+}
+
+func TestSpawnExecMaterializesAProfile(t *testing.T) {
+	r := newRig(t)
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	work := t.TempDir()
+	bin := t.TempDir()
+	os.WriteFile(filepath.Join(bin, "claude"), []byte("#!/bin/sh\n"), 0o755)
+	t.Setenv("PATH", bin+":"+os.Getenv("PATH"))
+	t.Setenv("TMUX", "/tmp/tmux-1000/handloom,123,0")
+	t.Setenv("TMUX_PANE", "%8")
+	var gotArgv []string
+	old := execFn
+	execFn = func(path string, argv []string, env []string) error { gotArgv = argv; return nil }
+	t.Cleanup(func() { execFn = old })
+
+	src := filepath.Join(t.TempDir(), "researcher")
+	writeProfileDir(t, src)
+	r.as(r.admin, "profile", "new", src)
+	r.as(r.human, "spawn", "tester", "--profile", "researcher", "--device", "dev", "--model", "sonnet", "--wait", "0")
+	waitSpawn(t, r, 1, "launching")
+
+	t.Chdir(work)
+	r.run("spawn-exec", "1")
+
+	line := strings.Join(gotArgv, " ")
+	for _, want := range []string{"--allowedTools Bash(handloom:*) Write Edit Read Glob Grep Bash", "--disallowedTools Bash(rm:*)", "--model sonnet", "--setting-sources project,local"} {
+		if !strings.Contains(line, want) {
+			t.Errorf("argv lacks %q: %s", want, line)
+		}
+	}
+	if b, err := os.ReadFile(filepath.Join(work, ".claude", "skills", "cite", "SKILL.md")); err != nil || !strings.Contains(string(b), "Cite it.") {
+		t.Fatalf("the profile's skill is not in the work directory: %v", err)
+	}
+	b, _ := os.ReadFile(filepath.Join(work, "CLAUDE.md"))
+	for _, want := range []string{"Your profile: researcher (version 1)", "Cite every source.", "You are tester"} {
+		if !strings.Contains(string(b), want) {
+			t.Errorf("CLAUDE.md lacks %q:\n%s", want, b)
+		}
+	}
+	if s := waitSpawn(t, r, 1, "started"); s.Profile != "researcher@1" {
+		t.Fatalf("spawn: %+v", s)
+	}
+}

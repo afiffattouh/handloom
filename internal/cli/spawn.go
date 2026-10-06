@@ -6,23 +6,27 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"handloom/internal/api"
+	"handloom/internal/client"
 	"handloom/internal/drivers"
+	"handloom/internal/profile"
 )
 
 // spawn asks for an agent to be started. A lead starts agents on its own
 // device in its own job; a human names the device and, optionally, the job.
 func (e *env) spawn(args []string) error {
 	fs := e.flags("spawn")
-	kind := fs.String("kind", "claude", "agent kind to start")
+	kind := fs.String("kind", "", "agent kind to start (default claude, or the profile's)")
+	prof := fs.String("profile", "", "profile: what the agent may do and know (name or name@version)")
 	model := fs.String("model", "", "model name for the agent CLI")
 	device := fs.String("device", "", "device to start it on (humans)")
 	job := fs.Int64("job", 0, "job it joins (humans; a lead's agents join the lead's job)")
 	project := fs.String("project", "", "project (humans)")
 	wait := fs.Duration("wait", 90*time.Second, "wait this long for it to start (0: do not wait)")
-	pos, err := fs.need(args, 1, 1, "spawn <name> [--kind claude] [--model M] [--device D] [--job N] [--wait 90s]")
+	pos, err := fs.need(args, 1, 1, "spawn <name> [--profile P] [--kind claude] [--model M] [--device D] [--job N] [--wait 90s]")
 	if err != nil {
 		return err
 	}
@@ -31,7 +35,7 @@ func (e *env) spawn(args []string) error {
 		return err
 	}
 	var s api.Spawn
-	if err := c.Post("/v1/spawns", api.SpawnReq{Name: pos[0], Kind: *kind, Model: *model, Device: *device, Job: *job, Project: *project}, &s); err != nil {
+	if err := c.Post("/v1/spawns", api.SpawnReq{Name: pos[0], Kind: *kind, Profile: *prof, Model: *model, Device: *device, Job: *job, Project: *project}, &s); err != nil {
 		return err
 	}
 	deadline := time.Now().Add(*wait)
@@ -78,6 +82,9 @@ func (e *env) spawns(args []string) error {
 			job := ""
 			if s.Job != nil {
 				job = fmt.Sprintf(" job #%d", *s.Job)
+			}
+			if s.Profile != "" {
+				job += " as " + s.Profile
 			}
 			extra := ""
 			if s.Error != "" {
@@ -147,22 +154,59 @@ func (e *env) spawnExec(args []string) error {
 		return fail(fmt.Errorf("no adapter for %q", s.Kind))
 	}
 	var argv []string
+	var extra string
 	switch s.Kind {
 	case "claude":
-		argv = claudeArgv(s.Model)
+		prof, err := fetchSpawnProfile(c, s)
+		if err != nil {
+			return fail(err)
+		}
+		if prof == nil {
+			argv = claudeArgv(s.Model)
+		} else {
+			argv = profile.ClaudeArgv(&prof.Spec, s.Model)
+			if err := profile.InstallSkills(dir, &prof.Spec); err != nil {
+				return fail(err)
+			}
+			if prof.Spec.Prompt != "" {
+				extra = fmt.Sprintf("## Your profile: %s (version %d)\n\n%s", prof.Name, prof.Version, prof.Spec.Prompt)
+			}
+		}
 		if err := trustClaudeDir(dir); err != nil {
 			fmt.Fprintf(e.err, "handloom: could not pre-approve %s for Claude Code (%v); it may ask\n", dir, err)
 		}
 	default:
 		return fail(fmt.Errorf("cannot start %q agents yet", s.Kind))
 	}
-	if err := e.installAdapter(s.Kind, spec, dir, s.Name, s.Project, true); err != nil {
+	if err := e.installAdapter(s.Kind, spec, dir, s.Name, s.Project, true, extra); err != nil {
 		return fail(err)
 	}
 	if err := c.Post(fmt.Sprintf("/v1/spawns/%d/report", id), api.SpawnReport{Status: api.SpawnStarted, Pane: drivers.Detect()}, nil); err != nil {
 		return fail(err)
 	}
 	return e.run(append([]string{s.Name, "--kind", s.Kind, "--"}, argv...))
+}
+
+// fetchSpawnProfile gets the profile a spawn is pinned to, or nil when it has
+// none. The hub's answer is checked: valid, and hashing to what it claims.
+func fetchSpawnProfile(c *client.Client, s *api.Spawn) (*api.ProfileFull, error) {
+	if s.Profile == "" {
+		return nil, nil
+	}
+	var p api.ProfileFull
+	if err := c.Get(fmt.Sprintf("/v1/device/spawns/%d/profile", s.ID), &p); err != nil {
+		return nil, fmt.Errorf("profile %s: %w", s.Profile, err)
+	}
+	if bad := profile.Normalize(&p.Spec); len(bad) > 0 {
+		return nil, fmt.Errorf("profile %s is not acceptable: %s", s.Profile, strings.Join(bad, "; "))
+	}
+	if got := profile.Hash(&p.Spec); got != p.Hash {
+		return nil, fmt.Errorf("profile %s does not match its hash (hub says %.12s, content is %.12s)", s.Profile, p.Hash, got)
+	}
+	if want := fmt.Sprintf("%s@%d", p.Name, p.Version); want != s.Profile {
+		return nil, fmt.Errorf("the hub sent profile %s for a spawn pinned to %s", want, s.Profile)
+	}
+	return &p, nil
 }
 
 // trustClaudeDir tells Claude Code that dir is a folder its user trusts, so a

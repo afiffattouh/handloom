@@ -148,6 +148,19 @@ var Tools = []tool{
 			}
 			return append(out, "--", a.str("to"), a.str("text")), nil
 		}},
+	{Name: "handloom_ask_human", Description: "Lead only. Ask the human a question and continue other work. The answer arrives later as a message from human:<name>; end your turn and handloom wakes you. Give options for a closed question, omit them for free text. Never ask the human any other way.",
+		InputSchema: schema([]string{"question"}, map[string]any{"question": prop("string", "the question, self-contained"),
+			"options": stringsT, "task": prop("integer", "task this is about")}),
+		argv: func(a args) ([]string, error) {
+			out := []string{"ask", a.str("question")}
+			for _, o := range a.list("options") {
+				out = append(out, "--option", o)
+			}
+			if t := a.str("task"); t != "" {
+				out = append(out, "--task", t)
+			}
+			return out, nil
+		}},
 	{Name: "handloom_task_list", Description: "List the tasks on the board, optionally by status (open, claimed, submitted, done, cancelled).",
 		InputSchema: schema(nil, map[string]any{"status": prop("string", "filter by status")}),
 		argv: func(a args) ([]string, error) {

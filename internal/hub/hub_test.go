@@ -342,22 +342,19 @@ var scopeCases = []scopeCase{
 		},
 	},
 	{
-		// Escalations are M3. The scope rule is enforced already: a
-		// permitted caller gets 501, everyone else 403. The design marks the
-		// human column "n/a" here; the hub rejects it.
 		name:    "open escalation",
 		allowed: map[string]bool{"lead": true},
-		okCode:  501,
 		run: func(e *env, s string) (int, []byte) {
-			return e.do(e.subject(s), "POST", "/v1/escalations", `{}`)
+			return e.do(e.subject(s), "POST", "/v1/escalations", api.AskReq{Question: "Delete the old migrations?", Options: []string{"yes", "no"}})
 		},
 	},
 	{
 		name:    "answer escalation",
 		allowed: map[string]bool{"human": true},
-		okCode:  501,
 		run: func(e *env, s string) (int, []byte) {
-			return e.do(e.subject(s), "POST", "/v1/escalations/1/answer", `{}`)
+			var esc api.Escalation
+			e.ok(e.lead(), "POST", "/v1/escalations", api.AskReq{Question: "Ship it?"}, &esc)
+			return e.do(e.subject(s), "POST", fmt.Sprintf("/v1/escalations/%d/answer", esc.ID), api.AnswerReq{Answer: "yes"})
 		},
 	},
 }
@@ -1007,4 +1004,92 @@ func TestUnclaimedAssignedTaskIsReported(t *testing.T) {
 	if m := sweep(); len(m) != 1 || !strings.Contains(m[0].Body, "has not been claimed") {
 		t.Fatalf("a released, assigned task is unclaimed again: %+v", m)
 	}
+}
+
+// ---- escalations ----
+
+func TestEscalationRoundTrip(t *testing.T) {
+	e := newEnv(t)
+	task := e.create(e.lead(), api.TaskCreateReq{Title: "migrate"})
+	var esc api.Escalation
+	e.ok(e.lead(), "POST", "/v1/escalations", api.AskReq{Question: "Delete the old migrations?", Options: []string{"yes", "no"}, TaskID: &task.ID}, &esc)
+	if esc.ID != 1 || esc.From != "lead" || esc.Answer != nil || len(esc.Options) != 2 {
+		t.Fatalf("escalation after open: %+v", esc)
+	}
+
+	var open []api.Escalation
+	e.ok(e.afif(), "GET", "/v1/escalations", nil, &open)
+	if len(open) != 1 {
+		t.Fatalf("open escalations: %+v", open)
+	}
+
+	// The answer must be one of the options, and only once.
+	e.fail(400, e.afif(), "POST", "/v1/escalations/1/answer", api.AnswerReq{Answer: "maybe"})
+	e.fail(400, e.afif(), "POST", "/v1/escalations/1/answer", api.AnswerReq{Answer: " "})
+	e.ok(e.afif(), "POST", "/v1/escalations/1/answer", api.AnswerReq{Answer: "yes"}, &esc)
+	if esc.Answer == nil || *esc.Answer != "yes" || esc.AnsweredBy != "human:afif" || esc.AnsweredAt == nil {
+		t.Fatalf("escalation after answer: %+v", esc)
+	}
+	e.fail(409, e.afif(), "POST", "/v1/escalations/1/answer", api.AnswerReq{Answer: "no"})
+
+	e.ok(e.afif(), "GET", "/v1/escalations", nil, &open)
+	if len(open) != 0 {
+		t.Fatalf("answered escalation still listed as open: %+v", open)
+	}
+	var got api.Escalation
+	e.ok(e.worker(), "GET", "/v1/escalations/1", nil, &got) // agents may read, to poll
+	if got.Answer == nil || *got.Answer != "yes" {
+		t.Fatalf("polled escalation: %+v", got)
+	}
+
+	// The lead receives the answer from the human, tied to the task.
+	var msg *api.Message
+	for _, m := range e.inbox(e.lead()) {
+		if strings.Contains(m.Body, "Answer to your question #1") {
+			m := m
+			msg = &m
+		}
+	}
+	if msg == nil || msg.From != "human:afif" || msg.TaskID == nil || *msg.TaskID != task.ID {
+		t.Fatalf("answer message: %+v", msg)
+	}
+	for _, action := range []string{"escalation.open", "escalation.answer"} {
+		if !e.audited(action, "escalation:1") {
+			t.Errorf("audit log has no %s", action)
+		}
+	}
+}
+
+// An agent cannot answer, whoever it claims to be, and its attempt is audited.
+func TestAgentCannotAnswerEscalation(t *testing.T) {
+	e := newEnv(t)
+	e.ok(e.lead(), "POST", "/v1/escalations", api.AskReq{Question: "Ship it?"}, nil)
+	for _, c := range []caller{e.lead(), e.worker(), e.observer()} {
+		e.fail(403, c, "POST", "/v1/escalations/1/answer", api.AnswerReq{Answer: "yes"})
+	}
+	// Spoofing the human in the body gets nowhere: the scope check runs first.
+	e.fail(403, e.lead(), "POST", "/v1/escalations/1/answer", `{"answer":"yes","answered_by":"human:afif"}`)
+	var esc api.Escalation
+	e.ok(e.afif(), "GET", "/v1/escalations/1", nil, &esc)
+	if esc.Answer != nil {
+		t.Fatalf("an agent answered: %+v", esc)
+	}
+	if !e.audited("denied", "POST /v1/escalations/1/answer") {
+		t.Error("the rejected answers are not in the audit log")
+	}
+	// The admin token may not answer either.
+	e.fail(403, caller{e.admin, ""}, "POST", "/v1/escalations/1/answer", api.AnswerReq{Answer: "yes"})
+}
+
+func TestEscalationValidation(t *testing.T) {
+	e := newEnv(t)
+	e.fail(400, e.lead(), "POST", "/v1/escalations", api.AskReq{Question: "  "})
+	e.fail(400, e.lead(), "POST", "/v1/escalations", api.AskReq{Question: "q", Options: []string{"a", "a"}})
+	e.fail(400, e.lead(), "POST", "/v1/escalations", api.AskReq{Question: "q", Options: make([]string, 11)})
+	big := int64(99999)
+	e.fail(404, e.lead(), "POST", "/v1/escalations", api.AskReq{Question: "q", TaskID: &big})
+	e.fail(404, e.afif(), "GET", "/v1/escalations/42", nil)
+	// Free text is allowed when no options are given.
+	e.ok(e.lead(), "POST", "/v1/escalations", api.AskReq{Question: "Which name?"}, nil)
+	e.ok(e.afif(), "POST", "/v1/escalations/1/answer", api.AnswerReq{Answer: "Handloom"}, nil)
 }

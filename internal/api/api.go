@@ -120,6 +120,20 @@ type Message struct {
 	ReadAt      *time.Time `json:"read_at,omitempty"`
 }
 
+// Escalation is a question from the lead to the human. Only a human can answer it.
+type Escalation struct {
+	ID         int64      `json:"id"`
+	Project    string     `json:"project"`
+	From       string     `json:"from"` // the asking agent
+	TaskID     *int64     `json:"task_id,omitempty"`
+	Question   string     `json:"question"`
+	Options    []string   `json:"options"`
+	Answer     *string    `json:"answer,omitempty"`
+	AnsweredBy string     `json:"answered_by,omitempty"` // human:<name>
+	CreatedAt  time.Time  `json:"created_at"`
+	AnsweredAt *time.Time `json:"answered_at,omitempty"`
+}
+
 type Event struct {
 	Seq       int64           `json:"seq"`
 	Type      string          `json:"type"`
@@ -227,6 +241,16 @@ type ReasonReq struct {
 
 type BlockReq struct {
 	Reason string `json:"reason"` // empty clears the flag
+}
+
+type AskReq struct {
+	Question string   `json:"question"`
+	Options  []string `json:"options,omitempty"`
+	TaskID   *int64   `json:"task_id,omitempty"`
+}
+
+type AnswerReq struct {
+	Answer string `json:"answer"`
 }
 
 type WhoAmI struct {

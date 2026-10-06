@@ -45,6 +45,7 @@ Agent verbs (run inside an agent's shell, through the local link):
   handloom task claim <id> | heartbeat <id> | release <id>                  (lead, worker)
   handloom task block <id> --reason R | block <id> --clear                  (lead, worker)
   handloom task submit <id> --evidence E [--evidence E ...] [--note N]      (lead, worker)
+  handloom ask <question> [--option A --option B] [--task N] [--wait 10m]   (lead) ask the human; the answer arrives as a message
   handloom state <idle|working|blocked|offline>       report agent state (adapters do this)
 
 Device:
@@ -65,6 +66,8 @@ Hub and administration (HANDLOOM_HUB and HANDLOOM_TOKEN set to the hub URL and a
   handloom human add <name>                           (admin)
   handloom project add <name> | list                  (admin)
   handloom agent role <name> <lead|worker|observer>   (admin, human)
+  handloom escalations [--status open|answered|all]   list the lead's questions (human)
+  handloom answer <id> <answer>                       answer a question (human only)
   handloom audit [--after SEQ]                        (admin, human)
 
 Every verb takes --json. Agents are identified by $HANDLOOM_AGENT, or by a
@@ -116,6 +119,12 @@ func Main(args []string, stdout, stderr io.Writer) int {
 		err = e.send(rest)
 	case "inbox":
 		err = e.inbox(rest)
+	case "ask":
+		err = e.ask(rest)
+	case "answer":
+		err = e.answer(rest)
+	case "escalations":
+		err = e.escalations(rest)
 	case "task":
 		err = e.task(rest)
 	case "hook":

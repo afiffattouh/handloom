@@ -455,3 +455,32 @@ func TestServiceUnit(t *testing.T) {
 		t.Fatalf("user unit:\n%s", unit)
 	}
 }
+
+// The lead asks the human; the answer comes back as a message from the human.
+func TestAskAndAnswerThroughCLI(t *testing.T) {
+	r := newRig(t)
+	r.run("register", "lead", "--kind", "shell")
+	r.run("register", "worker", "--kind", "shell")
+	r.as(r.admin, "agent", "role", "lead", "lead")
+
+	if code, _, errs := r.agent("worker", "ask", "Can", "I", "delete", "it?"); code != 1 || !strings.Contains(errs, "may not") {
+		t.Fatalf("worker ask: %d %s", code, errs)
+	}
+	out := r.agentOK("lead", "ask", "Delete the old migrations?", "--option", "yes", "--option", "no")
+	if !strings.Contains(out, "Question #1 sent to the human") {
+		t.Fatalf("ask: %s", out)
+	}
+	if code, _, errs := r.agent("lead", "answer", "1", "yes"); code != 1 || !strings.Contains(errs, "may not") {
+		t.Fatalf("lead answering its own question: %d %s", code, errs)
+	}
+	if out := r.as(r.human, "escalations"); !strings.Contains(out, "lead asks (open): Delete the old migrations?") || !strings.Contains(out, "yes / no") {
+		t.Fatalf("escalations: %s", out)
+	}
+	r.as(r.human, "answer", "1", "yes")
+	if out := r.agentOK("lead", "inbox"); !strings.Contains(out, "from human:") || !strings.Contains(out, "Answer to your question #1") || !strings.Contains(out, ": yes") {
+		t.Fatalf("lead inbox after answer: %s", out)
+	}
+	if out := r.as(r.human, "escalations", "--status", "answered"); !strings.Contains(out, "answered: yes") {
+		t.Fatalf("answered list: %s", out)
+	}
+}

@@ -121,6 +121,21 @@ CREATE TRIGGER event_no_delete BEFORE DELETE ON event BEGIN SELECT RAISE(ABORT, 
 ALTER TABLE agent ADD COLUMN dir TEXT NOT NULL DEFAULT '';
 ALTER TABLE task ADD COLUMN claimable_at INTEGER;                       -- when the assignee could first claim it
 ALTER TABLE task ADD COLUMN unclaimed_notified INTEGER NOT NULL DEFAULT 0;
+`, `
+-- A: escalations, the one channel from the lead to the human.
+CREATE TABLE escalation (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  project_id    INTEGER NOT NULL REFERENCES project(id),
+  from_agent_id INTEGER NOT NULL REFERENCES agent(id),
+  task_id       INTEGER REFERENCES task(id),
+  question      TEXT NOT NULL,
+  options       TEXT NOT NULL DEFAULT '[]',
+  answer        TEXT,
+  answered_by   TEXT NOT NULL DEFAULT '',
+  created_at    INTEGER NOT NULL,
+  answered_at   INTEGER
+);
+CREATE INDEX escalation_open ON escalation(project_id, answered_at);
 `}
 
 // Open opens (and migrates) the database at path. Use ":memory:" in tests.

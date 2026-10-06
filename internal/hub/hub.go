@@ -150,26 +150,10 @@ func (h *Hub) Handler() http.Handler {
 	v1("POST /tasks/{id}/reject", taskReject)
 	v1("POST /tasks/{id}/cancel", taskCancel)
 
-	// Escalations arrive in M3. The scope check is already in place so the
-	// rule is enforced from day one.
-	v1("POST /escalations", func(c *call) (any, error) {
-		if err := c.allow(ActEscalationOpen); err != nil {
-			return nil, err
-		}
-		return nil, notImplemented("escalations")
-	})
-	v1("POST /escalations/{id}/answer", func(c *call) (any, error) {
-		if err := c.allow(ActEscalationAnswer); err != nil {
-			return nil, err
-		}
-		return nil, notImplemented("escalations")
-	})
-	v1("GET /escalations/{id}", func(c *call) (any, error) {
-		if err := c.allow(ActRead); err != nil {
-			return nil, err
-		}
-		return nil, notImplemented("escalations")
-	})
+	v1("POST /escalations", escalationOpen)
+	v1("GET /escalations", escalationList)
+	v1("GET /escalations/{id}", escalationGet)
+	v1("POST /escalations/{id}/answer", escalationAnswer)
 	return mux
 }
 
@@ -194,9 +178,6 @@ func notFound(format string, args ...any) error {
 }
 func conflict(format string, args ...any) error {
 	return &apiError{409, "conflict", fmt.Sprintf(format, args...)}
-}
-func notImplemented(what string) error {
-	return &apiError{501, "not_implemented", what + " are not implemented in this version"}
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

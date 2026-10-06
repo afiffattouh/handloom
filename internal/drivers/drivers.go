@@ -88,8 +88,11 @@ func (t *Tmux) Alive(ctx context.Context, target string) bool {
 	if socket != "" {
 		args = append(args, "-S", socket)
 	}
-	_, err := t.Run(ctx, "tmux", append(args, "display-message", "-p", "-t", pane, "#{pane_id}")...)
-	return err == nil
+	// display-message answers for a pane that does not exist with an empty
+	// line and exit status 0 (it falls back to the current pane), so the
+	// answer must be the very pane asked about.
+	out, err := t.Run(ctx, "tmux", append(args, "display-message", "-p", "-t", pane, "#{pane_id}")...)
+	return err == nil && strings.TrimSpace(out) == pane
 }
 
 func (t *Tmux) Nudge(ctx context.Context, target, line string) error {

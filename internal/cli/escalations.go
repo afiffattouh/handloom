@@ -111,3 +111,43 @@ func (e *env) escalations(args []string) error {
 	})
 	return nil
 }
+
+// digest prints what the inbox shows: what needs you, what waits for review,
+// what is running.
+func (e *env) digest(args []string) error {
+	fs := e.flags("digest")
+	if _, err := fs.need(args, 0, 0, "digest"); err != nil {
+		return err
+	}
+	c, err := conn()
+	if err != nil {
+		return err
+	}
+	var d api.Digest
+	if err := c.Get("/v1/digest", &d); err != nil {
+		return err
+	}
+	e.print(d, func() {
+		fmt.Fprintf(e.out, "%d need you, %d to review, %d running\n", len(d.NeedsYou), len(d.ToReview), len(d.Running))
+		section := func(name string, items []api.DigestItem) {
+			if len(items) == 0 {
+				return
+			}
+			fmt.Fprintln(e.out, "\n"+name)
+			for _, it := range items {
+				fmt.Fprintf(e.out, "  [%s] %s", it.Kind, it.Title)
+				if it.Who != "" {
+					fmt.Fprintf(e.out, " (%s)", it.Who)
+				}
+				fmt.Fprintln(e.out)
+				if it.Detail != "" {
+					fmt.Fprintf(e.out, "      %s\n", it.Detail)
+				}
+			}
+		}
+		section("NEEDS YOU", d.NeedsYou)
+		section("TO REVIEW", d.ToReview)
+		section("RUNNING", d.Running)
+	})
+	return nil
+}

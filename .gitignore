@@ -4,3 +4,4 @@
 *.db-wal
 *.db-shm
 /test/e2e/out/
+.handloom/

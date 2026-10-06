@@ -75,6 +75,7 @@ Hub and administration (HANDLOOM_HUB and HANDLOOM_TOKEN set to the hub URL and a
   handloom project add <name> | list                  (admin)
   handloom agent role <name> <lead|worker|observer>   (admin, human)
   handloom agent job <name> <job id | 0>              move an agent into a job (admin, human)
+  handloom digest                                 what needs you, what waits for review, what runs
   handloom escalations [--status open|answered|all]   list the lead's questions (human)
   handloom answer <id> <answer>                       answer a question (human only)
   handloom audit [--after SEQ]                        (admin, human)
@@ -130,6 +131,8 @@ func Main(args []string, stdout, stderr io.Writer) int {
 		err = e.inbox(rest)
 	case "healthcheck":
 		err = e.healthcheck(rest)
+	case "digest":
+		err = e.digest(rest)
 	case "ask":
 		err = e.ask(rest)
 	case "answer":

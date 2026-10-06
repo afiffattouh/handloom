@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -859,4 +860,86 @@ func TestTrustCodexDir(t *testing.T) {
 	if st, _ := os.Stat(filepath.Join(codex, "config.toml")); st.Mode().Perm() != 0o600 {
 		t.Fatalf("mode %v", st.Mode().Perm())
 	}
+}
+
+// ---- repo jobs ----
+
+func TestARepoJobStartsItsOwnLeadInAWorktree(t *testing.T) {
+	r := newRig(t)
+	t.Setenv("HOME", t.TempDir())
+	bin := t.TempDir()
+	os.WriteFile(filepath.Join(bin, "claude"), []byte("#!/bin/sh\n"), 0o755)
+	t.Setenv("PATH", bin+":"+os.Getenv("PATH"))
+	t.Setenv("TMUX", "/tmp/tmux-1000/handloom,123,0")
+	t.Setenv("TMUX_PANE", "%5")
+	old := execFn
+	execFn = func(string, []string, []string) error { return nil }
+	t.Cleanup(func() { execFn = old })
+
+	repo := t.TempDir()
+	run := func(args ...string) string {
+		out, err := exec.Command("git", append([]string{"-C", repo}, args...)...).CombinedOutput()
+		if err != nil {
+			t.Fatalf("git %v: %v %s", args, err, out)
+		}
+		return strings.TrimSpace(string(out))
+	}
+	run("init", "-q")
+	run("config", "user.email", "t@t")
+	run("config", "user.name", "t")
+	os.WriteFile(filepath.Join(repo, "app.go"), []byte("package app\n"), 0o644)
+	run("add", ".")
+	run("commit", "-q", "-m", "init")
+	head := run("rev-parse", "HEAD")
+
+	spec := filepath.Join(t.TempDir(), "boss")
+	os.MkdirAll(spec, 0o755)
+	os.WriteFile(filepath.Join(spec, "profile.yaml"), []byte("name: boss\ntools:\n  allow: [read]\n"), 0o644)
+	os.WriteFile(filepath.Join(spec, "PROMPT.md"), []byte("You plan; you do not code.\n"), 0o644)
+	r.as(r.admin, "profile", "new", spec)
+
+	out := r.as(r.human, "job", "new", "Fix the bug", "--repo", repo, "--verify", "./check.sh", "--device", "dev", "--lead-profile", "boss", "--body", "app.go is broken")
+	if !strings.Contains(out, "Started job #1") || !strings.Contains(out, "[repo "+repo) || !strings.Contains(out, "lead is starting") {
+		t.Fatalf("job new: %s", out)
+	}
+	s := waitSpawn(t, r, 1, "launching") // the rig's link has made the worktree; its fake tmux started nothing
+	if s.Role != "lead" || s.Name != "lead-1" || s.Repo != repo {
+		t.Fatalf("spawn: %+v", s)
+	}
+	work := filepath.Join(client.Home(), "work", "job-1", "lead-1")
+	if got := gitOut(t, work, "rev-parse", "--abbrev-ref", "HEAD"); got != "job/1/lead-1" {
+		t.Fatalf("the lead's worktree is on %q", got)
+	}
+
+	t.Chdir(work)
+	r.run("spawn-exec", "1")
+
+	// The work directory remembers where it started.
+	b, err := os.ReadFile(filepath.Join(work, ".handloom", "scope.json"))
+	if err != nil || !strings.Contains(string(b), head) || !strings.Contains(string(b), repo) {
+		t.Fatalf("scope.json: %v %s", err, b)
+	}
+	// It is the job's lead, and its instructions say so (they were written again after the hub made it one).
+	md, _ := os.ReadFile(filepath.Join(work, "CLAUDE.md"))
+	for _, want := range []string{"As lead you create tasks", "Your profile: boss", "You plan; you do not code."} {
+		if !strings.Contains(string(md), want) {
+			t.Errorf("CLAUDE.md lacks %q:\n%s", want, md)
+		}
+	}
+	if j := r.as(r.human, "job", "show", "1"); !strings.Contains(j, "lead: lead-1") {
+		t.Fatalf("job show: %s", j)
+	}
+	// Commits will say who made them.
+	if os.Getenv("GIT_AUTHOR_NAME") != "lead-1" || os.Getenv("GIT_COMMITTER_EMAIL") != "lead-1@handloom.local" {
+		t.Fatalf("git identity: %q %q", os.Getenv("GIT_AUTHOR_NAME"), os.Getenv("GIT_COMMITTER_EMAIL"))
+	}
+}
+
+func gitOut(t *testing.T, dir string, args ...string) string {
+	t.Helper()
+	out, err := exec.Command("git", append([]string{"-C", dir}, args...)...).CombinedOutput()
+	if err != nil {
+		t.Fatalf("git %v in %s: %v %s", args, dir, err, out)
+	}
+	return strings.TrimSpace(string(out))
 }

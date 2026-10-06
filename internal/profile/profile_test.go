@@ -232,3 +232,17 @@ func TestCodexEnforcementText(t *testing.T) {
 		}
 	}
 }
+
+// A profile that exists on a hub is pinned by its hash, and a device recomputes
+// that hash before it trusts the content. Adding a field to Spec must therefore
+// leave the hash of every spec stored before it unchanged, or every spawn of an
+// existing profile would be refused. If this test fails, the new field needs
+// `omitempty` (and a zero value that means "absent").
+func TestTheHashOfAStoredSpecNeverChanges(t *testing.T) {
+	const wantV1 = "2af7bbca33d1e4f9c5f5e25830c46b76c3f5eb203b57e03bb928075affb52a53"
+	s := good()
+	Normalize(s)
+	if got := Hash(s); got != wantV1 {
+		t.Fatalf("the hash of the reference profile changed: %s, want %s", got, wantV1)
+	}
+}

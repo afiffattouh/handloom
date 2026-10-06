@@ -30,6 +30,8 @@ type taskRow struct {
 	kind             string
 	jobID, parentID  sql.NullInt64
 	confidential     bool
+	repo, verify     string
+	deviceID         sql.NullInt64
 }
 
 func (t *taskRow) api() api.Task {
@@ -55,7 +57,7 @@ func (t *taskRow) target() string { return fmt.Sprintf("task:%d", t.id) }
 const taskSelect = `SELECT t.id, t.project_id, t.title, t.body, t.status, t.owner_agent_id, t.assigned_to,
 	t.lease_expires_at, t.depends_on, t.evidence, t.note, t.blocked_reason, t.reject_reason, t.created_by,
 	t.created_at, t.updated_at, p.name, COALESCE(o.name, ''), COALESCE(s.name, ''),
-	t.kind, t.job_id, t.parent_id, t.confidential
+	t.kind, t.job_id, t.parent_id, t.confidential, t.repo, t.verify, t.device_id
 	FROM task t JOIN project p ON p.id = t.project_id
 	LEFT JOIN agent o ON o.id = t.owner_agent_id LEFT JOIN agent s ON s.id = t.assigned_to `
 
@@ -64,7 +66,7 @@ func scanTask(s scanner) (*taskRow, error) {
 	var deps, evidence string
 	err := s.Scan(&t.id, &t.projectID, &t.title, &t.body, &t.status, &t.owner, &t.assigned, &t.lease,
 		&deps, &evidence, &t.note, &t.blocked, &t.reject, &t.createdBy, &t.created, &t.updated,
-		&t.project, &t.ownerName, &t.assignedName, &t.kind, &t.jobID, &t.parentID, &t.confidential)
+		&t.project, &t.ownerName, &t.assignedName, &t.kind, &t.jobID, &t.parentID, &t.confidential, &t.repo, &t.verify, &t.deviceID)
 	if err != nil {
 		return nil, err
 	}

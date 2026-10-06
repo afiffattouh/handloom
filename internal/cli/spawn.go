@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -201,10 +202,51 @@ func (e *env) spawnExec(args []string) error {
 	if err := e.installAdapter(s.Kind, spec, dir, s.Name, s.Project, true, extra); err != nil {
 		return fail(err)
 	}
+	if s.Repo != "" {
+		if err := writeScope(dir, s); err != nil {
+			return fail(err)
+		}
+	}
 	if err := c.Post(fmt.Sprintf("/v1/spawns/%d/report", id), api.SpawnReport{Status: api.SpawnStarted, Pane: drivers.Detect()}, nil); err != nil {
 		return fail(err)
 	}
+	if s.Role == api.RoleLead {
+		// The hub has just made it the job's lead: its instructions should say so.
+		if err := e.installAdapter(s.Kind, spec, dir, s.Name, s.Project, true, extra); err != nil {
+			return fail(err)
+		}
+	}
+	// Commits made by this agent say so.
+	for _, kv := range [][2]string{{"GIT_AUTHOR_NAME", s.Name}, {"GIT_COMMITTER_NAME", s.Name},
+		{"GIT_AUTHOR_EMAIL", s.Name + "@handloom.local"}, {"GIT_COMMITTER_EMAIL", s.Name + "@handloom.local"}} {
+		os.Setenv(kv[0], kv[1])
+	}
 	return e.run(append([]string{s.Name, "--kind", s.Kind, "--"}, argv...))
+}
+
+// scope is what the link and the agent's work directory remember about a repo
+// job: the commit the worktree was cut from, so what the agent changed can be
+// told from what was already there.
+type scope struct {
+	Base string `json:"base"`
+	Repo string `json:"repo"`
+	Job  int64  `json:"job"`
+}
+
+func writeScope(dir string, s *api.Spawn) error {
+	out, err := exec.Command("git", "-C", dir, "rev-parse", "HEAD").Output()
+	if err != nil {
+		return fmt.Errorf("%s is not a git worktree: %v", dir, err)
+	}
+	sc := scope{Base: strings.TrimSpace(string(out)), Repo: s.Repo}
+	if s.Job != nil {
+		sc.Job = *s.Job
+	}
+	b, _ := json.MarshalIndent(sc, "", "  ")
+	if err := os.MkdirAll(filepath.Join(dir, ".handloom"), 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(dir, ".handloom", "scope.json"), append(b, '\n'), 0o600)
 }
 
 // fetchSpawnProfile gets the profile a spawn is pinned to, or nil when it has

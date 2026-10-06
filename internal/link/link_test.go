@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -69,6 +70,8 @@ type fixture struct {
 	lead   *client.Client // through the link socket
 	worker *client.Client
 	human  *client.Client
+	url    string // the hub
+	cred   string // this device's credential
 }
 
 func (f *fixture) clock() time.Time {
@@ -108,6 +111,7 @@ func newFixture(t *testing.T) *fixture {
 	f.must(client.Direct(srv.URL, "").Post("/v1/devices/join", api.JoinReq{JoinToken: tok.Token}, &join))
 	f.must(f.admin.Post("/v1/admin/humans", api.NameReq{Name: "afif"}, &tok))
 	f.human = client.Direct(srv.URL, tok.Token)
+	f.url, f.cred = srv.URL, join.Credential
 
 	sock := filepath.Join(t.TempDir(), "link.sock")
 	f.link = New(Options{
@@ -713,4 +717,115 @@ func TestLinkRefusesAHostileName(t *testing.T) {
 	if err == nil || len(tl.all()) != 0 {
 		t.Fatalf("a name with shell characters was launched: %v %q", err, tl.all())
 	}
+}
+
+// ---- repo jobs ----
+
+func gitRepo(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	for _, args := range [][]string{{"init", "-q"}, {"config", "user.email", "t@t"}, {"config", "user.name", "t"}} {
+		if out, err := exec.Command("git", append([]string{"-C", dir}, args...)...).CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v %s", args, err, out)
+		}
+	}
+	os.WriteFile(filepath.Join(dir, "main.go"), []byte("package main\n"), 0o644)
+	for _, args := range [][]string{{"add", "."}, {"commit", "-q", "-m", "init"}} {
+		if out, err := exec.Command("git", append([]string{"-C", dir}, args...)...).CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v %s", args, err, out)
+		}
+	}
+	return dir
+}
+
+func gitOut(t *testing.T, dir string, args ...string) string {
+	t.Helper()
+	out, err := exec.Command("git", append([]string{"-C", dir}, args...)...).CombinedOutput()
+	if err != nil {
+		t.Fatalf("git %v in %s: %v %s", args, dir, err, out)
+	}
+	return strings.TrimSpace(string(out))
+}
+
+func (f *fixture) repoJob(repo string) api.Job {
+	f.t.Helper()
+	var j api.Job
+	f.must(f.human.Post("/v1/jobs", api.JobNewReq{Title: "Fix it", Repo: repo, Device: "dev"}, &j))
+	return j
+}
+
+func TestEachAgentOfARepoJobGetsItsOwnWorktree(t *testing.T) {
+	f := newFixture(t)
+	tl := &tmuxLog{}
+	f.spawnLink(tl)
+	repo := gitRepo(t)
+	head := gitOut(t, repo, "rev-parse", "HEAD")
+	// A change nobody committed must not stop the start.
+	os.WriteFile(filepath.Join(repo, "main.go"), []byte("package main // edited\n"), 0o644)
+	j := f.repoJob(repo)
+	a, b := f.requestSpawn("alpha", j.ID), f.requestSpawn("beta", j.ID)
+	f.ladder()
+
+	for _, name := range []string{"alpha", "beta"} {
+		dir := filepath.Join(f.link.opt.WorkRoot, fmt.Sprintf("job-%d", j.ID), name)
+		if got := gitOut(t, dir, "rev-parse", "--abbrev-ref", "HEAD"); got != fmt.Sprintf("job/%d/%s", j.ID, name) {
+			t.Errorf("%s is on branch %q", name, got)
+		}
+		if got := gitOut(t, dir, "rev-parse", "HEAD"); got != head {
+			t.Errorf("%s was cut from %s, not the repository's HEAD %s", name, got, head)
+		}
+		if b, err := os.ReadFile(filepath.Join(dir, "main.go")); err != nil || string(b) != "package main\n" {
+			t.Errorf("%s: main.go is %q (%v): a worktree is the last commit, not the working copy", name, b, err)
+		}
+	}
+	// The two are separate directories on separate branches.
+	os.WriteFile(filepath.Join(f.link.opt.WorkRoot, fmt.Sprintf("job-%d", j.ID), "alpha", "new.txt"), []byte("x"), 0o644)
+	if _, err := os.Stat(filepath.Join(f.link.opt.WorkRoot, fmt.Sprintf("job-%d", j.ID), "beta", "new.txt")); err == nil {
+		t.Fatal("beta sees alpha's file")
+	}
+	if got := f.spawnStatus(a.ID).Status; got != "launching" {
+		t.Fatalf("alpha: %s", got)
+	}
+	_ = b
+	// The window for each opens in its own worktree.
+	if n := strings.Count(strings.Join(tl.all(), "\n"), "-c "+filepath.Join(f.link.opt.WorkRoot, fmt.Sprintf("job-%d", j.ID))); n != 2 {
+		t.Fatalf("windows opened in the worktrees: %d\n%s", n, strings.Join(tl.all(), "\n"))
+	}
+}
+
+func TestARepoJobWithoutARepoFailsTheSpawn(t *testing.T) {
+	f := newFixture(t)
+	f.spawnLink(&tmuxLog{})
+	j := f.repoJob(filepath.Join(t.TempDir(), "not-a-repo"))
+	s := f.requestSpawn("alpha", j.ID)
+	f.ladder()
+	got := f.spawnStatus(s.ID)
+	if got.Status != "failed" || !strings.Contains(got.Error, "not a git repository") {
+		t.Fatalf("spawn: %+v", got)
+	}
+}
+
+func TestAStartedAgainAgentReusesItsBranch(t *testing.T) {
+	f := newFixture(t)
+	f.spawnLink(&tmuxLog{})
+	repo := gitRepo(t)
+	j := f.repoJob(repo)
+	s := f.requestSpawn("alpha", j.ID)
+	f.ladder()
+	// It fails (nobody started it), the worktree is removed, and the name is asked for again.
+	dir := filepath.Join(f.link.opt.WorkRoot, fmt.Sprintf("job-%d", j.ID), "alpha")
+	exec.Command("git", "-C", repo, "worktree", "remove", "--force", dir).Run()
+	s2 := f.requestSpawnAfterFail("alpha", j.ID, s.ID)
+	f.ladder()
+	if got := f.spawnStatus(s2.ID).Status; got != "launching" {
+		t.Fatalf("second start: %+v", f.spawnStatus(s2.ID))
+	}
+}
+
+// requestSpawnAfterFail fails an earlier request by hand (through the device's own report) and asks again.
+func (f *fixture) requestSpawnAfterFail(name string, job, old int64) api.Spawn {
+	f.t.Helper()
+	dev := client.Direct(f.url, f.cred)
+	f.must(dev.Post(fmt.Sprintf("/v1/spawns/%d/report", old), api.SpawnReport{Status: "failed", Error: "test"}, nil))
+	return f.requestSpawn(name, job)
 }

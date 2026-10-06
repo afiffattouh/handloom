@@ -254,6 +254,9 @@ type Job struct {
 	Status       string    `json:"status"` // open | done | cancelled
 	Lead         string    `json:"lead,omitempty"`
 	Confidential bool      `json:"confidential,omitempty"`
+	Repo         string    `json:"repo,omitempty"`   // a git repository on Device; each agent of the job works in its own worktree of it
+	Verify       string    `json:"verify,omitempty"` // a command the device runs in an agent's worktree after it submits
+	Device       string    `json:"device,omitempty"`
 	CreatedBy    string    `json:"created_by"`
 	CreatedAt    time.Time `json:"created_at"`
 	Tasks        JobCounts `json:"tasks"`
@@ -273,6 +276,11 @@ type JobNewReq struct {
 	Lead         string `json:"lead,omitempty"` // an existing agent that becomes the job's lead
 	Confidential bool   `json:"confidential,omitempty"`
 	Project      string `json:"project,omitempty"`
+	Repo         string `json:"repo,omitempty"`
+	Verify       string `json:"verify,omitempty"`
+	Device       string `json:"device,omitempty"`       // where the repo is, and where the lead starts
+	LeadProfile  string `json:"lead_profile,omitempty"` // start the job's lead from this profile (instead of naming an existing agent)
+	LeadName     string `json:"lead_name,omitempty"`    // default lead-<job id>
 }
 
 type JobCloseReq struct {
@@ -292,6 +300,8 @@ type Spawn struct {
 	Device    string    `json:"device"`
 	Project   string    `json:"project"`
 	Job       *int64    `json:"job,omitempty"`
+	Role      string    `json:"role,omitempty"`    // worker, or lead for the job's own lead
+	Repo      string    `json:"repo,omitempty"`    // the repository its work directory is a worktree of
 	Profile   string    `json:"profile,omitempty"` // name@version it is pinned to
 	Status    string    `json:"status"`            // pending | launching | started | failed
 	Pane      string    `json:"pane,omitempty"`
@@ -304,6 +314,7 @@ type SpawnReq struct {
 	Name    string `json:"name"`
 	Kind    string `json:"kind,omitempty"`
 	Profile string `json:"profile,omitempty"` // name or name@version; what the agent may do and know
+	Role    string `json:"role,omitempty"`    // worker (default) or lead: humans only, for a job's own lead
 	Model   string `json:"model,omitempty"`
 	Device  string `json:"device,omitempty"` // humans; a lead's agents start on the lead's own device
 	Job     int64  `json:"job,omitempty"`    // humans; a lead's agents join the lead's own job

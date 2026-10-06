@@ -514,8 +514,12 @@ func jobLine(j api.Job) string {
 		conf = " [confidential]"
 	}
 	n := j.Tasks
-	return fmt.Sprintf("job #%-3d %-9s %s%s  (lead: %s; tasks: %d open, %d claimed, %d submitted, %d done)",
-		j.ID, j.Status, j.Title, conf, lead, n.Open, n.Claimed, n.Submitted, n.Done)
+	repo := ""
+	if j.Repo != "" {
+		repo = " [repo " + j.Repo + " on " + j.Device + "]"
+	}
+	return fmt.Sprintf("job #%-3d %-9s %s%s%s  (lead: %s; tasks: %d open, %d claimed, %d submitted, %d done)",
+		j.ID, j.Status, j.Title, conf, repo, lead, n.Open, n.Claimed, n.Submitted, n.Done)
 }
 
 func (e *env) job(args []string) error {
@@ -527,6 +531,11 @@ func (e *env) job(args []string) error {
 	body := fs.String("body", "", "what the job is about")
 	lead := fs.String("lead", "", "agent that leads the job")
 	conf := fs.Bool("confidential", false, "the job handles confidential material (needs a hub that allows it)")
+	repo := fs.String("repo", "", "new: a git repository on the device; every agent of the job gets its own worktree of it")
+	verify := fs.String("verify", "", "new: a command the device runs in an agent's worktree after it submits (needs --repo)")
+	device := fs.String("device", "", "new: the device the repository is on, and where the lead starts")
+	leadProfile := fs.String("lead-profile", "", "new: start the job's lead from this profile")
+	leadName := fs.String("lead-name", "", "new: a name for that lead (default lead-<job id>)")
 	cancel := fs.Bool("cancel", false, "close: cancel the job and its unfinished tasks")
 	project := fs.String("project", "", "project")
 	pos, err := fs.parse(args[1:])
@@ -550,13 +559,19 @@ func (e *env) job(args []string) error {
 	switch sub {
 	case "new":
 		if len(pos) == 0 {
-			return usageErr("usage: handloom job new <title> [--body B] [--lead AGENT] [--confidential]")
+			return usageErr("usage: handloom job new <title> [--body B] [--lead AGENT | --lead-profile P] [--repo PATH --verify CMD --device D] [--confidential]")
 		}
 		var j api.Job
-		if err := c.Post("/v1/jobs", api.JobNewReq{Title: strings.Join(pos, " "), Body: *body, Lead: *lead, Confidential: *conf, Project: *project}, &j); err != nil {
+		if err := c.Post("/v1/jobs", api.JobNewReq{Title: strings.Join(pos, " "), Body: *body, Lead: *lead, Confidential: *conf, Project: *project,
+			Repo: *repo, Verify: *verify, Device: *device, LeadProfile: *leadProfile, LeadName: *leadName}, &j); err != nil {
 			return err
 		}
-		e.print(j, func() { fmt.Fprintln(e.out, "Started "+jobLine(j)) })
+		e.print(j, func() {
+			fmt.Fprintln(e.out, "Started "+jobLine(j))
+			if *leadProfile != "" {
+				fmt.Fprintf(e.out, "Its lead is starting on %s; watch it with: handloom spawns\n", j.Device)
+			}
+		})
 	case "list":
 		var js []api.Job
 		if err := c.Get("/v1/jobs?"+url.Values{"project": {*project}}.Encode(), &js); err != nil {

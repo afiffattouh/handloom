@@ -39,6 +39,17 @@ func execTmux(ctx context.Context, name string, args ...string) (string, error) 
 	return string(out), nil
 }
 
+// execGit runs git with a fixed, quiet environment (no prompts, no pager).
+func execGit(ctx context.Context, name string, args ...string) (string, error) {
+	cmd := exec.CommandContext(ctx, name, args...)
+	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0", "GIT_PAGER=cat", "LC_ALL=C")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return string(out), fmt.Errorf("git %s: %v: %s", strings.Join(args, " "), err, strings.TrimSpace(string(out)))
+	}
+	return string(out), nil
+}
+
 func shellQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'" }
 
 // runSpawns starts what the hub has asked this device to start. A request is
@@ -84,6 +95,13 @@ func (l *Link) launch(ctx context.Context, s api.Spawn) error {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return err
 	}
+	if s.Repo != "" {
+		// A repo job: the agent works in its own git worktree of the repository,
+		// on its own branch, so agents cannot trip over each other's files.
+		if err := l.worktree(ctx, s, dir); err != nil {
+			return err
+		}
+	}
 	home := client.Home()
 	cmd := fmt.Sprintf("env HANDLOOM_HOME=%s PATH=%s HANDLOOM_SPAWN=%d %s spawn-exec %d",
 		shellQuote(home), shellQuote(filepath.Dir(l.opt.Binary)+":"+os.Getenv("PATH")), s.ID, shellQuote(l.opt.Binary), s.ID)
@@ -101,4 +119,30 @@ func (l *Link) launch(ctx context.Context, s api.Spawn) error {
 	}
 	_, err := tmux("new-window", "-d", "-t", "handloom:", "-n", s.Name, "-c", dir, cmd)
 	return err
+}
+
+// worktree makes dir a git worktree of the job's repository on the branch
+// job/<id>/<name>, cut from the repository's current HEAD. dir was just
+// created and is empty, which git accepts. If the branch already exists (an
+// agent started again under the same name) it is reused.
+func (l *Link) worktree(ctx context.Context, s api.Spawn, dir string) error {
+	if s.Job == nil {
+		return fmt.Errorf("a repository without a job")
+	}
+	git := func(args ...string) (string, error) {
+		return l.opt.Git(ctx, "git", append([]string{"-C", s.Repo}, args...)...)
+	}
+	if _, err := git("rev-parse", "--is-inside-work-tree"); err != nil {
+		return fmt.Errorf("%s is not a git repository on this device", s.Repo)
+	}
+	if out, err := git("status", "--porcelain", "--untracked-files=no"); err == nil && strings.TrimSpace(out) != "" {
+		l.opt.Log.Printf("spawn %d: the repository %s has uncommitted changes; the worktree starts from its last commit", s.ID, s.Repo)
+	}
+	branch := fmt.Sprintf("job/%d/%s", *s.Job, s.Name)
+	if _, err := git("worktree", "add", "-b", branch, dir, "HEAD"); err != nil {
+		if _, err2 := git("worktree", "add", dir, branch); err2 != nil {
+			return fmt.Errorf("could not make a worktree for %s: %v", s.Name, err)
+		}
+	}
+	return nil
 }

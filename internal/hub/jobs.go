@@ -3,6 +3,7 @@ package hub
 import (
 	"database/sql"
 	"fmt"
+	"path"
 	"strings"
 
 	"handloom/internal/api"
@@ -53,7 +54,10 @@ func (c *call) jobView(t *taskRow) (api.Job, error) {
 		return api.Job{}, err
 	}
 	j := api.Job{ID: t.id, Project: t.project, Title: t.title, Body: t.body, Status: t.status,
-		Confidential: t.confidential, CreatedBy: t.createdBy, CreatedAt: store.Time(t.created), Tasks: counts}
+		Confidential: t.confidential, Repo: t.repo, Verify: t.verify, CreatedBy: t.createdBy, CreatedAt: store.Time(t.created), Tasks: counts}
+	if t.deviceID.Valid {
+		c.tx.QueryRow(`SELECT name FROM device WHERE id = ?`, t.deviceID.Int64).Scan(&j.Device)
+	}
 	if lead != nil {
 		j.Lead = lead.name
 	}
@@ -105,6 +109,20 @@ func jobNew(c *call) (any, error) {
 	if err != nil {
 		return nil, err
 	}
+	if req.Lead != "" && req.LeadProfile != "" {
+		return nil, badRequest("name an existing agent as lead, or a profile to start one from, not both")
+	}
+	if err := checkRepoSpec(req.Repo, req.Verify); err != nil {
+		return nil, err
+	}
+	var deviceID sql.NullInt64
+	if req.Repo != "" || req.LeadProfile != "" {
+		d, err := c.spawnDevice(req.Device)
+		if err != nil {
+			return nil, err
+		}
+		deviceID = sql.NullInt64{Int64: d, Valid: true}
+	}
 	var lead *agentRow
 	if req.Lead != "" {
 		if lead, err = c.agentByName(req.Lead); err != nil {
@@ -115,14 +133,25 @@ func jobNew(c *call) (any, error) {
 		}
 	}
 	ms := store.Millis(c.now)
-	res, err := c.tx.Exec(`INSERT INTO task(project_id, title, body, status, kind, depends_on, created_by, created_at, updated_at, confidential)
-		VALUES (?, ?, ?, 'open', 'job', '[]', ?, ?, ?, ?)`, projectID, req.Title, req.Body, c.p.actor(), ms, ms, req.Confidential)
+	res, err := c.tx.Exec(`INSERT INTO task(project_id, title, body, status, kind, depends_on, created_by, created_at, updated_at, confidential, repo, verify, device_id)
+		VALUES (?, ?, ?, 'open', 'job', '[]', ?, ?, ?, ?, ?, ?, ?)`, projectID, req.Title, req.Body, c.p.actor(), ms, ms, req.Confidential, req.Repo, req.Verify, nullAny(deviceID))
 	if err != nil {
 		return nil, err
 	}
 	id, _ := res.LastInsertId()
-	if err := c.record(projectID, 0, "job.new", fmt.Sprintf("job:%d", id), map[string]any{"title": req.Title, "lead": req.Lead, "confidential": req.Confidential}); err != nil {
+	if err := c.record(projectID, 0, "job.new", fmt.Sprintf("job:%d", id), map[string]any{"title": req.Title, "lead": req.Lead, "confidential": req.Confidential, "repo": req.Repo, "verify": req.Verify, "lead_profile": req.LeadProfile}); err != nil {
 		return nil, err
+	}
+	if req.LeadProfile != "" {
+		name := req.LeadName
+		if name == "" {
+			name = fmt.Sprintf("lead-%d", id)
+		}
+		var dev string
+		c.tx.QueryRow(`SELECT name FROM device WHERE id = ?`, deviceID.Int64).Scan(&dev)
+		if _, err := c.spawnFromRequest(api.SpawnReq{Name: name, Profile: req.LeadProfile, Job: id, Device: dev, Role: api.RoleLead, Project: req.Project}); err != nil {
+			return nil, err
+		}
 	}
 	if lead != nil {
 		if err := c.putInJob(lead, sql.NullInt64{Int64: id, Valid: true}, api.RoleLead); err != nil {
@@ -287,4 +316,25 @@ func agentJob(c *call) (any, error) {
 		return nil, err
 	}
 	return a.api(), nil
+}
+
+// checkRepoSpec validates the repository path and the verify command of a job.
+// Both are written by a human and used on a device: the path is passed to git
+// as an argument, the command runs under sh -c after an agent submits, so the
+// hub only keeps them plain.
+func checkRepoSpec(repo, verify string) error {
+	if repo != "" {
+		if len(repo) > 400 || !strings.HasPrefix(repo, "/") || path.Clean(repo) != repo || strings.ContainsAny(repo, "\x00\n\r") {
+			return badRequest("the repository must be an absolute path on the device, like /home/me/project (no .. or trailing slash)")
+		}
+	}
+	if verify != "" {
+		if repo == "" {
+			return badRequest("a verify command needs a repository: it runs in the agent's worktree")
+		}
+		if len(verify) > 400 || strings.ContainsAny(verify, "\x00\n\r") {
+			return badRequest("the verify command must be one line of at most 400 characters")
+		}
+	}
+	return nil
 }

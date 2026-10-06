@@ -43,6 +43,7 @@ type Options struct {
 	WorkRoot   string         // where spawned agents get their directories; default <home>/work
 	Binary     string         // the handloom binary a spawned pane runs; default this one
 	Tmux       drivers.Runner // replaceable in tests
+	Git        drivers.Runner // runs git; replaceable in tests
 
 	Headless        map[string][]string // per-kind headless command overrides
 	HeadlessTimeout time.Duration       // longest a headless turn may run; default 15m
@@ -98,6 +99,9 @@ func New(opt Options) *Link {
 	}
 	if opt.Tmux == nil {
 		opt.Tmux = execTmux
+	}
+	if opt.Git == nil {
+		opt.Git = execGit
 	}
 	if opt.Log == nil {
 		opt.Log = log.New(os.Stderr, "", log.LstdFlags)

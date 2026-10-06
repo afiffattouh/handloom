@@ -226,6 +226,15 @@ CREATE TRIGGER profile_no_delete BEFORE DELETE ON profile BEGIN SELECT RAISE(ABO
 ALTER TABLE spawn ADD COLUMN profile_name TEXT NOT NULL DEFAULT '';
 ALTER TABLE spawn ADD COLUMN profile_version INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE spawn ADD COLUMN profile_hash TEXT NOT NULL DEFAULT '';
+`, `
+-- D1: repo jobs. A job may name a repository on one device and a command that
+-- checks finished work; every agent spawned into it gets its own git worktree
+-- there. A spawn may be for the job's lead, which makes the job start itself.
+ALTER TABLE task ADD COLUMN repo TEXT NOT NULL DEFAULT '';
+ALTER TABLE task ADD COLUMN verify TEXT NOT NULL DEFAULT '';
+ALTER TABLE task ADD COLUMN device_id INTEGER REFERENCES device(id);
+ALTER TABLE spawn ADD COLUMN role TEXT NOT NULL DEFAULT 'worker';
+ALTER TABLE spawn ADD COLUMN repo TEXT NOT NULL DEFAULT '';
 `}
 
 // Open opens (and migrates) the database at path. Use ":memory:" in tests.

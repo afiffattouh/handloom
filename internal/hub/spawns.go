@@ -35,11 +35,12 @@ type spawnRow struct {
 	profileName             string
 	profileVersion          int
 	profileHash             string
+	role, repo              string
 }
 
 func (s *spawnRow) api() api.Spawn {
 	return api.Spawn{ID: s.id, Name: s.name, Kind: s.kind, Model: s.model, Device: s.device, Job: nullInt(s.job),
-		Project: s.project, Profile: profileRef(s.profileName, s.profileVersion), Status: s.status, Pane: s.pane, Error: s.errText, CreatedBy: s.createdBy, CreatedAt: store.Time(s.created)}
+		Project: s.project, Role: s.role, Repo: s.repo, Profile: profileRef(s.profileName, s.profileVersion), Status: s.status, Pane: s.pane, Error: s.errText, CreatedBy: s.createdBy, CreatedAt: store.Time(s.created)}
 }
 
 func profileRef(name string, version int) string {
@@ -50,13 +51,13 @@ func profileRef(name string, version int) string {
 }
 
 const spawnSelect = `SELECT s.id, s.project_id, s.device_id, s.job_id, s.name, s.kind, s.model, s.status, s.pane, s.error,
-	s.created_by, s.created_at, s.updated_at, d.name, p.name, s.profile_name, s.profile_version, s.profile_hash FROM spawn s JOIN device d ON d.id = s.device_id
+	s.created_by, s.created_at, s.updated_at, d.name, p.name, s.profile_name, s.profile_version, s.profile_hash, s.role, s.repo FROM spawn s JOIN device d ON d.id = s.device_id
 	JOIN project p ON p.id = s.project_id `
 
 func scanSpawn(s scanner) (*spawnRow, error) {
 	r := &spawnRow{}
 	err := s.Scan(&r.id, &r.projectID, &r.deviceID, &r.job, &r.name, &r.kind, &r.model, &r.status, &r.pane, &r.errText,
-		&r.createdBy, &r.created, &r.updated, &r.device, &r.project, &r.profileName, &r.profileVersion, &r.profileHash)
+		&r.createdBy, &r.created, &r.updated, &r.device, &r.project, &r.profileName, &r.profileVersion, &r.profileHash, &r.role, &r.repo)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -151,6 +152,12 @@ func (c *call) spawnFromRequest(req api.SpawnReq) (any, error) {
 	if req.Model != "" && !modelRE.MatchString(req.Model) {
 		return nil, badRequest("bad model name %q", req.Model)
 	}
+	if req.Role != "" && req.Role != api.RoleWorker && req.Role != api.RoleLead {
+		return nil, badRequest("role must be worker or lead")
+	}
+	if req.Role == "" {
+		req.Role = api.RoleWorker
+	}
 	var projectID, deviceID int64
 	var job sql.NullInt64
 	if c.p.kind == kindDevice {
@@ -159,8 +166,8 @@ func (c *call) spawnFromRequest(req api.SpawnReq) (any, error) {
 		if err != nil {
 			return nil, err
 		}
-		if req.Device != "" || req.Job != 0 || req.Project != "" {
-			return nil, forbidden("an agent starts agents on its own device, in its own job; it does not choose")
+		if req.Device != "" || req.Job != 0 || req.Project != "" || req.Role == api.RoleLead {
+			return nil, forbidden("an agent starts workers on its own device, in its own job; it does not choose, and it does not start leads")
 		}
 		projectID, deviceID, job = a.projectID, a.deviceID, a.jobID
 	} else {
@@ -178,9 +185,44 @@ func (c *call) spawnFromRequest(req api.SpawnReq) (any, error) {
 			}
 			job = sql.NullInt64{Int64: req.Job, Valid: true}
 		}
-		var err2 error
-		if deviceID, err2 = c.spawnDevice(req.Device); err2 != nil {
-			return nil, err2
+		// A job with a repository lives on one device: that is where its agents start.
+		var jobDevice sql.NullInt64
+		if job.Valid {
+			if jt, err := c.task(job.Int64); err == nil {
+				jobDevice = jt.deviceID
+			}
+		}
+		if req.Device == "" && jobDevice.Valid {
+			deviceID = jobDevice.Int64
+		} else {
+			var err2 error
+			if deviceID, err2 = c.spawnDevice(req.Device); err2 != nil {
+				return nil, err2
+			}
+		}
+		if jobDevice.Valid && jobDevice.Int64 != deviceID {
+			return nil, badRequest("job %d lives on another device (its repository is there)", job.Int64)
+		}
+	}
+	if req.Role == api.RoleLead && !job.Valid {
+		return nil, badRequest("a lead leads a job: name one")
+	}
+	repo := ""
+	if job.Valid {
+		jt, err := c.task(job.Int64)
+		if err != nil {
+			return nil, err
+		}
+		repo = jt.repo
+		if jt.deviceID.Valid && jt.deviceID.Int64 != deviceID {
+			return nil, conflict("job %d lives on another device (its repository is there)", jt.id)
+		}
+		if req.Role == api.RoleLead {
+			if lead, err := scanAgent(c.tx.QueryRow(agentSelect+`WHERE a.project_id = ? AND a.role = 'lead' AND a.job_id = ?`, projectID, job.Int64)); err != nil {
+				return nil, err
+			} else if lead != nil {
+				return nil, conflict("job %d already has a lead (%s)", job.Int64, lead.name)
+			}
 		}
 	}
 	// Confidential work stays on a model that runs on the owner's own machines.
@@ -213,8 +255,8 @@ func (c *call) spawnFromRequest(req api.SpawnReq) (any, error) {
 	if prof != nil {
 		pn, pv, ph = prof.name, prof.version, prof.hash
 	}
-	res, err := c.tx.Exec(`INSERT INTO spawn(project_id, device_id, job_id, name, kind, model, status, created_by, created_at, updated_at, profile_name, profile_version, profile_hash)
-		VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?)`, projectID, deviceID, nullAny(job), req.Name, req.Kind, req.Model, c.p.actor(), ms, ms, pn, pv, ph)
+	res, err := c.tx.Exec(`INSERT INTO spawn(project_id, device_id, job_id, name, kind, model, status, created_by, created_at, updated_at, profile_name, profile_version, profile_hash, role, repo)
+		VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?)`, projectID, deviceID, nullAny(job), req.Name, req.Kind, req.Model, c.p.actor(), ms, ms, pn, pv, ph, req.Role, repo)
 	if err != nil {
 		return nil, conflict("%q is already being started", req.Name)
 	}
@@ -224,7 +266,7 @@ func (c *call) spawnFromRequest(req api.SpawnReq) (any, error) {
 		return nil, err
 	}
 	if err := c.record(projectID, 0, "spawn.request", fmt.Sprintf("spawn:%d", id),
-		map[string]any{"name": s.name, "kind": s.kind, "device": s.device, "job": nullInt(job), "profile": profileRef(pn, pv), "hash": ph}); err != nil {
+		map[string]any{"name": s.name, "kind": s.kind, "device": s.device, "job": nullInt(job), "profile": profileRef(pn, pv), "hash": ph, "role": req.Role, "repo": repo}); err != nil {
 		return nil, err
 	}
 	// The link of that device is waiting on its event poll.
@@ -386,7 +428,11 @@ func spawnReport(c *call) (any, error) {
 		if a, err := c.agentByName(s.name); err != nil {
 			return nil, err
 		} else if a != nil && a.deviceID == s.deviceID {
-			if err := c.putInJob(a, s.job, api.RoleWorker); err != nil {
+			role := api.RoleWorker
+			if s.role == api.RoleLead {
+				role = api.RoleLead
+			}
+			if err := c.putInJob(a, s.job, role); err != nil {
 				return nil, err
 			}
 		}

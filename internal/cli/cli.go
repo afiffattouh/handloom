@@ -39,7 +39,7 @@ Agent verbs (run inside an agent's shell, through the local link):
   handloom send <to> <text> [--task N]                to: agent name, role:lead, or task:<id>
   handloom inbox [--all]                              read new messages (marks them read)
   handloom job list | show <id>                   jobs: a root task with its own lead
-  handloom job new <title> [--body B] [--lead AGENT] [--confidential]   (human)
+  handloom job new <title> [--body B] [--lead AGENT | --lead-profile P] [--repo PATH --verify CMD --device D] [--confidential]   (human)
   handloom job resume <id> --lead AGENT                                 (human) a new lead takes over a job whose lead is gone
   handloom job close <id> [--cancel]                                    (human)
   handloom task list [--status S] [--job N]

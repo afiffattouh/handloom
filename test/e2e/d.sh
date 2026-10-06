@@ -164,6 +164,8 @@ PY
   # Nobody but agents, devices and the hub acted after the job was started.
   tail -n +$((JOBSEQ+1)) "$OUT/audit.txt" | awk '{print $3}' | grep -E '^(human:|admin)' | sort | uniq -c > "$OUT/human-actions.txt"
   if [ -s "$OUT/human-actions.txt" ]; then bad "human or admin actions after job new: $(cat "$OUT/human-actions.txt")"; else ok "no human or admin action after job new"; fi
+  local k; for k in $(seq 1 30); do [ "$(human task list --job 1 --json | python3 -c 'import json,sys;print(sum(1 for t in json.load(sys.stdin) if (t.get("merge") or {}).get("status")=="merged"))')" = 2 ] && break; sleep 1; done
+  if git -C "$REPO" show job/1/integration:src/hello.txt >/dev/null 2>&1 && git -C "$REPO" show job/1/integration:docs/notes.md >/dev/null 2>&1; then ok "both accepted tasks are merged into job/1/integration"; else bad "job/1/integration lacks the accepted work"; fi
   (git -C "$REPO" branch --list 'job/*' | sed 's/^/    branch: /')
   git -C "$REPO" log --oneline --all | sed 's/^/    /' | head -6
   git -C "$REPO" show job/1/coder-a:src/hello.txt >/dev/null 2>&1 && ok "the worker's commit is on its own branch job/1/coder-a" || bad "no commit on job/1/coder-a"

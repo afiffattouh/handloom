@@ -695,6 +695,16 @@ func (e *env) taskDetail(t api.Task) {
 			fmt.Fprintln(e.out, "  "+strings.ReplaceAll(strings.TrimSpace(ck.Tail), "\n", "\n  "))
 		}
 	}
+	if m := t.Merge; m != nil {
+		switch m.Status {
+		case "merged":
+			fmt.Fprintf(e.out, "\nMerged into the job's integration branch (now %s). %s\n", m.Head, m.Detail)
+		case "pending":
+			fmt.Fprintln(e.out, "\nWaiting for the device to merge its branch into the integration branch.")
+		default:
+			fmt.Fprintf(e.out, "\nNOT MERGED (%s): %s\n", m.Status, m.Detail)
+		}
+	}
 }
 
 func ago(t time.Time) string {

@@ -123,11 +123,39 @@ type Task struct {
 	Evidence       []string   `json:"evidence"`
 	Note           string     `json:"note,omitempty"`
 	Check          *TaskCheck `json:"check,omitempty"` // the device's verification of the current submission
+	Merge          *TaskMerge `json:"merge,omitempty"` // what became of its branch after it was accepted
 	BlockedReason  string     `json:"blocked_reason,omitempty"`
 	RejectReason   string     `json:"reject_reason,omitempty"`
 	CreatedBy      string     `json:"created_by"`
 	CreatedAt      time.Time  `json:"created_at"`
 	UpdatedAt      time.Time  `json:"updated_at"`
+}
+
+// TaskMerge is what became of an accepted task's branch: the device merges it
+// into the job's integration branch (job/<id>/integration) and checks the result.
+type TaskMerge struct {
+	ID     int64     `json:"id"`
+	Status string    `json:"status"` // pending | merged | conflict | failed
+	Detail string    `json:"detail,omitempty"`
+	Head   string    `json:"head,omitempty"` // the integration branch's commit after a merge
+	At     time.Time `json:"at"`
+}
+
+// PendingMerge is one merge a device has been asked to do.
+type PendingMerge struct {
+	ID     int64  `json:"id"`
+	Task   int64  `json:"task"`
+	Job    int64  `json:"job"`
+	Agent  string `json:"agent"`
+	Title  string `json:"title"`
+	Verify string `json:"verify,omitempty"`
+}
+
+// MergeReport is the device's account of a merge.
+type MergeReport struct {
+	Status string `json:"status"` // merged | conflict | failed
+	Detail string `json:"detail,omitempty"`
+	Head   string `json:"head,omitempty"`
 }
 
 // TaskCheck is what a device found when it ran the job's verify command in an

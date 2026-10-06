@@ -466,6 +466,9 @@ func taskAccept(c *call) (any, error) {
 	if err := c.notifyOwner(t, fmt.Sprintf("Task #%d (%s) was accepted. It is done.", t.id, t.title)); err != nil {
 		return nil, err
 	}
+	if err := c.queueMerge(t); err != nil {
+		return nil, err
+	}
 	// Tell assignees of tasks that this one was holding back.
 	waiting, err := c.tasks(`WHERE t.project_id = ? AND t.status = 'open' AND t.assigned_to IS NOT NULL`, t.projectID)
 	if err != nil {
@@ -772,7 +775,11 @@ func taskGet(c *call) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	return t.api(), nil
+	out := t.api()
+	if out.Merge, err = c.mergeOf(t.id); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func taskList(c *call) (any, error) {

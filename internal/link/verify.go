@@ -25,10 +25,27 @@ const maxVerifyLog = 256 << 10
 // written by a human and stored on the hub, like a profile: this device
 // trusts the hub for it.
 func (l *Link) runVerify(rec *scopeRecord, taskID int64) {
+	res := l.execVerify(rec.Dir, rec.Verify, fmt.Sprintf("%s-%d", rec.Agent, taskID))
+	req := api.TaskCheckReq{Agent: rec.Agent, Command: rec.Verify, ExitCode: res.exit, TimedOut: res.timedOut, Tail: res.tail, SHA256: res.sha}
+	if err := l.hub.Do(context.Background(), "POST", fmt.Sprintf("/v1/tasks/%d/verify", taskID), req, nil); err != nil {
+		l.opt.Log.Printf("report verification of task %d: %v", taskID, err)
+		return
+	}
+	l.opt.Log.Printf("verified task %d (%s): exit %d, timed out %v, log %s", taskID, rec.Agent, res.exit, res.timedOut, res.logPath)
+}
+
+type verifyResult struct {
+	exit               int
+	timedOut           bool
+	tail, sha, logPath string
+}
+
+// execVerify runs a verify command in dir and keeps its whole log on this device.
+func (l *Link) execVerify(dir, command, logName string) verifyResult {
 	ctx, cancel := context.WithTimeout(context.Background(), l.opt.VerifyTimeout)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "sh", "-c", rec.Verify)
-	cmd.Dir = rec.Dir
+	cmd := exec.CommandContext(ctx, "sh", "-c", command)
+	cmd.Dir = dir
 	cmd.Env = verifyEnv()
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true} // so a timeout stops the whole tree
 	cmd.Cancel = func() error { return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL) }
@@ -45,7 +62,7 @@ func (l *Link) runVerify(rec *scopeRecord, taskID int64) {
 		}
 	}
 	sum := sha256.Sum256(out.Bytes())
-	logPath := filepath.Join(client.Home(), "verify", fmt.Sprintf("%s-%d-%d.log", rec.Agent, taskID, time.Now().Unix()))
+	logPath := filepath.Join(client.Home(), "verify", fmt.Sprintf("%s-%d.log", logName, time.Now().Unix()))
 	if os.MkdirAll(filepath.Dir(logPath), 0o700) == nil {
 		os.WriteFile(logPath, out.Bytes(), 0o600)
 	}
@@ -53,13 +70,7 @@ func (l *Link) runVerify(rec *scopeRecord, taskID int64) {
 	if len(tail) > 3000 {
 		tail = tail[len(tail)-3000:]
 	}
-	req := api.TaskCheckReq{Agent: rec.Agent, Command: rec.Verify, ExitCode: exit, TimedOut: timedOut,
-		Tail: strings.TrimSpace(tail), SHA256: hex.EncodeToString(sum[:])}
-	if err := l.hub.Do(context.Background(), "POST", fmt.Sprintf("/v1/tasks/%d/verify", taskID), req, nil); err != nil {
-		l.opt.Log.Printf("report verification of task %d: %v", taskID, err)
-		return
-	}
-	l.opt.Log.Printf("verified task %d (%s): exit %d, timed out %v, log %s", taskID, rec.Agent, exit, timedOut, logPath)
+	return verifyResult{exit: exit, timedOut: timedOut, tail: strings.TrimSpace(tail), sha: hex.EncodeToString(sum[:]), logPath: logPath}
 }
 
 // verifyEnv is a plain environment: the link's own variables (tokens, hub

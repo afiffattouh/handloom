@@ -194,6 +194,8 @@ func (l *Link) handler() http.Handler {
 	}
 	mux.HandleFunc("/v1/device/scope-refused", linkOnly("refused submits"))
 	mux.HandleFunc("POST /v1/tasks/{id}/verify", linkOnly("verification results"))
+	mux.HandleFunc("/v1/device/merges", linkOnly("the merges to do"))
+	mux.HandleFunc("POST /v1/merges/{id}/report", linkOnly("merge results"))
 	mux.HandleFunc("POST /local/activity", func(w http.ResponseWriter, r *http.Request) {
 		go l.activity(api.AgentFrom(r.Header))
 		w.Write([]byte("{}\n"))

@@ -1,6 +1,7 @@
 package hub
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -209,5 +210,29 @@ func TestTheDigestHasNoNullLists(t *testing.T) {
 	raw, _ := io.ReadAll(resp.Body)
 	if strings.Contains(string(raw), "null") {
 		t.Fatalf("null in the digest: %s", raw)
+	}
+}
+
+func TestOnlyTheDeviceListsAndReportsMerges(t *testing.T) {
+	e := newWebEnv(t, Options{})
+	e.agents()
+	code := func(tok, method, path string, body any) int {
+		b, _ := json.Marshal(body)
+		r, _ := http.NewRequest(method, e.srv.URL+path, strings.NewReader(string(b)))
+		r.Header.Set("Authorization", "Bearer "+tok)
+		resp, err := http.DefaultClient.Do(r)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		return resp.StatusCode
+	}
+	for _, tok := range []string{e.admin, e.humanAPI()} {
+		if c := code(tok, "GET", "/v1/device/merges", nil); c != 403 {
+			t.Fatalf("a non-device lists merges: %d", c)
+		}
+		if c := code(tok, "POST", "/v1/merges/1/report", api.MergeReport{Status: "merged"}); c != 403 {
+			t.Fatalf("a non-device reports a merge: %d", c)
+		}
 	}
 }

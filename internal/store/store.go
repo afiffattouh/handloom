@@ -249,6 +249,22 @@ CREATE TABLE task_check (
   sha256    TEXT NOT NULL DEFAULT '',
   at        INTEGER NOT NULL
 );
+`, `
+-- D7: an accepted task's branch is merged into the job's integration branch by the device that holds the repository.
+CREATE TABLE merge (
+  id         INTEGER PRIMARY KEY,
+  task_id    INTEGER NOT NULL REFERENCES task(id),
+  job_id     INTEGER NOT NULL REFERENCES task(id),
+  device_id  INTEGER NOT NULL REFERENCES device(id),
+  agent      TEXT NOT NULL,
+  status     TEXT NOT NULL DEFAULT 'pending',
+  detail     TEXT NOT NULL DEFAULT '',
+  head       TEXT NOT NULL DEFAULT '',
+  created_at INTEGER NOT NULL,
+  done_at    INTEGER
+);
+CREATE INDEX merge_pending ON merge(device_id, status);
+CREATE INDEX merge_task ON merge(task_id);
 `}
 
 // Open opens (and migrates) the database at path. Use ":memory:" in tests.

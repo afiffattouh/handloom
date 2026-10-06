@@ -3,6 +3,7 @@
 <h1>#{{.Job.ID}} {{.Job.Title}}</h1>
 <p class="muted">{{.Job.Status}} · lead: {{if .Job.Lead}}{{.Job.Lead}}{{else}}none{{end}}{{if .Job.Repo}} · repository {{.Job.Repo}} on {{.Job.Device}}{{end}}{{if .Job.Confidential}} · confidential{{end}}</p>
 {{if .Body}}<pre class="cmd">{{.Body}}</pre>{{end}}
+{{if .Job.Repo}}<p class="muted">Accepted work is merged into the branch <code>job/{{.Job.ID}}/integration</code> in the repository (checked again after each merge); nothing is merged into your own branches.</p>{{end}}
 {{if .Job.Verify}}<p class="muted">Checked by the device after each submit: <code>{{.Job.Verify}}</code></p>{{end}}
 
 {{if .Ready}}
@@ -22,6 +23,7 @@
     {{if .Evidence}}<p class="text muted">{{range $i, $e := .Evidence}}{{if $i}}; {{end}}{{$e}}{{end}}</p>{{end}}
     {{if .Check}}<p class="check-result {{if .CheckOK}}ok{{else}}bad{{end}}">checked by {{.Check.Device}}: {{.Words}}</p>
     {{if and (not .CheckOK) .Check.Tail}}<pre class="cmd">{{.Check.Tail}}</pre>{{end}}{{end}}
+    {{with .Merge}}<p class="check-result {{if eq .Status "merged"}}ok{{else if ne .Status "pending"}}bad{{end}}">{{if eq .Status "merged"}}merged into the integration branch{{else if eq .Status "pending"}}merge waiting for the device{{else}}not merged ({{.Status}}): {{.Detail}}{{end}}</p>{{end}}
     {{if eq .Status "submitted"}}<p><a href="/inbox">Review it in the inbox</a></p>{{end}}
   </article>
   {{else}}

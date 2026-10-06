@@ -93,9 +93,11 @@ func (c *call) digest() (*api.Digest, error) {
 		}
 	}
 
+	jscope, jex := scope("j")
+	ex = jex
 	// Jobs whose every task is done wait for a human to look and close them.
 	jrows, err := c.tx.Query(`SELECT j.id, j.title, j.updated_at, (SELECT max(t.updated_at) FROM task t WHERE t.job_id = j.id)
-		FROM task j WHERE j.kind = 'job' AND j.status = 'open' `+strings.Replace(extra, "t.project_id", "j.project_id", 1)+`
+		FROM task j WHERE j.kind = 'job' AND j.status = 'open' `+jscope+`
 		AND EXISTS (SELECT 1 FROM task t WHERE t.job_id = j.id AND t.kind = 'task' AND t.status = 'done')
 		AND NOT EXISTS (SELECT 1 FROM task t WHERE t.job_id = j.id AND t.kind = 'task' AND t.status IN ('open', 'claimed', 'submitted'))`, ex...)
 	if err != nil {
@@ -120,6 +122,26 @@ func (c *call) digest() (*api.Digest, error) {
 	if len(ready) > 0 {
 		d.ToReview = append(ready, d.ToReview...)
 	}
+
+	// Accepted work that could not be merged waits for somebody to sort out.
+	mrows, err := c.tx.Query(`SELECT m.task_id, t.title, m.status, m.detail, m.done_at FROM merge m JOIN task t ON t.id = m.task_id JOIN task j ON j.id = m.job_id
+		WHERE j.status = 'open' AND m.status IN ('conflict', 'failed') `+jscope+`
+		AND m.id = (SELECT max(m2.id) FROM merge m2 WHERE m2.task_id = m.task_id)`, ex...)
+	if err != nil {
+		return nil, err
+	}
+	for mrows.Next() {
+		var id int64
+		var title, status, detail string
+		var at sql.NullInt64
+		if err := mrows.Scan(&id, &title, &status, &detail, &at); err != nil {
+			mrows.Close()
+			return nil, err
+		}
+		d.NeedsYou = append(d.NeedsYou, api.DigestItem{Kind: "merge-" + status, ID: id, Title: title,
+			Detail: "Accepted, but its branch did not merge into the integration branch: " + detail, At: store.Time(at.Int64)})
+	}
+	mrows.Close()
 
 	// Agents, and a silent lead.
 	extra, ex = scope("a")

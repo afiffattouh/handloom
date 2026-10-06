@@ -176,6 +176,9 @@ func (q *webReq) jobPage(status int, errMsg string, id int64) error {
 			tv.CheckOK = tk.check.ExitCode == 0 && !tk.check.TimedOut
 			tv.Words = checkWords(tk.check)
 		}
+		if tv.Merge, err = q.c.mergeOf(tk.id); err != nil {
+			return err
+		}
 		v.Tasks = append(v.Tasks, tv)
 		targets = append(targets, tk.target())
 	}

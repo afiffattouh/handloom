@@ -1135,3 +1135,106 @@ func TestTheLinkCommitsForAgentsWhoseCLICannot(t *testing.T) {
 		t.Fatalf("the check should pass on the committed work: %+v", ck)
 	}
 }
+
+// ---- merges ----
+
+func (f *fixture) commitIn(dir, file, content, msg string) {
+	f.t.Helper()
+	os.WriteFile(filepath.Join(dir, file), []byte(content), 0o644)
+	gitOut(f.t, dir, "add", file)
+	gitOut(f.t, dir, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", msg)
+}
+
+func (f *fixture) acceptAndMerge(id int64) api.TaskMerge {
+	f.t.Helper()
+	f.must(f.human.Post(fmt.Sprintf("/v1/tasks/%d/accept", id), nil, nil))
+	if f.task(id).Merge == nil || f.task(id).Merge.Status != "pending" {
+		f.t.Fatalf("an accepted repo task should have a pending merge: %+v", f.task(id).Merge)
+	}
+	f.ladder()
+	m := f.task(id).Merge
+	if m == nil || m.Status == "pending" {
+		f.t.Fatalf("the merge was not done: %+v", m)
+	}
+	return *m
+}
+
+func TestAcceptedWorkIsMergedIntoTheIntegrationBranch(t *testing.T) {
+	f := newFixture(t)
+	ac, dir, t1 := f.scopedAgentVerify(nil, "test ! -f src/bad.txt")
+	// Our own hooks must not run for the merge.
+	integ := filepath.Join(filepath.Dir(dir), "_integration")
+
+	f.commitIn(dir, "src/one.txt", "one\n", "one")
+	f.must(f.submit(ac, t1))
+	f.waitCheck(t1.ID)
+	if m := f.acceptAndMerge(t1.ID); m.Status != "merged" || m.Head == "" {
+		t.Fatalf("first merge: %+v", m)
+	}
+	if got := gitOut(t, integ, "show", "HEAD:src/one.txt"); got != "one" {
+		t.Fatalf("the integration branch lacks the work: %q", got)
+	}
+	if got := gitOut(t, integ, "branch", "--show-current"); !strings.HasSuffix(got, "/integration") {
+		t.Fatalf("integration worktree on %q", got)
+	}
+
+	// Somebody else changed src/a.go in the integration branch; alpha changes it differently.
+	f.commitIn(integ, "src/a.go", "package src // theirs\n", "theirs")
+	before := gitOut(t, integ, "rev-parse", "HEAD")
+	var t2 api.Task
+	f.must(f.human.Post("/v1/tasks", api.TaskCreateReq{Title: "edit a.go", Job: *t1Job(f, t1), AssignedTo: "alpha"}, &t2))
+	f.must(ac.Post(fmt.Sprintf("/v1/tasks/%d/claim", t2.ID), nil, nil))
+	f.commitIn(dir, "src/a.go", "package src // mine\n", "mine")
+	f.must(f.submit(ac, t2))
+	f.waitCheck(t2.ID)
+	m := f.acceptAndMerge(t2.ID)
+	if m.Status != "conflict" || !strings.Contains(m.Detail, "src/a.go") {
+		t.Fatalf("a conflicting merge: %+v", m)
+	}
+	if gitOut(t, integ, "rev-parse", "HEAD") != before || gitOut(t, integ, "status", "--porcelain") != "" {
+		t.Fatal("a failed merge left the integration branch changed")
+	}
+	var d api.Digest
+	f.must(f.human.Get("/v1/digest", &d))
+	found := false
+	for _, it := range d.NeedsYou {
+		found = found || it.Kind == "merge-conflict"
+	}
+	if !found {
+		t.Fatalf("a conflict is not in the digest: %+v", d.NeedsYou)
+	}
+
+	// Work that merges cleanly but breaks the check does not stay in the branch.
+	var t3 api.Task
+	f.must(f.human.Post("/v1/tasks", api.TaskCreateReq{Title: "break it", Job: *t1Job(f, t1), AssignedTo: "alpha"}, &t3))
+	f.must(ac.Post(fmt.Sprintf("/v1/tasks/%d/claim", t3.ID), nil, nil))
+	gitOut(t, dir, "reset", "-q", "--hard", "HEAD~1") // drop the conflicting commit
+	f.commitIn(dir, "src/bad.txt", "bad\n", "bad")
+	f.must(f.submit(ac, t3))
+	f.waitCheck(t3.ID)
+	m = f.acceptAndMerge(t3.ID)
+	if m.Status != "failed" || !strings.Contains(m.Detail, "test ! -f src/bad.txt") {
+		t.Fatalf("a merge that breaks the check: %+v", m)
+	}
+	if gitOut(t, integ, "rev-parse", "HEAD") != before {
+		t.Fatal("work that failed the check stayed in the integration branch")
+	}
+}
+
+func t1Job(f *fixture, t api.Task) *int64 { return f.task(t.ID).Job }
+
+func TestAnAgentCannotReachTheMergeEndpoints(t *testing.T) {
+	f := newFixture(t)
+	for _, c := range []struct{ method, path string }{{"GET", "/v1/device/merges"}, {"POST", "/v1/merges/1/report"}} {
+		var err error
+		if c.method == "GET" {
+			err = f.worker.Get(c.path, nil)
+		} else {
+			err = f.worker.Post(c.path, api.MergeReport{Status: "merged"}, nil)
+		}
+		var ce *client.Error
+		if !errors.As(err, &ce) || ce.Status != 403 {
+			t.Fatalf("%s %s from an agent: %v", c.method, c.path, err)
+		}
+	}
+}

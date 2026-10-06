@@ -25,12 +25,13 @@ import (
 // have no scope and are not checked.
 
 type scopeRecord struct {
-	Spawn int64    `json:"spawn"`
-	Job   int64    `json:"job"`
-	Agent string   `json:"agent"`
-	Dir   string   `json:"dir"`
-	Base  string   `json:"base"`
-	Write []string `json:"write"`
+	Spawn  int64    `json:"spawn"`
+	Job    int64    `json:"job"`
+	Agent  string   `json:"agent"`
+	Dir    string   `json:"dir"`
+	Base   string   `json:"base"`
+	Write  []string `json:"write"`
+	Verify string   `json:"verify,omitempty"` // the job's verify command, run in Dir after a submit goes through
 }
 
 func (l *Link) scopeFile(agent string) string {
@@ -71,7 +72,7 @@ func (l *Link) recordScope(ctx context.Context, s api.Spawn, dir string) error {
 		}
 		write = p.Spec.Write
 	}
-	if len(write) == 0 {
+	if len(write) == 0 && s.Verify == "" {
 		os.Remove(l.scopeFile(s.Name)) // an earlier agent of the same name must not leave its limits behind
 		return nil
 	}
@@ -79,7 +80,7 @@ func (l *Link) recordScope(ctx context.Context, s api.Spawn, dir string) error {
 	if err != nil {
 		return err
 	}
-	rec := scopeRecord{Spawn: s.ID, Agent: s.Name, Dir: dir, Base: strings.TrimSpace(base), Write: write}
+	rec := scopeRecord{Spawn: s.ID, Agent: s.Name, Dir: dir, Base: strings.TrimSpace(base), Write: write, Verify: s.Verify}
 	if s.Job != nil {
 		rec.Job = *s.Job
 	}
@@ -122,8 +123,14 @@ func (l *Link) submitGate(next http.Handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		agent := api.AgentFrom(r.Header)
 		rec := l.loadScope(agent)
-		if rec == nil || len(rec.Write) == 0 {
+		if rec == nil {
 			next.ServeHTTP(w, r)
+			return
+		}
+		var taskID int64
+		fmt.Sscan(r.PathValue("id"), &taskID)
+		if len(rec.Write) == 0 { // nothing to check, but the work may still be verified
+			l.forwardAndVerify(w, r, next, rec, taskID)
 			return
 		}
 		refuse := func(status int, msg string) {
@@ -145,11 +152,9 @@ func (l *Link) submitGate(next http.Handler) http.HandlerFunc {
 			}
 		}
 		if len(bad) == 0 {
-			next.ServeHTTP(w, r)
+			l.forwardAndVerify(w, r, next, rec, taskID)
 			return
 		}
-		var taskID int64
-		fmt.Sscan(r.PathValue("id"), &taskID)
 		go func() {
 			if err := l.hub.Do(context.Background(), "POST", "/v1/device/scope-refused", api.ScopeRefusal{Agent: agent, Task: taskID, Paths: bad}, nil); err != nil {
 				l.opt.Log.Printf("report refused submit of %s: %v", agent, err)
@@ -161,5 +166,33 @@ func (l *Link) submitGate(next http.Handler) http.HandlerFunc {
 		}
 		refuse(http.StatusConflict, fmt.Sprintf("submit refused: you changed files your profile does not allow (allowed: %s): %s. Revert them (git checkout -- <path>, or delete the new file), then submit again.",
 			strings.Join(rec.Write, ", "), strings.Join(shown, ", ")))
+	}
+}
+
+// statusWriter remembers the status a handler answered with.
+type statusWriter struct {
+	http.ResponseWriter
+	status int
+}
+
+func (w *statusWriter) WriteHeader(code int) {
+	w.status = code
+	w.ResponseWriter.WriteHeader(code)
+}
+
+func (w *statusWriter) Write(b []byte) (int, error) {
+	if w.status == 0 {
+		w.status = http.StatusOK
+	}
+	return w.ResponseWriter.Write(b)
+}
+
+// forwardAndVerify lets a submit through and, if the hub accepted it and the
+// job has a verify command, checks the agent's work in the background.
+func (l *Link) forwardAndVerify(w http.ResponseWriter, r *http.Request, next http.Handler, rec *scopeRecord, taskID int64) {
+	sw := &statusWriter{ResponseWriter: w}
+	next.ServeHTTP(sw, r)
+	if sw.status == http.StatusOK && rec.Verify != "" && taskID > 0 {
+		go l.runVerify(rec, taskID)
 	}
 }

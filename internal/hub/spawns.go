@@ -32,6 +32,7 @@ type spawnRow struct {
 	createdBy               string
 	created, updated        int64
 	device, project         string
+	verify                  string
 	profileName             string
 	profileVersion          int
 	profileHash             string
@@ -40,7 +41,7 @@ type spawnRow struct {
 
 func (s *spawnRow) api() api.Spawn {
 	return api.Spawn{ID: s.id, Name: s.name, Kind: s.kind, Model: s.model, Device: s.device, Job: nullInt(s.job),
-		Project: s.project, Role: s.role, Repo: s.repo, Profile: profileRef(s.profileName, s.profileVersion), Status: s.status, Pane: s.pane, Error: s.errText, CreatedBy: s.createdBy, CreatedAt: store.Time(s.created)}
+		Project: s.project, Role: s.role, Repo: s.repo, Verify: s.verify, Profile: profileRef(s.profileName, s.profileVersion), Status: s.status, Pane: s.pane, Error: s.errText, CreatedBy: s.createdBy, CreatedAt: store.Time(s.created)}
 }
 
 func profileRef(name string, version int) string {
@@ -51,13 +52,14 @@ func profileRef(name string, version int) string {
 }
 
 const spawnSelect = `SELECT s.id, s.project_id, s.device_id, s.job_id, s.name, s.kind, s.model, s.status, s.pane, s.error,
-	s.created_by, s.created_at, s.updated_at, d.name, p.name, s.profile_name, s.profile_version, s.profile_hash, s.role, s.repo FROM spawn s JOIN device d ON d.id = s.device_id
+	s.created_by, s.created_at, s.updated_at, d.name, p.name, s.profile_name, s.profile_version, s.profile_hash, s.role, s.repo,
+	COALESCE((SELECT t.verify FROM task t WHERE t.id = s.job_id), '') FROM spawn s JOIN device d ON d.id = s.device_id
 	JOIN project p ON p.id = s.project_id `
 
 func scanSpawn(s scanner) (*spawnRow, error) {
 	r := &spawnRow{}
 	err := s.Scan(&r.id, &r.projectID, &r.deviceID, &r.job, &r.name, &r.kind, &r.model, &r.status, &r.pane, &r.errText,
-		&r.createdBy, &r.created, &r.updated, &r.device, &r.project, &r.profileName, &r.profileVersion, &r.profileHash, &r.role, &r.repo)
+		&r.createdBy, &r.created, &r.updated, &r.device, &r.project, &r.profileName, &r.profileVersion, &r.profileHash, &r.role, &r.repo, &r.verify)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}

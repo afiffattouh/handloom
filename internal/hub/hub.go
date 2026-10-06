@@ -223,6 +223,7 @@ func (h *Hub) Handler() http.Handler {
 	v1("POST /spawns/{id}/report", spawnReport)
 	v1("GET /device/spawns", deviceSpawns)
 	v1("POST /device/scope-refused", scopeRefused)
+	v1("POST /tasks/{id}/verify", taskVerify)
 	v1("GET /device/spawns/{id}/profile", spawnProfile)
 
 	v1("POST /profiles", profileNew)

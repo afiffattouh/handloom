@@ -235,6 +235,20 @@ ALTER TABLE task ADD COLUMN verify TEXT NOT NULL DEFAULT '';
 ALTER TABLE task ADD COLUMN device_id INTEGER REFERENCES device(id);
 ALTER TABLE spawn ADD COLUMN role TEXT NOT NULL DEFAULT 'worker';
 ALTER TABLE spawn ADD COLUMN repo TEXT NOT NULL DEFAULT '';
+`, `
+-- D3: what a device found when it ran a job's verify command on a submitted task.
+-- One row per task for its current submission (a new submit clears it).
+CREATE TABLE task_check (
+  task_id   INTEGER PRIMARY KEY REFERENCES task(id),
+  agent     TEXT NOT NULL,
+  device_id INTEGER NOT NULL REFERENCES device(id),
+  command   TEXT NOT NULL,
+  exit_code INTEGER NOT NULL,
+  timed_out INTEGER NOT NULL DEFAULT 0,
+  tail      TEXT NOT NULL DEFAULT '',
+  sha256    TEXT NOT NULL DEFAULT '',
+  at        INTEGER NOT NULL
+);
 `}
 
 // Open opens (and migrates) the database at path. Use ":memory:" in tests.

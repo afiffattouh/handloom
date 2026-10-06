@@ -682,6 +682,19 @@ func (e *env) taskDetail(t api.Task) {
 	if t.Note != "" {
 		fmt.Fprintf(e.out, "Note: %s\n", t.Note)
 	}
+	if ck := t.Check; ck != nil {
+		result := "passed"
+		switch {
+		case ck.TimedOut:
+			result = "TIMED OUT"
+		case ck.ExitCode != 0:
+			result = fmt.Sprintf("FAILED (exit %d)", ck.ExitCode)
+		}
+		fmt.Fprintf(e.out, "\nChecked by device %s (not by the agent): %s %s\n", ck.Device, ck.Command, result)
+		if ck.Tail != "" {
+			fmt.Fprintln(e.out, "  "+strings.ReplaceAll(strings.TrimSpace(ck.Tail), "\n", "\n  "))
+		}
+	}
 }
 
 func ago(t time.Time) string {

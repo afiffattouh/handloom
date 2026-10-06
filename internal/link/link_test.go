@@ -91,6 +91,8 @@ func (f *fixture) advance(d time.Duration) {
 // worker on the same device. The worker has a wake target; tests set states.
 func newFixture(t *testing.T) *fixture {
 	t.Helper()
+	// The link writes scope and verification files under its home: never the real one.
+	t.Setenv("HANDLOOM_HOME", t.TempDir())
 	f := &fixture{t: t, driver: &fakeDriver{}, now: time.Date(2026, 10, 3, 12, 0, 0, 0, time.UTC)}
 	db, err := store.Open(":memory:")
 	if err != nil {
@@ -748,10 +750,12 @@ func gitOut(t *testing.T, dir string, args ...string) string {
 	return strings.TrimSpace(string(out))
 }
 
-func (f *fixture) repoJob(repo string) api.Job {
+func (f *fixture) repoJob(repo string) api.Job { return f.repoJobVerify(repo, "") }
+
+func (f *fixture) repoJobVerify(repo, verify string) api.Job {
 	f.t.Helper()
 	var j api.Job
-	f.must(f.human.Post("/v1/jobs", api.JobNewReq{Title: "Fix it", Repo: repo, Device: "dev"}, &j))
+	f.must(f.human.Post("/v1/jobs", api.JobNewReq{Title: "Fix it", Repo: repo, Verify: verify, Device: "dev"}, &j))
 	return j
 }
 
@@ -837,6 +841,10 @@ func (f *fixture) requestSpawnAfterFail(name string, job, old int64) api.Spawn {
 // change src/**, with a task assigned to it that it has claimed. It returns
 // the agent's client (through the link socket), its worktree and the task.
 func (f *fixture) scopedAgent(write []string) (*client.Client, string, api.Task) {
+	return f.scopedAgentVerify(write, "")
+}
+
+func (f *fixture) scopedAgentVerify(write []string, verify string) (*client.Client, string, api.Task) {
 	f.t.Helper()
 	tl := &tmuxLog{}
 	f.spawnLink(tl)
@@ -846,7 +854,7 @@ func (f *fixture) scopedAgent(write []string) (*client.Client, string, api.Task)
 	gitOut(f.t, repo, "add", ".")
 	gitOut(f.t, repo, "commit", "-q", "-m", "src")
 	f.must(f.admin.Post("/v1/profiles", api.ProfileReq{Name: "coder", Spec: profile.Spec{Kind: "claude", Tools: profile.Tools{Allow: []string{"read", "edit"}}, Write: write}}, nil))
-	j := f.repoJob(repo)
+	j := f.repoJobVerify(repo, verify)
 	var s api.Spawn
 	f.must(f.human.Post("/v1/spawns", api.SpawnReq{Name: "alpha", Profile: "coder", Job: j.ID, Device: "dev"}, &s))
 	f.ladder()
@@ -980,4 +988,101 @@ func (f *fixture) task(id int64) api.Task {
 	var t api.Task
 	f.must(f.human.Get(fmt.Sprintf("/v1/tasks/%d", id), &t))
 	return t
+}
+
+// ---- verification ----
+
+func (f *fixture) waitCheck(id int64) *api.TaskCheck {
+	f.t.Helper()
+	for i := 0; i < 300; i++ {
+		if ck := f.task(id).Check; ck != nil {
+			return ck
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	f.t.Fatalf("task %d was never verified", id)
+	return nil
+}
+
+func TestTheDeviceVerifiesWhatWasSubmitted(t *testing.T) {
+	t.Setenv("HANDLOOM_TOKEN", "must-not-reach-the-command")
+	f := newFixture(t)
+	ac, dir, task := f.scopedAgentVerify(nil, `echo checking; test -f src/a.go && test -z "$HANDLOOM_TOKEN"`)
+	os.WriteFile(filepath.Join(dir, "src", "b.go"), []byte("package src\n"), 0o644)
+	if err := f.submit(ac, task); err != nil {
+		t.Fatal(err)
+	}
+	ck := f.waitCheck(task.ID)
+	if ck.ExitCode != 0 || ck.TimedOut || ck.Agent != "alpha" || ck.Device != "dev" || !strings.Contains(ck.Tail, "checking") || len(ck.SHA256) != 64 {
+		t.Fatalf("check: %+v", ck)
+	}
+	// The lead, an agent, may accept work the device passed.
+	f.must(f.lead.Post(fmt.Sprintf("/v1/tasks/%d/accept", task.ID), nil, nil))
+	if got := f.task(task.ID).Status; got != "done" {
+		t.Fatalf("task is %s", got)
+	}
+	// The full log stays on the device.
+	logs, _ := filepath.Glob(filepath.Join(client.Home(), "verify", "alpha-*.log"))
+	if len(logs) != 1 {
+		t.Fatalf("logs: %v", logs)
+	}
+}
+
+func TestAFailedVerificationBlocksTheLeadButNotAHuman(t *testing.T) {
+	f := newFixture(t)
+	ac, _, task := f.scopedAgentVerify(nil, `echo "FAIL: 2 tests broken"; exit 3`)
+	if err := f.submit(ac, task); err != nil {
+		t.Fatal(err)
+	}
+	ck := f.waitCheck(task.ID)
+	if ck.ExitCode != 3 || !strings.Contains(ck.Tail, "2 tests broken") {
+		t.Fatalf("check: %+v", ck)
+	}
+	var ce *client.Error
+	if err := f.lead.Post(fmt.Sprintf("/v1/tasks/%d/accept", task.ID), nil, nil); !errors.As(err, &ce) || ce.Status != 409 || !strings.Contains(ce.Msg, "failed verification") {
+		t.Fatalf("the lead accepted work that failed: %v", err)
+	}
+	// The lead is told, with the end of the output.
+	found := false
+	for _, m := range f.inbox(f.lead) {
+		found = found || (strings.Contains(m.Body, "failed, exit 3") && strings.Contains(m.Body, "2 tests broken"))
+	}
+	if !found {
+		t.Fatal("the lead was not told the check failed")
+	}
+	// Rejecting clears the check of the rejected work; a human may still decide otherwise.
+	f.must(f.lead.Post(fmt.Sprintf("/v1/tasks/%d/reject", task.ID), api.ReasonReq{Reason: "tests broken"}, nil))
+	if f.task(task.ID).Check != nil {
+		t.Fatal("the check of rejected work is still there")
+	}
+	f.must(ac.Post(fmt.Sprintf("/v1/tasks/%d/submit", task.ID), api.SubmitReq{Evidence: []string{"file:x"}}, nil))
+	f.waitCheck(task.ID)
+	f.must(f.human.Post(fmt.Sprintf("/v1/tasks/%d/accept", task.ID), nil, nil))
+}
+
+func TestVerifyTimesOut(t *testing.T) {
+	f := newFixture(t)
+	f.link.opt.VerifyTimeout = 300 * time.Millisecond
+	ac, _, task := f.scopedAgentVerify(nil, `sleep 20`)
+	start := time.Now()
+	f.must(f.submit(ac, task))
+	ck := f.waitCheck(task.ID)
+	if !ck.TimedOut || time.Since(start) > 5*time.Second {
+		t.Fatalf("check: %+v after %s", ck, time.Since(start))
+	}
+}
+
+func TestAnAgentCannotForgeAVerification(t *testing.T) {
+	f := newFixture(t)
+	ac, _, task := f.scopedAgentVerify(nil, `exit 1`)
+	f.must(f.submit(ac, task))
+	f.waitCheck(task.ID)
+	var ce *client.Error
+	err := ac.Post(fmt.Sprintf("/v1/tasks/%d/verify", task.ID), api.TaskCheckReq{Agent: "alpha", Command: "exit 1", ExitCode: 0}, nil)
+	if !errors.As(err, &ce) || ce.Status != 403 {
+		t.Fatalf("an agent filing its own verification: %v", err)
+	}
+	if got := f.task(task.ID).Check; got == nil || got.ExitCode != 1 {
+		t.Fatalf("the check was overwritten: %+v", got)
+	}
 }

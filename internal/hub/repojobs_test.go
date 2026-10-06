@@ -142,3 +142,87 @@ func TestOnlyTheDeviceReportsARefusedSubmit(t *testing.T) {
 		t.Fatalf("the lead's mail: %q", got)
 	}
 }
+
+func (e *env) verifiedSetup() (api.Job, api.Task) {
+	e.t.Helper()
+	var j api.Job
+	e.ok(e.afif(), "POST", "/v1/jobs", api.JobNewReq{Title: "Fix", Lead: "lead", Repo: "/srv/app", Verify: "./check.sh", Device: "d1"}, &j)
+	var task api.Task
+	e.ok(e.lead(), "POST", "/v1/tasks", api.TaskCreateReq{Title: "t", AssignedTo: "worker"}, &task)
+	e.ok(e.worker(), "POST", taskPath(task.ID, "claim"), nil, nil)
+	return j, task
+}
+
+func TestVerificationReportsComeOnlyFromTheDeviceForSubmittedWork(t *testing.T) {
+	e := newEnv(t)
+	_, task := e.verifiedSetup()
+	req := api.TaskCheckReq{Agent: "worker", Command: "./check.sh", ExitCode: 0}
+	path := fmt.Sprintf("/v1/tasks/%d/verify", task.ID)
+	e.fail(403, e.afif(), "POST", path, req)
+	e.fail(409, caller{e.d1, ""}, "POST", path, req) // not submitted yet
+	e.ok(e.worker(), "POST", taskPath(task.ID, "submit"), api.SubmitReq{Evidence: []string{"file:x"}}, nil)
+	e.fail(403, caller{e.d2, ""}, "POST", path, req)                                                          // not the agent's device
+	e.fail(403, caller{e.d1, ""}, "POST", path, api.TaskCheckReq{Agent: "observer", Command: "./check.sh"})   // not the task's owner
+	e.fail(409, caller{e.d1, ""}, "POST", path, api.TaskCheckReq{Agent: "worker", Command: "something else"}) // not the job's command
+	e.ok(caller{e.d1, ""}, "POST", path, req, nil)
+	if !e.audited("task.verified", fmt.Sprintf("task:%d", task.ID)) {
+		t.Fatal("not audited")
+	}
+	got := e.task(task.ID)
+	if got.Check == nil || got.Check.Device != "d1" || got.Check.Agent != "worker" {
+		t.Fatalf("task: %+v", got)
+	}
+}
+
+func TestTheLeadCannotAcceptUnverifiedOrFailedWork(t *testing.T) {
+	e := newEnv(t)
+	_, task := e.verifiedSetup()
+	e.ok(e.worker(), "POST", taskPath(task.ID, "submit"), api.SubmitReq{Evidence: []string{"file:x"}}, nil)
+	acc := taskPath(task.ID, "accept")
+	if msg := e.fail(409, e.lead(), "POST", acc, nil); !strings.Contains(msg, "not been verified") {
+		t.Fatalf("before the check: %s", msg)
+	}
+	e.ok(caller{e.d1, ""}, "POST", fmt.Sprintf("/v1/tasks/%d/verify", task.ID), api.TaskCheckReq{Agent: "worker", Command: "./check.sh", ExitCode: 2, Tail: "boom"}, nil)
+	if msg := e.fail(409, e.lead(), "POST", acc, nil); !strings.Contains(msg, "failed verification") || !strings.Contains(msg, "exit 2") {
+		t.Fatalf("after a failed check: %s", msg)
+	}
+	// A new submission starts from nothing.
+	e.ok(e.lead(), "POST", taskPath(task.ID, "reject"), api.ReasonReq{Reason: "fix"}, nil)
+	e.ok(e.worker(), "POST", taskPath(task.ID, "submit"), api.SubmitReq{Evidence: []string{"file:y"}}, nil)
+	if got := e.task(task.ID); got.Check != nil {
+		t.Fatalf("a new submission inherited the old check: %+v", got.Check)
+	}
+	e.ok(caller{e.d1, ""}, "POST", fmt.Sprintf("/v1/tasks/%d/verify", task.ID), api.TaskCheckReq{Agent: "worker", Command: "./check.sh", ExitCode: 0}, nil)
+	e.ok(e.lead(), "POST", acc, nil, nil)
+}
+
+func TestAHumanMayAcceptDespiteAFailedCheckAndJobsWithoutVerifyAreUnchanged(t *testing.T) {
+	e := newEnv(t)
+	_, task := e.verifiedSetup()
+	e.ok(e.worker(), "POST", taskPath(task.ID, "submit"), api.SubmitReq{Evidence: []string{"file:x"}}, nil)
+	e.ok(caller{e.d1, ""}, "POST", fmt.Sprintf("/v1/tasks/%d/verify", task.ID), api.TaskCheckReq{Agent: "worker", Command: "./check.sh", ExitCode: 1}, nil)
+	e.ok(e.afif(), "POST", taskPath(task.ID, "accept"), nil, nil)
+
+	// No verify command: nothing changes for the lead.
+	var plain api.Task
+	e.ok(e.afif(), "POST", "/v1/tasks", api.TaskCreateReq{Title: "plain", AssignedTo: "worker2"}, &plain)
+	e.ok(e.worker2(), "POST", taskPath(plain.ID, "claim"), nil, nil)
+	e.ok(e.worker2(), "POST", taskPath(plain.ID, "submit"), api.SubmitReq{Evidence: []string{"file:x"}}, nil)
+	e.ok(e.afif(), "POST", taskPath(plain.ID, "accept"), nil, nil)
+}
+
+func TestTheInboxShowsWhatTheDeviceFound(t *testing.T) {
+	e := newEnv(t)
+	_, task := e.verifiedSetup()
+	e.ok(e.worker(), "POST", taskPath(task.ID, "submit"), api.SubmitReq{Evidence: []string{"file:x"}}, nil)
+	var d api.Digest
+	e.ok(e.afif(), "GET", "/v1/digest", nil, &d)
+	if len(d.ToReview) != 1 || !strings.Contains(d.ToReview[0].Detail, "verification pending") {
+		t.Fatalf("before: %+v", d.ToReview)
+	}
+	e.ok(caller{e.d1, ""}, "POST", fmt.Sprintf("/v1/tasks/%d/verify", task.ID), api.TaskCheckReq{Agent: "worker", Command: "./check.sh", ExitCode: 4}, nil)
+	e.ok(e.afif(), "GET", "/v1/digest", nil, &d)
+	if !strings.Contains(d.ToReview[0].Detail, "checked by d1: failed, exit 4") {
+		t.Fatalf("after: %+v", d.ToReview)
+	}
+}

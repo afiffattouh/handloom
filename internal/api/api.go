@@ -122,11 +122,36 @@ type Task struct {
 	DependsOn      []int64    `json:"depends_on"`
 	Evidence       []string   `json:"evidence"`
 	Note           string     `json:"note,omitempty"`
+	Check          *TaskCheck `json:"check,omitempty"` // the device's verification of the current submission
 	BlockedReason  string     `json:"blocked_reason,omitempty"`
 	RejectReason   string     `json:"reject_reason,omitempty"`
 	CreatedBy      string     `json:"created_by"`
 	CreatedAt      time.Time  `json:"created_at"`
 	UpdatedAt      time.Time  `json:"updated_at"`
+}
+
+// TaskCheck is what a device found when it ran the job's verify command in an
+// agent's worktree after the agent submitted. It is the device's word, not the
+// agent's.
+type TaskCheck struct {
+	Agent    string    `json:"agent"`
+	Device   string    `json:"device"`
+	Command  string    `json:"command"`
+	ExitCode int       `json:"exit_code"`
+	TimedOut bool      `json:"timed_out,omitempty"`
+	Tail     string    `json:"tail,omitempty"`   // the last lines of the output
+	SHA256   string    `json:"sha256,omitempty"` // of the full log, which stays on the device
+	At       time.Time `json:"at"`
+}
+
+// TaskCheckReq is the link reporting a verify run.
+type TaskCheckReq struct {
+	Agent    string `json:"agent"`
+	Command  string `json:"command"`
+	ExitCode int    `json:"exit_code"`
+	TimedOut bool   `json:"timed_out,omitempty"`
+	Tail     string `json:"tail,omitempty"`
+	SHA256   string `json:"sha256,omitempty"`
 }
 
 type Message struct {
@@ -302,6 +327,7 @@ type Spawn struct {
 	Job       *int64    `json:"job,omitempty"`
 	Role      string    `json:"role,omitempty"`    // worker, or lead for the job's own lead
 	Repo      string    `json:"repo,omitempty"`    // the repository its work directory is a worktree of
+	Verify    string    `json:"verify,omitempty"`  // the job's verify command, which the device runs after this agent submits
 	Profile   string    `json:"profile,omitempty"` // name@version it is pinned to
 	Status    string    `json:"status"`            // pending | launching | started | failed
 	Pane      string    `json:"pane,omitempty"`

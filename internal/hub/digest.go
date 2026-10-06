@@ -74,6 +74,14 @@ func (c *call) digest() (*api.Digest, error) {
 			if t.note != "" {
 				item.Detail += " — " + t.note
 			}
+			if t.jobVerify != "" {
+				switch {
+				case t.check == nil:
+					item.Detail += " — verification pending on the device"
+				default:
+					item.Detail += " — checked by " + t.check.Device + ": " + checkWords(t.check)
+				}
+			}
 			d.ToReview = append(d.ToReview, item)
 		case t.blocked != "":
 			item.Kind, item.Detail = "blocked", t.blocked

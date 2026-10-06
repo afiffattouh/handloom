@@ -29,14 +29,15 @@ type Options struct {
 	Credential string
 	Socket     string
 
-	NudgeEvery   time.Duration // at most one nudge per agent in this time; default 60s
-	Renudge      time.Duration // nudge again when delivered mail stays unread this long; default 5m
-	UnknownAfter time.Duration // two unanswered nudges for this long mark the agent unknown; default 10m
-	Heartbeat    time.Duration // extend leases of an active agent this often; default 2m
-	BlockedGrace time.Duration // an agent must be blocked this long before the lead is told; default 30s
-	Tick         time.Duration // how often the ladder runs without events; default 10s
-	LiveEvery    time.Duration // how often a live terminal is reported to the hub as alive; default 20s
-	PollWait     int           // long-poll seconds; default 25
+	NudgeEvery    time.Duration // at most one nudge per agent in this time; default 60s
+	Renudge       time.Duration // nudge again when delivered mail stays unread this long; default 5m
+	UnknownAfter  time.Duration // two unanswered nudges for this long mark the agent unknown; default 10m
+	Heartbeat     time.Duration // extend leases of an active agent this often; default 2m
+	BlockedGrace  time.Duration // an agent must be blocked this long before the lead is told; default 30s
+	Tick          time.Duration // how often the ladder runs without events; default 10s
+	LiveEvery     time.Duration // how often a live terminal is reported to the hub as alive; default 20s
+	VerifyTimeout time.Duration // longest a job's verify command may run; default 10m
+	PollWait      int           // long-poll seconds; default 25
 
 	// Spawn: the link starts agents in a tmux server of its own.
 	TmuxSocket string         // tmux -L name; default "handloom"
@@ -76,6 +77,7 @@ func New(opt Options) *Link {
 	def(&opt.BlockedGrace, 30*time.Second)
 	def(&opt.Tick, 10*time.Second)
 	def(&opt.LiveEvery, 20*time.Second)
+	def(&opt.VerifyTimeout, 10*time.Minute)
 	def(&opt.HeadlessTimeout, 15*time.Minute)
 	if opt.HeadlessRun == nil {
 		opt.HeadlessRun = execHeadless
@@ -183,11 +185,15 @@ func (l *Link) handler() http.Handler {
 	mux.HandleFunc("POST /v1/tasks/{id}/submit", l.submitGate(proxy)) // more specific than /v1/: it wins
 	// A refused submit is reported by the link itself, with its own credential. An
 	// agent reaching the hub through this socket must not be able to file one.
-	mux.HandleFunc("/v1/device/scope-refused", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusForbidden)
-		fmt.Fprintln(w, `{"error":"only the link reports refused submits","code":"forbidden"}`)
-	})
+	linkOnly := func(what string) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusForbidden)
+			fmt.Fprintf(w, `{"error":"only the link reports %s","code":"forbidden"}`+"\n", what)
+		}
+	}
+	mux.HandleFunc("/v1/device/scope-refused", linkOnly("refused submits"))
+	mux.HandleFunc("POST /v1/tasks/{id}/verify", linkOnly("verification results"))
 	mux.HandleFunc("POST /local/activity", func(w http.ResponseWriter, r *http.Request) {
 		go l.activity(api.AgentFrom(r.Header))
 		w.Write([]byte("{}\n"))

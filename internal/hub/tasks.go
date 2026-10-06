@@ -32,6 +32,8 @@ type taskRow struct {
 	confidential     bool
 	repo, verify     string
 	deviceID         sql.NullInt64
+	jobVerify        string // the verify command of the job this task belongs to
+	check            *api.TaskCheck
 }
 
 func (t *taskRow) api() api.Task {
@@ -40,7 +42,7 @@ func (t *taskRow) api() api.Task {
 		ID: t.id, Project: t.project, Title: t.title, Body: t.body, Status: t.status,
 		Owner: t.ownerName, AssignedTo: t.assignedName, LeaseExpiresAt: store.TimePtr(t.lease),
 		DependsOn: t.deps, Evidence: t.evidence, Note: t.note, BlockedReason: t.blocked,
-		RejectReason: t.reject, CreatedBy: t.createdBy,
+		RejectReason: t.reject, CreatedBy: t.createdBy, Check: t.check,
 		CreatedAt: store.Time(t.created), UpdatedAt: store.Time(t.updated),
 	}
 }
@@ -57,18 +59,27 @@ func (t *taskRow) target() string { return fmt.Sprintf("task:%d", t.id) }
 const taskSelect = `SELECT t.id, t.project_id, t.title, t.body, t.status, t.owner_agent_id, t.assigned_to,
 	t.lease_expires_at, t.depends_on, t.evidence, t.note, t.blocked_reason, t.reject_reason, t.created_by,
 	t.created_at, t.updated_at, p.name, COALESCE(o.name, ''), COALESCE(s.name, ''),
-	t.kind, t.job_id, t.parent_id, t.confidential, t.repo, t.verify, t.device_id
-	FROM task t JOIN project p ON p.id = t.project_id
+	t.kind, t.job_id, t.parent_id, t.confidential, t.repo, t.verify, t.device_id,
+	COALESCE((SELECT j.verify FROM task j WHERE j.id = t.job_id), ''),
+	ck.agent, ck.command, ck.exit_code, ck.timed_out, ck.tail, ck.sha256, ck.at, cd.name
+	FROM task t LEFT JOIN task_check ck ON ck.task_id = t.id LEFT JOIN device cd ON cd.id = ck.device_id JOIN project p ON p.id = t.project_id
 	LEFT JOIN agent o ON o.id = t.owner_agent_id LEFT JOIN agent s ON s.id = t.assigned_to `
 
 func scanTask(s scanner) (*taskRow, error) {
 	t := &taskRow{}
 	var deps, evidence string
+	var ckAgent, ckCmd, ckTail, ckSHA, ckDev sql.NullString
+	var ckExit, ckTimed, ckAt sql.NullInt64
 	err := s.Scan(&t.id, &t.projectID, &t.title, &t.body, &t.status, &t.owner, &t.assigned, &t.lease,
 		&deps, &evidence, &t.note, &t.blocked, &t.reject, &t.createdBy, &t.created, &t.updated,
-		&t.project, &t.ownerName, &t.assignedName, &t.kind, &t.jobID, &t.parentID, &t.confidential, &t.repo, &t.verify, &t.deviceID)
+		&t.project, &t.ownerName, &t.assignedName, &t.kind, &t.jobID, &t.parentID, &t.confidential, &t.repo, &t.verify, &t.deviceID, &t.jobVerify,
+		&ckAgent, &ckCmd, &ckExit, &ckTimed, &ckTail, &ckSHA, &ckAt, &ckDev)
 	if err != nil {
 		return nil, err
+	}
+	if ckAt.Valid {
+		t.check = &api.TaskCheck{Agent: ckAgent.String, Device: ckDev.String, Command: ckCmd.String, ExitCode: int(ckExit.Int64),
+			TimedOut: ckTimed.Int64 != 0, Tail: ckTail.String, SHA256: ckSHA.String, At: store.Time(ckAt.Int64)}
 	}
 	t.deps, t.evidence = []int64{}, []string{}
 	json.Unmarshal([]byte(deps), &t.deps)
@@ -436,6 +447,16 @@ func taskAccept(c *call) (any, error) {
 	if t.status != api.StatusSubmitted {
 		return nil, conflict("task %d is %s; only a submitted task can be accepted", t.id, t.status)
 	}
+	// In a job that has a verify command, an agent (the lead) accepts only
+	// work the device has checked and found good. A human may still decide otherwise.
+	if t.jobVerify != "" && c.p.kind == kindDevice {
+		switch {
+		case t.check == nil:
+			return nil, conflict("task %d has not been verified yet: the device is still running %q. Try again in a moment.", t.id, t.jobVerify)
+		case t.check.ExitCode != 0 || t.check.TimedOut:
+			return nil, conflict("task %d failed verification (%q: %s). Reject it with the reason so its owner can fix it.", t.id, t.jobVerify, checkWords(t.check))
+		}
+	}
 	if err := c.touch(t, `status = 'done'`); err != nil {
 		return nil, err
 	}
@@ -519,8 +540,11 @@ func (c *call) rejectTask(t *taskRow, reason string) (any, error) {
 	if t.status != api.StatusSubmitted {
 		return nil, conflict("task %d is %s; only a submitted task can be rejected", t.id, t.status)
 	}
-	// Back to claimed, with a fresh lease for the owner.
+	// Back to claimed, with a fresh lease for the owner. The device's check was of the rejected work.
 	if err := c.touch(t, `status = 'claimed', reject_reason = ?, lease_expires_at = ?`, reason, c.leaseUntil()); err != nil {
+		return nil, err
+	}
+	if _, err := c.tx.Exec(`DELETE FROM task_check WHERE task_id = ?`, t.id); err != nil {
 		return nil, err
 	}
 	if err := c.record(t.projectID, 0, "task.reject", t.target(), map[string]any{"owner": t.ownerName, "reason": reason}); err != nil {
@@ -717,6 +741,9 @@ func taskSubmit(c *call) (any, error) {
 	evJSON, _ := json.Marshal(evidence)
 	if err := c.touch(t, `status = 'submitted', evidence = ?, note = ?, lease_expires_at = NULL, blocked_reason = '', reject_reason = ''`,
 		string(evJSON), req.Note); err != nil {
+		return nil, err
+	}
+	if _, err := c.tx.Exec(`DELETE FROM task_check WHERE task_id = ?`, t.id); err != nil { // a new submission is checked afresh
 		return nil, err
 	}
 	if err := c.record(t.projectID, 0, "task.submit", t.target(),

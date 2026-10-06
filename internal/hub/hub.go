@@ -37,6 +37,9 @@ type Options struct {
 	TrustProxy  bool             // take the client address from the proxy's X-Forwarded-For
 	SessionIdle time.Duration    // web session idle timeout; default 12h
 	SessionMax  time.Duration    // web session absolute lifetime; default 7 days
+	JoinTTL     time.Duration    // how long a device join token works; default 15 minutes
+	InviteTTL   time.Duration    // how long a member invite link works; default 7 days
+	NtfyToken   string           // access token for the ntfy topic set in Settings (never stored in the database)
 	Now         func() time.Time // clock, replaceable in tests
 	Log         *log.Logger
 }
@@ -49,6 +52,7 @@ type Hub struct {
 	notify chan struct{} // closed and replaced whenever events are written
 	rate   map[string]*bucket
 	pages  map[string]*template.Template
+	dyn    notify.Notifier // ntfy from Settings, plus the configured notifier; nil when Settings has none
 }
 
 func New(db *sql.DB, opt Options) *Hub {
@@ -63,6 +67,12 @@ func New(db *sql.DB, opt Options) *Hub {
 	}
 	if opt.MsgRate <= 0 {
 		opt.MsgRate = 60
+	}
+	if opt.JoinTTL <= 0 {
+		opt.JoinTTL = 15 * time.Minute
+	}
+	if opt.InviteTTL <= 0 {
+		opt.InviteTTL = 7 * 24 * time.Hour
 	}
 	if opt.SessionIdle <= 0 {
 		opt.SessionIdle = 12 * time.Hour
@@ -79,6 +89,9 @@ func New(db *sql.DB, opt Options) *Hub {
 	h := &Hub{db: db, opt: opt, notify: make(chan struct{}), rate: map[string]*bucket{}}
 	if err := h.loadTemplates(); err != nil {
 		panic(err) // the templates are embedded: a parse error is a build bug
+	}
+	if err := h.reloadNotifier(); err != nil {
+		h.opt.Log.Printf("notification settings: %v", err)
 	}
 	return h
 }
@@ -134,7 +147,8 @@ func (c *call) runAfter() {
 // either way and shows in the inbox.
 func (c *call) tell(n notify.Notification) {
 	h := c.h
-	if h.opt.Notifier == nil {
+	notifier := h.notifier()
+	if notifier == nil {
 		return
 	}
 	if h.opt.BaseURL != "" && n.Link == "" {
@@ -144,7 +158,7 @@ func (c *call) tell(n notify.Notification) {
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 			defer cancel()
-			if err := h.opt.Notifier.Notify(ctx, n); err != nil {
+			if err := notifier.Notify(ctx, n); err != nil {
 				h.opt.Log.Printf("notify %s: %v", n.Kind, err)
 			}
 		}()

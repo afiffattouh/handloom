@@ -143,3 +143,101 @@ func PurgeSessions(q Querier, now, idleMs int64) error {
 	_, err := q.Exec(`DELETE FROM web_session WHERE expires_at < ? OR last_seen_at < ?`, now, now-idleMs)
 	return err
 }
+
+// CreateInvitedHuman adds a human with no password yet; they set one through an invite.
+func CreateInvitedHuman(q Querier, name, role string, now int64) (int64, error) {
+	res, err := q.Exec(`INSERT INTO human(name, token_hash, created_at, role) VALUES (?, ?, ?, ?)`,
+		name, HashToken(NewToken(PrefixHuman)), now, role)
+	if err != nil {
+		return 0, err
+	}
+	return res.LastInsertId()
+}
+
+func SetRole(q Querier, humanID int64, role string) error {
+	_, err := q.Exec(`UPDATE human SET role = ? WHERE id = ?`, role, humanID)
+	return err
+}
+
+// ListHumans returns everybody, owners first.
+func ListHumans(q Querier) ([]Human, error) {
+	rows, err := q.Query(`SELECT id, name, role, password_hash FROM human ORDER BY CASE role WHEN 'owner' THEN 0 WHEN 'member' THEN 1 ELSE 2 END, name`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Human
+	for rows.Next() {
+		var h Human
+		var pw sql.NullString
+		if err := rows.Scan(&h.ID, &h.Name, &h.Role, &pw); err != nil {
+			return nil, err
+		}
+		h.PasswordHash = pw.String
+		out = append(out, h)
+	}
+	return out, rows.Err()
+}
+
+// ReplaceHumanToken gives a human a new API token hash (the old one stops working).
+func ReplaceHumanToken(q Querier, humanID int64, tokenHash string) error {
+	_, err := q.Exec(`UPDATE human SET token_hash = ? WHERE id = ?`, tokenHash, humanID)
+	return err
+}
+
+// Invites. Only the hash of the token is stored; a new invite replaces older ones for that human.
+
+func CreateInvite(q Querier, tokenHash string, humanID, now, expires int64) error {
+	if _, err := q.Exec(`DELETE FROM invite WHERE human_id = ?`, humanID); err != nil {
+		return err
+	}
+	_, err := q.Exec(`INSERT INTO invite(token_hash, human_id, created_at, expires_at) VALUES (?, ?, ?, ?)`, tokenHash, humanID, now, expires)
+	return err
+}
+
+// InviteHuman returns the invited human, or nil if the invite is unknown or expired.
+func InviteHuman(q Querier, tokenHash string, now int64) (*Human, error) {
+	var id int64
+	err := q.QueryRow(`SELECT human_id FROM invite WHERE token_hash = ? AND expires_at > ?`, tokenHash, now).Scan(&id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return HumanByID(q, id)
+}
+
+func DeleteInvite(q Querier, tokenHash string) error {
+	_, err := q.Exec(`DELETE FROM invite WHERE token_hash = ?`, tokenHash)
+	return err
+}
+
+// DevicesWithAgents lists devices for the devices page.
+type DeviceInfo struct {
+	Name      string
+	Joined    bool
+	LastSeen  sql.NullInt64
+	Revoked   sql.NullInt64
+	JoinUntil sql.NullInt64
+	Agents    int
+}
+
+func ListDevices(q Querier) ([]DeviceInfo, error) {
+	rows, err := q.Query(`SELECT d.name, d.credential_hash IS NOT NULL, d.last_seen_at, d.revoked_at,
+		CASE WHEN d.join_hash IS NOT NULL THEN d.join_expires_at END, (SELECT count(*) FROM agent a WHERE a.device_id = d.id)
+		FROM device d ORDER BY d.name`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []DeviceInfo
+	for rows.Next() {
+		var d DeviceInfo
+		if err := rows.Scan(&d.Name, &d.Joined, &d.LastSeen, &d.Revoked, &d.JoinUntil, &d.Agents); err != nil {
+			return nil, err
+		}
+		out = append(out, d)
+	}
+	return out, rows.Err()
+}

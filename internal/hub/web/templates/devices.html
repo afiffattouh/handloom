@@ -1,0 +1,42 @@
+{{define "content"}}
+<h1>Devices</h1>
+<p class="muted">A device runs the link, which wakes your agents and carries their messages to this hub. Devices connect out to the hub; nothing connects in.</p>
+
+{{with .Extra}}
+{{if .JoinCmd}}
+<article class="card attention">
+  <header><strong>Add {{.NewName}}</strong></header>
+  <p>On that machine, run this once. The token works for {{.TTL}} and is not shown again.</p>
+  <pre class="cmd" tabindex="0">{{.JoinCmd}}</pre>
+  <p class="muted">Then start the link: <code>handloom link run</code> (or <code>handloom link install</code> to run it as a service). It needs the <code>handloom</code> program installed on that machine.</p>
+</article>
+{{end}}
+
+<section aria-labelledby="devs">
+  <h2 id="devs">Devices</h2>
+  {{range .Devices}}
+  <p class="row">
+    <span><strong>{{.Name}}</strong> <span class="muted">{{.Agents}} agent{{if ne .Agents 1}}s{{end}}</span></span>
+    <span class="right"><span class="muted">{{.Status}}{{if .Seen}} · {{.Seen}}{{end}}</span>
+    {{if and $.Extra.CanAdmin (not .Revoked)}}
+    <form method="post" action="/devices/{{.Name}}/revoke" class="inline"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button type="submit" class="link">Revoke</button></form>
+    {{end}}</span>
+  </p>
+  {{else}}
+  <p class="muted">No devices yet.</p>
+  {{end}}
+</section>
+
+{{if .CanAdmin}}
+<section aria-labelledby="add">
+  <h2 id="add">Add a device</h2>
+  <form method="post" action="/devices" class="stack">
+    <input type="hidden" name="csrf" value="{{$.CSRF}}">
+    <label>Name for the device <input name="name" required maxlength="64" placeholder="laptop" pattern="[A-Za-z0-9][A-Za-z0-9_.\-]*"></label>
+    <label>Your password, to confirm <input type="password" name="current_password" autocomplete="current-password" required></label>
+    <button type="submit">Create join command</button>
+  </form>
+</section>
+{{end}}
+{{end}}
+{{end}}

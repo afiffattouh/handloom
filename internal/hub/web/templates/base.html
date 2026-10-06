@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{.Title}} · Handloom</title>
 {{if .CSRF}}<meta name="csrf-token" content="{{.CSRF}}">{{end}}
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/static/app.css">
 </head>
 <body>
@@ -12,6 +13,8 @@
   <a class="brand" href="/">Handloom</a>
   {{if .Human}}<nav>
     <a href="/inbox">Inbox</a>
+    <a href="/devices">Devices</a>
+    {{if eq .Human.Role "owner"}}<a href="/settings">Settings</a>{{end}}
   </nav>
   <form method="post" action="/logout" class="who">
     <input type="hidden" name="csrf" value="{{.CSRF}}">

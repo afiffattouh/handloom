@@ -154,6 +154,16 @@ CREATE TABLE web_session (
   ip           TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX web_session_human ON web_session(human_id);
+`, `
+-- A: join tokens expire (NULL on old rows means they never did), and members
+-- are invited with a one-time link instead of a password somebody else chose.
+ALTER TABLE device ADD COLUMN join_expires_at INTEGER;
+CREATE TABLE invite (
+  token_hash TEXT PRIMARY KEY,
+  human_id   INTEGER NOT NULL REFERENCES human(id),
+  created_at INTEGER NOT NULL,
+  expires_at INTEGER NOT NULL
+);
 `}
 
 // Open opens (and migrates) the database at path. Use ":memory:" in tests.

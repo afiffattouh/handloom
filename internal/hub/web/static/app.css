@@ -47,3 +47,15 @@ textarea { font: inherit; padding: .55rem .65rem; border: 1px solid var(--line);
 .state-working { color: var(--accent); }
 .state-blocked { color: var(--err); font-weight: 700; }
 [hidden] { display: none !important; }
+h3 { font-size: 1rem; margin: 1.2rem 0 .3rem; }
+.cmd { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: .6rem .7rem; overflow-x: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85rem; user-select: all; }
+select { font: inherit; padding: .5rem .55rem; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--text); min-height: 44px; }
+form.inline { display: flex; gap: .4rem; flex-wrap: wrap; align-items: center; margin: 0; }
+.row form.inline input { min-width: 9rem; }
+.right { display: flex; gap: .6rem; align-items: baseline; }
+.right form { margin: 0; }
+.person { border-bottom: 1px solid var(--line); padding-bottom: .4rem; }
+.person .row { border-bottom: 0; }
+details { margin: .2rem 0 .6rem; }
+summary { cursor: pointer; color: var(--accent); padding: .2rem 0; }
+details form { margin: .7rem 0 1rem; padding-left: .8rem; border-left: 2px solid var(--line); }

@@ -1,0 +1,81 @@
+{{define "content"}}
+<h1>Settings</h1>
+{{with .Extra}}
+{{if .Reveal.InviteURL}}
+<article class="card attention">
+  <header><strong>Invite for {{.Reveal.InviteFor}}</strong></header>
+  <p>Send them this link. It works once, for a limited time, and is not shown again.</p>
+  <pre class="cmd" tabindex="0">{{.Reveal.InviteURL}}</pre>
+</article>
+{{end}}
+{{if .Reveal.NewToken}}
+<article class="card attention">
+  <header><strong>Your new API token</strong></header>
+  <p>Use it as <code>HANDLOOM_TOKEN</code> with <code>HANDLOOM_HUB={{.Base}}</code>. Copy it now; it is not shown again, and the old one has stopped working.</p>
+  <pre class="cmd" tabindex="0">{{.Reveal.NewToken}}</pre>
+</article>
+{{end}}
+
+<section aria-labelledby="people">
+  <h2 id="people">People</h2>
+  {{range .Members}}
+  <div class="person">
+    <p class="row"><span><strong>{{.Name}}</strong>{{if .Self}} <span class="muted">you</span>{{end}}</span>
+      <span class="muted">{{.Role}}{{if not .WebLogin}} · has not set a password yet{{end}}</span></p>
+    {{if and (not .Self) (ne .Role "owner")}}
+    <details>
+      <summary>Manage {{.Name}}</summary>
+      <form method="post" action="/settings/members/{{.Name}}/role" class="stack">
+        <input type="hidden" name="csrf" value="{{$.CSRF}}">
+        <label>Role <select name="role"><option value="member"{{if eq .Role "member"}} selected{{end}}>member</option><option value="viewer"{{if eq .Role "viewer"}} selected{{end}}>viewer</option></select></label>
+        <label>Your password, to confirm <input type="password" name="current_password" autocomplete="current-password" required></label>
+        <button type="submit" class="secondary">Change role (signs them out)</button>
+      </form>
+      <form method="post" action="/settings/members/{{.Name}}/invite" class="stack">
+        <input type="hidden" name="csrf" value="{{$.CSRF}}">
+        <label>Your password, to confirm <input type="password" name="current_password" autocomplete="current-password" required></label>
+        <button type="submit" class="secondary">New invite link (also resets their password)</button>
+      </form>
+    </details>
+    {{end}}
+  </div>
+  {{end}}
+  <h3>Add a person</h3>
+  <p class="muted">Members can answer questions and review work. Viewers can only look. They set their own password through the invite link.</p>
+  <form method="post" action="/settings/members" class="stack">
+    <input type="hidden" name="csrf" value="{{$.CSRF}}">
+    <label>Name <input name="name" required maxlength="64"></label>
+    <label>Role <select name="role"><option value="member">member</option><option value="viewer">viewer</option></select></label>
+    <label>Your password, to confirm <input type="password" name="current_password" autocomplete="current-password" required></label>
+    <button type="submit">Create invite link</button>
+  </form>
+</section>
+
+<section aria-labelledby="notif">
+  <h2 id="notif">Phone notifications</h2>
+  <p class="muted">When the lead asks you something, Handloom sends a push through <a href="https://ntfy.sh" rel="noopener">ntfy</a> with a link here. The push never contains the question.{{if .EnvNotify}} The hub also has notifications set in its environment; those keep working.{{end}}{{if .NtfyToken}} An access token is set in the environment.{{end}}</p>
+  <form method="post" action="/settings/notifications" class="stack">
+    <input type="hidden" name="csrf" value="{{$.CSRF}}">
+    <label>ntfy server <input name="ntfy_url" value="{{.NtfyURL}}" placeholder="https://ntfy.sh" inputmode="url"></label>
+    <label>Topic <input name="ntfy_topic" value="{{.NtfyTopic}}" placeholder="a long random name" pattern="[A-Za-z0-9_\-]*"></label>
+    <button type="submit">Save</button>
+  </form>
+  <form method="post" action="/settings/notifications/test" class="stack"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button type="submit" class="secondary">Send a test</button></form>
+</section>
+
+<section aria-labelledby="tok">
+  <h2 id="tok">Your API token</h2>
+  <p class="muted">For the <code>handloom</code> command on your own machine. Making a new one replaces the old one.</p>
+  <form method="post" action="/settings/token" class="stack">
+    <input type="hidden" name="csrf" value="{{$.CSRF}}">
+    <label>Your password, to confirm <input type="password" name="current_password" autocomplete="current-password" required></label>
+    <button type="submit" class="secondary">Create a new token</button>
+  </form>
+</section>
+
+<section aria-labelledby="about">
+  <h2 id="about">This hub</h2>
+  <p class="row"><span>Address</span> <span class="muted">{{.Base}}</span></p>
+</section>
+{{end}}
+{{end}}

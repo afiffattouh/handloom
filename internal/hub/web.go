@@ -35,7 +35,7 @@ const (
 	maxForm      = 64 << 10
 )
 
-var pageNames = []string{"setup", "login", "inbox", "closed", "message"}
+var pageNames = []string{"setup", "login", "inbox", "closed", "message", "devices", "settings", "invite"}
 
 type pageData struct {
 	Title  string
@@ -201,6 +201,18 @@ func (h *Hub) webRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /inbox/tasks/{id}/accept", web(h.authed(h.webAccept)))
 	mux.HandleFunc("POST /inbox/tasks/{id}/reject", web(h.authed(h.webReject)))
 	mux.HandleFunc("GET /ui/stream", web(h.webStream))
+	mux.HandleFunc("GET /devices", web(h.authed(h.webDevices)))
+	mux.HandleFunc("POST /devices", web(h.authed(h.webDeviceAdd)))
+	mux.HandleFunc("POST /devices/{name}/revoke", web(h.authed(h.webDeviceRevoke)))
+	mux.HandleFunc("GET /settings", web(h.authed(h.webSettings)))
+	mux.HandleFunc("POST /settings/members", web(h.authed(h.webMemberAdd)))
+	mux.HandleFunc("POST /settings/members/{name}/invite", web(h.authed(h.webMemberInvite)))
+	mux.HandleFunc("POST /settings/members/{name}/role", web(h.authed(h.webMemberRole)))
+	mux.HandleFunc("POST /settings/notifications", web(h.authed(h.webNotifications)))
+	mux.HandleFunc("POST /settings/notifications/test", web(h.authed(h.webNotifyTest)))
+	mux.HandleFunc("POST /settings/token", web(h.authed(h.webToken)))
+	mux.HandleFunc("GET /invite/{token}", web(h.webInviteGet))
+	mux.HandleFunc("POST /invite/{token}", web(h.webInvitePost))
 	static, _ := fs.Sub(webFS, "web/static")
 	files := http.StripPrefix("/static/", http.FileServerFS(static))
 	mux.HandleFunc("GET /static/", func(w http.ResponseWriter, r *http.Request) {

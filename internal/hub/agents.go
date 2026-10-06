@@ -425,15 +425,34 @@ func adminDeviceAdd(c *call) (any, error) {
 	if err := checkName("device", req.Name); err != nil {
 		return nil, err
 	}
-	tok := store.NewToken(store.PrefixJoin)
-	if _, err := c.tx.Exec(`INSERT INTO device(name, join_hash, created_at) VALUES (?, ?, ?)`,
-		req.Name, store.HashToken(tok), store.Millis(c.now)); err != nil {
-		return nil, conflict("device %q already exists", req.Name)
-	}
-	if err := c.audit("device.add", "device:"+req.Name, nil); err != nil {
+	tok, err := c.addDevice(req.Name)
+	if err != nil {
 		return nil, err
 	}
 	return api.TokenResp{Name: req.Name, Token: tok}, nil
+}
+
+// addDevice creates a device and returns its one-time join token, which
+// expires after Options.JoinTTL. Callers check the caller's authority.
+func (c *call) addDevice(name string) (string, error) {
+	tok := store.NewToken(store.PrefixJoin)
+	if _, err := c.tx.Exec(`INSERT INTO device(name, join_hash, join_expires_at, created_at) VALUES (?, ?, ?, ?)`,
+		name, store.HashToken(tok), store.Millis(c.now.Add(c.h.opt.JoinTTL)), store.Millis(c.now)); err != nil {
+		return "", conflict("device %q already exists", name)
+	}
+	return tok, c.audit("device.add", "device:"+name, nil)
+}
+
+func (c *call) revokeDevice(name string) error {
+	res, err := c.tx.Exec(`UPDATE device SET revoked_at = ?, join_hash = NULL WHERE name = ? AND revoked_at IS NULL`,
+		store.Millis(c.now), name)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return notFound("no active device %q", name)
+	}
+	return c.audit("device.revoke", "device:"+name, nil)
 }
 
 func adminDeviceList(c *call) (any, error) {
@@ -462,16 +481,7 @@ func adminDeviceRevoke(c *call) (any, error) {
 	if err := c.adminOnly(); err != nil {
 		return nil, err
 	}
-	name := c.r.PathValue("name")
-	res, err := c.tx.Exec(`UPDATE device SET revoked_at = ?, join_hash = NULL WHERE name = ? AND revoked_at IS NULL`,
-		store.Millis(c.now), name)
-	if err != nil {
-		return nil, err
-	}
-	if n, _ := res.RowsAffected(); n == 0 {
-		return nil, notFound("no active device %q", name)
-	}
-	return nil, c.audit("device.revoke", "device:"+name, nil)
+	return nil, c.revokeDevice(c.r.PathValue("name"))
 }
 
 func adminHumanAdd(c *call) (any, error) {
@@ -569,6 +579,11 @@ func auditList(c *call) (any, error) {
 
 // handleJoin exchanges a one-time join token for the device credential.
 func (h *Hub) handleJoin(w http.ResponseWriter, r *http.Request) {
+	// The endpoint is unauthenticated: limit by address before any lookup.
+	if !h.allowRate("join:ip:"+h.clientIP(r), 10, 10, h.opt.Now()) {
+		h.writeErr(w, &apiError{429, "rate_limited", "too many join attempts; wait a minute"})
+		return
+	}
 	tx, err := h.db.BeginTx(r.Context(), nil)
 	if err != nil {
 		h.writeErr(w, err)
@@ -582,10 +597,11 @@ func (h *Hub) handleJoin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var id int64
-	err = tx.QueryRow(`SELECT id, name FROM device WHERE join_hash = ? AND revoked_at IS NULL`,
-		store.HashToken(req.JoinToken)).Scan(&id, &c.p.name)
+	err = tx.QueryRow(`SELECT id, name FROM device WHERE join_hash = ? AND revoked_at IS NULL
+		AND (join_expires_at IS NULL OR join_expires_at > ?)`,
+		store.HashToken(req.JoinToken), store.Millis(c.now)).Scan(&id, &c.p.name)
 	if err != nil || !strings.HasPrefix(req.JoinToken, store.PrefixJoin) {
-		h.writeErr(w, unauthorized("invalid or used join token"))
+		h.writeErr(w, unauthorized("invalid, used or expired join token"))
 		return
 	}
 	cred := store.NewToken(store.PrefixDevice)

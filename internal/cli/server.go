@@ -272,6 +272,7 @@ func (e *env) link(args []string) error {
 		renudge := fs.Duration("renudge", 0, "nudge again when mail stays unread this long (default 5m)")
 		unknown := fs.Duration("unknown-after", 0, "mark an agent unknown after two unanswered nudges for this long (default 10m)")
 		heartbeat := fs.Duration("heartbeat", 0, "extend leases of an active agent this often (default 2m)")
+		tmuxSocket := fs.String("tmux-socket", "", "tmux server (-L name) for spawned agents (default $HANDLOOM_TMUX_SOCKET or handloom)")
 		tick := fs.Duration("tick", 0, "run the wake ladder at least this often (default 10s); keep it well under the hub's --agent-lease")
 		liveEvery := fs.Duration("live-every", 0, "tell the hub this often that an agent's terminal still exists (default 20s)")
 		if _, err := fs.need(args, 0, 0, "link run"); err != nil {
@@ -283,7 +284,7 @@ func (e *env) link(args []string) error {
 		}
 		l := link.New(link.Options{
 			Hub: cfg.Hub, Device: cfg.Device, Credential: cfg.Credential, Socket: client.SocketPath(),
-			NudgeEvery: *nudge, Renudge: *renudge, UnknownAfter: *unknown, Heartbeat: *heartbeat, LiveEvery: *liveEvery, Tick: *tick,
+			NudgeEvery: *nudge, Renudge: *renudge, UnknownAfter: *unknown, Heartbeat: *heartbeat, LiveEvery: *liveEvery, Tick: *tick, TmuxSocket: firstNonEmpty(*tmuxSocket, setting.Get("TMUX_SOCKET")),
 			Log: log.New(e.err, "link ", log.LstdFlags),
 		})
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -352,4 +353,13 @@ func (e *env) healthcheck(args []string) error {
 	}
 	fmt.Fprintln(e.out, "ok")
 	return nil
+}
+
+func firstNonEmpty(vs ...string) string {
+	for _, v := range vs {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
 }

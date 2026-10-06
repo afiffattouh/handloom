@@ -3,6 +3,7 @@ package link
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net/http/httptest"
@@ -590,5 +591,126 @@ func TestLadderVouchesForLiveTerminals(t *testing.T) {
 	f.ladder()
 	if got := f.lease("worker"); got == nil || !got.Equal(*second) {
 		t.Fatalf("a dead terminal was vouched for: %v then %v", second, got)
+	}
+}
+
+// ---- spawn ----
+
+type tmuxLog struct {
+	mu    sync.Mutex
+	calls []string
+	fail  map[string]error // by first tmux argument after -L <sock>
+	up    bool             // the server has a "handloom" session
+}
+
+func (t *tmuxLog) run(_ context.Context, name string, args ...string) (string, error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.calls = append(t.calls, name+" "+strings.Join(args, " "))
+	sub := args[2]
+	if err := t.fail[sub]; err != nil {
+		return "", err
+	}
+	switch sub {
+	case "has-session":
+		if !t.up {
+			return "", errors.New("no server")
+		}
+	case "new-session":
+		t.up = true
+	}
+	return "", nil
+}
+
+func (t *tmuxLog) all() []string {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return append([]string(nil), t.calls...)
+}
+
+func (f *fixture) spawnLink(tl *tmuxLog) {
+	f.t.Helper()
+	f.link.opt.Tmux = tl.run
+	f.link.opt.TmuxSocket = "hltest-spawn"
+	f.link.opt.WorkRoot = filepath.Join(f.t.TempDir(), "work")
+	f.link.opt.Binary = "/opt/handloom/bin/handloom"
+}
+
+func (f *fixture) spawnStatus(id int64) api.Spawn {
+	f.t.Helper()
+	var s api.Spawn
+	f.must(f.human.Get(fmt.Sprintf("/v1/spawns/%d", id), &s))
+	return s
+}
+
+func (f *fixture) requestSpawn(name string, job int64) api.Spawn {
+	f.t.Helper()
+	var s api.Spawn
+	f.must(f.human.Post("/v1/spawns", api.SpawnReq{Name: name, Kind: "claude", Device: "dev", Job: job}, &s))
+	return s
+}
+
+func TestLinkStartsASpawnInItsOwnTmux(t *testing.T) {
+	f := newFixture(t)
+	tl := &tmuxLog{}
+	f.spawnLink(tl)
+	s1 := f.requestSpawn("alpha", 0)
+	f.ladder()
+	calls := tl.all()
+	if len(calls) != 2 || !strings.HasPrefix(calls[0], "tmux -L hltest-spawn has-session") {
+		t.Fatalf("tmux calls: %q", calls)
+	}
+	first := calls[1]
+	for _, want := range []string{"tmux -L hltest-spawn new-session -d -s handloom -n alpha -c " + f.link.opt.WorkRoot,
+		"spawn-exec " + fmt.Sprint(s1.ID), "'/opt/handloom/bin/handloom'", "HANDLOOM_HOME="} {
+		if !strings.Contains(first, want) {
+			t.Errorf("new-session command lacks %q: %s", want, first)
+		}
+	}
+	if got := f.spawnStatus(s1.ID).Status; got != "launching" {
+		t.Fatalf("status after the link took it: %s", got)
+	}
+	if _, err := os.Stat(filepath.Join(f.link.opt.WorkRoot, "none", "alpha")); err != nil {
+		t.Fatalf("work directory: %v", err)
+	}
+
+	// Another tick does not start it twice; a second agent gets a window in the same server.
+	f.ladder()
+	s2 := f.requestSpawn("beta", 0)
+	f.ladder()
+	n := 0
+	for _, c := range tl.all() {
+		if strings.Contains(c, "spawn-exec "+fmt.Sprint(s1.ID)) {
+			n++
+		}
+	}
+	if n != 1 {
+		t.Fatalf("spawn %d was launched %d times", s1.ID, n)
+	}
+	last := tl.all()[len(tl.all())-1]
+	if !strings.Contains(last, "new-window -d -t handloom: -n beta") || !strings.Contains(last, "spawn-exec "+fmt.Sprint(s2.ID)) {
+		t.Fatalf("second spawn: %s", last)
+	}
+}
+
+func TestLinkReportsAFailedStart(t *testing.T) {
+	f := newFixture(t)
+	tl := &tmuxLog{fail: map[string]error{"new-session": errors.New("tmux: no space for a new terminal")}}
+	f.spawnLink(tl)
+	s := f.requestSpawn("alpha", 0)
+	f.ladder()
+	got := f.spawnStatus(s.ID)
+	if got.Status != "failed" || !strings.Contains(got.Error, "no space") {
+		t.Fatalf("after a failed start: %+v", got)
+	}
+}
+
+func TestLinkRefusesAHostileName(t *testing.T) {
+	f := newFixture(t)
+	tl := &tmuxLog{}
+	f.spawnLink(tl)
+	err := f.link.launch(context.Background(), api.Spawn{ID: 1, Name: "x; rm -rf ~", Kind: "claude"})
+	if err == nil || len(tl.all()) != 0 {
+		t.Fatalf("a name with shell characters was launched: %v %q", err, tl.all())
 	}
 }

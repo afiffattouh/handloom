@@ -685,6 +685,9 @@ func ago(t time.Time) string {
 // reports it idle, then replaces itself with the command. This matters for
 // CLIs whose own session-start hook fires only at the first prompt (Codex's
 // TUI): without it handloom would not know the agent is there to be woken.
+// execFn becomes the agent CLI; tests replace it.
+var execFn = syscall.Exec
+
 func (e *env) run(args []string) error {
 	fs := e.flags("run")
 	kind := fs.String("kind", "", "agent kind, if the agent is not registered yet")
@@ -715,5 +718,5 @@ func (e *env) run(args []string) error {
 	}
 	os.Setenv("HANDLOOM_AGENT", name)
 	os.Setenv("HANDLOOM_AGENT", name) // an old hook or script in the agent still reads the old name
-	return syscall.Exec(path, command, os.Environ())
+	return execFn(path, command, os.Environ())
 }

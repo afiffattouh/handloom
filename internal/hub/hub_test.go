@@ -351,6 +351,17 @@ var scopeCases = []scopeCase{
 		},
 	},
 	{
+		name:    "spawn an agent",
+		allowed: map[string]bool{"lead": true, "human": true},
+		run: func(e *env, s string) (int, []byte) {
+			req := api.SpawnReq{Name: "spawned-" + s, Kind: "claude"}
+			if s == "human" {
+				req.Device = "d1" // an agent's agents start on its own device
+			}
+			return e.do(e.subject(s), "POST", "/v1/spawns", req)
+		},
+	},
+	{
 		name:    "answer escalation",
 		allowed: map[string]bool{"human": true},
 		run: func(e *env, s string) (int, []byte) {
@@ -414,6 +425,7 @@ func TestScopeTableMatchesDesign(t *testing.T) {
 		ActTaskWork:         "yes yes no no",
 		ActEscalationOpen:   "yes no no no",
 		ActEscalationAnswer: "no no no yes",
+		ActSpawn:            "yes no no yes",
 	}
 	if len(scopeTable) != len(want) {
 		t.Fatalf("scope table has %d actions, want %d", len(scopeTable), len(want))

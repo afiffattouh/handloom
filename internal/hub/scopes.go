@@ -17,6 +17,7 @@ const (
 	ActTaskWork         Action = "task.work"         // claim, heartbeat, submit, release own task
 	ActEscalationOpen   Action = "escalation.open"   // ask_human
 	ActEscalationAnswer Action = "escalation.answer" // answer escalation
+	ActSpawn            Action = "spawn"             // ask for an agent to be started
 )
 
 const (
@@ -33,6 +34,7 @@ var scopeTable = map[Action]map[string]bool{
 	ActTaskWork:         {api.RoleLead: true, api.RoleWorker: true},
 	ActEscalationOpen:   {api.RoleLead: true},
 	ActEscalationAnswer: {subjectHuman: true},
+	ActSpawn:            {api.RoleLead: true, subjectHuman: true},
 }
 
 // Allowed reports whether subject (a role, or "human") may perform action.

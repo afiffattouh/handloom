@@ -281,6 +281,46 @@ type JobResumeReq struct {
 	Lead string `json:"lead"` // the agent that takes over as the job's lead
 }
 
+// Spawn is a request to start an agent on a device.
+type Spawn struct {
+	ID        int64     `json:"id"`
+	Name      string    `json:"name"`
+	Kind      string    `json:"kind"`
+	Model     string    `json:"model,omitempty"`
+	Device    string    `json:"device"`
+	Project   string    `json:"project"`
+	Job       *int64    `json:"job,omitempty"`
+	Status    string    `json:"status"` // pending | launching | started | failed
+	Pane      string    `json:"pane,omitempty"`
+	Error     string    `json:"error,omitempty"`
+	CreatedBy string    `json:"created_by"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type SpawnReq struct {
+	Name    string `json:"name"`
+	Kind    string `json:"kind"`
+	Model   string `json:"model,omitempty"`
+	Device  string `json:"device,omitempty"` // humans; a lead's agents start on the lead's own device
+	Job     int64  `json:"job,omitempty"`    // humans; a lead's agents join the lead's own job
+	Project string `json:"project,omitempty"`
+}
+
+// SpawnReport is the link telling the hub how a start went.
+type SpawnReport struct {
+	Status string `json:"status"` // launching | started | failed
+	Pane   string `json:"pane,omitempty"`
+	Error  string `json:"error,omitempty"`
+}
+
+// Spawn statuses.
+const (
+	SpawnPending   = "pending"
+	SpawnLaunching = "launching"
+	SpawnStarted   = "started"
+	SpawnFailed    = "failed"
+)
+
 type AgentJobReq struct {
 	Job int64 `json:"job"` // 0 removes the agent from its job
 }

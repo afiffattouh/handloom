@@ -1,0 +1,99 @@
+package link
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"regexp"
+	"strings"
+
+	"handloom/internal/api"
+	"handloom/internal/client"
+)
+
+// The link starts spawned agents in a tmux server of its own (tmux -L
+// handloom). Every agent gets a window there, which is the terminal the wake
+// ladder types into and the liveness lease vouches for, exactly as for an
+// agent a person started by hand. The window runs `handloom spawn-exec <id>`:
+// that installs the adapter and execs the agent CLI. What it runs is decided
+// there, from a fixed table by kind; the hub only names an agent and a kind.
+
+var spawnNameRE = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$`)
+
+// execTmux runs tmux without the link's own terminal variables, so a link
+// started inside tmux or herdr does not confuse the server it manages.
+func execTmux(ctx context.Context, name string, args ...string) (string, error) {
+	cmd := exec.CommandContext(ctx, name, args...)
+	for _, kv := range os.Environ() {
+		if strings.HasPrefix(kv, "TMUX=") || strings.HasPrefix(kv, "TMUX_PANE=") || strings.HasPrefix(kv, "HERDR_") {
+			continue
+		}
+		cmd.Env = append(cmd.Env, kv)
+	}
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return string(out), fmt.Errorf("%s %s: %v: %s", name, strings.Join(args, " "), err, strings.TrimSpace(string(out)))
+	}
+	return string(out), nil
+}
+
+func shellQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'" }
+
+// runSpawns starts what the hub has asked this device to start. A request is
+// claimed first (pending -> launching); the hub refuses a second claim, so a
+// restarted or duplicate link run cannot start an agent twice.
+func (l *Link) runSpawns(ctx context.Context) {
+	var spawns []api.Spawn
+	if err := l.hub.Do(ctx, "GET", "/v1/device/spawns", nil, &spawns); err != nil {
+		if ctx.Err() == nil {
+			l.opt.Log.Printf("spawns: %v", err)
+		}
+		return
+	}
+	for _, s := range spawns {
+		if s.Status != api.SpawnPending {
+			continue
+		}
+		path := fmt.Sprintf("/v1/spawns/%d/report", s.ID)
+		if err := l.hub.Do(ctx, "POST", path, api.SpawnReport{Status: api.SpawnLaunching}, nil); err != nil {
+			continue // somebody else has it, or the hub is unreachable: next tick
+		}
+		if err := l.launch(ctx, s); err != nil {
+			l.opt.Log.Printf("spawn %d (%s): %v", s.ID, s.Name, err)
+			l.hub.Do(ctx, "POST", path, api.SpawnReport{Status: api.SpawnFailed, Error: reasonText(err.Error())}, nil)
+		}
+	}
+}
+
+// launch opens the window. The agent is reported as started by spawn-exec
+// itself once its adapter is installed.
+func (l *Link) launch(ctx context.Context, s api.Spawn) error {
+	if !spawnNameRE.MatchString(s.Name) {
+		return fmt.Errorf("refusing agent name %q", s.Name)
+	}
+	if l.opt.Binary == "" {
+		return fmt.Errorf("the link does not know its own binary")
+	}
+	job := "none"
+	if s.Job != nil {
+		job = fmt.Sprintf("job-%d", *s.Job)
+	}
+	dir := filepath.Join(l.opt.WorkRoot, job, s.Name)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return err
+	}
+	home := client.Home()
+	cmd := fmt.Sprintf("env HANDLOOM_HOME=%s PATH=%s HANDLOOM_SPAWN=%d %s spawn-exec %d",
+		shellQuote(home), shellQuote(filepath.Dir(l.opt.Binary)+":"+os.Getenv("PATH")), s.ID, shellQuote(l.opt.Binary), s.ID)
+	tmux := func(args ...string) (string, error) {
+		return l.opt.Tmux(ctx, "tmux", append([]string{"-L", l.opt.TmuxSocket}, args...)...)
+	}
+	if _, err := tmux("has-session", "-t", "handloom"); err != nil {
+		_, err = tmux("new-session", "-d", "-s", "handloom", "-n", s.Name, "-c", dir, "-x", "200", "-y", "50", cmd)
+		return err
+	}
+	_, err := tmux("new-window", "-d", "-t", "handloom:", "-n", s.Name, "-c", dir, cmd)
+	return err
+}

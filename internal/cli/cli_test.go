@@ -66,7 +66,9 @@ func newRig(t *testing.T) *rig {
 	done := make(chan struct{})
 	go func() {
 		link.New(link.Options{Hub: cfg.Hub, Device: cfg.Device, Credential: cfg.Credential,
-			Socket: client.SocketPath(), Log: log.New(io.Discard, "", 0), PollWait: 1}).Run(ctx)
+			Socket: client.SocketPath(), Log: log.New(io.Discard, "", 0), PollWait: 1,
+			// Never start real terminals from a test.
+			Tmux: func(context.Context, string, ...string) (string, error) { return "", nil }}).Run(ctx)
 		close(done)
 	}()
 	t.Cleanup(func() { cancel(); <-done })
@@ -560,5 +562,121 @@ func TestAdapterInstallGivesTheAgentARunToken(t *testing.T) {
 	r.run("adapter", "remove", "claude", "--dir", dir)
 	if _, err := os.Stat(file); err == nil {
 		t.Fatal("remove left the token file")
+	}
+}
+
+// ---- spawn ----
+
+func waitSpawn(t *testing.T, r *rig, id int, status string) api.Spawn {
+	t.Helper()
+	var s api.Spawn
+	for i := 0; i < 300; i++ {
+		json.Unmarshal([]byte(r.as(r.human, "spawns", "--json")), new([]api.Spawn))
+		var all []api.Spawn
+		json.Unmarshal([]byte(r.as(r.human, "spawns", "--json")), &all)
+		for _, x := range all {
+			if int(x.ID) == id {
+				s = x
+			}
+		}
+		if s.Status == status {
+			return s
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatalf("spawn %d never became %s: %+v", id, status, s)
+	return s
+}
+
+func TestSpawnExecInstallsTheAdapterAndBecomesTheAgent(t *testing.T) {
+	r := newRig(t)
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	os.WriteFile(filepath.Join(home, ".claude.json"), []byte(`{"numStartups": 3, "projects": {"/elsewhere": {"hasTrustDialogAccepted": false, "keep": "me"}}}`), 0o600)
+	work := t.TempDir()
+	// A fake claude in PATH, and the terminal variables a link-made tmux window has.
+	bin := t.TempDir()
+	os.WriteFile(filepath.Join(bin, "claude"), []byte("#!/bin/sh\n"), 0o755)
+	t.Setenv("PATH", bin+":"+os.Getenv("PATH"))
+	t.Setenv("TMUX", "/tmp/tmux-1000/handloom,123,0")
+	t.Setenv("TMUX_PANE", "%7")
+	var gotArgv []string
+	old := execFn
+	execFn = func(path string, argv []string, env []string) error { gotArgv = argv; return nil }
+	t.Cleanup(func() { execFn = old })
+
+	r.run("register", "lead1", "--kind", "shell")
+	r.as(r.human, "job", "new", "A job", "--lead", "lead1")
+	out := r.as(r.human, "spawn", "tester", "--kind", "claude", "--model", "sonnet", "--device", "dev", "--job", "1", "--wait", "0")
+	if !strings.Contains(out, "tester is pending") && !strings.Contains(out, "tester is launching") {
+		t.Fatalf("spawn: %s", out)
+	}
+	waitSpawn(t, r, 1, "launching") // the rig's link claims it; its fake tmux starts nothing
+
+	t.Chdir(work)
+	r.run("spawn-exec", "1")
+
+	// It became claude, with the unattended settings and isolation.
+	line := strings.Join(gotArgv, " ")
+	for _, want := range []string{"claude", "--setting-sources project,local", "--permission-mode dontAsk", "Bash(handloom:*)", "--model sonnet"} {
+		if !strings.Contains(line, want) {
+			t.Errorf("argv lacks %q: %s", want, line)
+		}
+	}
+	// The adapter is installed in the work directory, with identity and token.
+	for _, f := range []string{"CLAUDE.md", ".claude/settings.local.json", ".handloom/agent", ".handloom/tokens/tester"} {
+		if _, err := os.Stat(filepath.Join(work, f)); err != nil {
+			t.Errorf("%s: %v", f, err)
+		}
+	}
+	// The agent is registered with this terminal and joined the job; the hub knows it started.
+	var agents []api.Agent
+	json.Unmarshal([]byte(r.as(r.human, "agents", "--json")), &agents)
+	var a *api.Agent
+	for i := range agents {
+		if agents[i].Name == "tester" {
+			a = &agents[i]
+		}
+	}
+	if a == nil || a.WakeTarget != "tmux:/tmp/tmux-1000/handloom:%7" || a.Job == nil || *a.Job != 1 || a.Role != "worker" {
+		t.Fatalf("registered agent: %+v", a)
+	}
+	s := waitSpawn(t, r, 1, "started")
+	if s.Pane != "tmux:/tmp/tmux-1000/handloom:%7" {
+		t.Fatalf("spawn pane: %q", s.Pane)
+	}
+	// Claude Code's "trust this folder" question was answered in advance, and nothing else in its config changed.
+	raw, _ := os.ReadFile(filepath.Join(home, ".claude.json"))
+	var doc struct {
+		Num      int                       `json:"numStartups"`
+		Projects map[string]map[string]any `json:"projects"`
+	}
+	json.Unmarshal(raw, &doc)
+	if doc.Num != 3 || doc.Projects[work]["hasTrustDialogAccepted"] != true || doc.Projects["/elsewhere"]["keep"] != "me" {
+		t.Fatalf("~/.claude.json: %s", raw)
+	}
+}
+
+func TestSpawnExecRefusesWhatWasNotRequested(t *testing.T) {
+	spawnFailPause = 0
+	t.Cleanup(func() { spawnFailPause = 20 * time.Second })
+	r := newRig(t)
+	t.Setenv("HOME", t.TempDir())
+	old := execFn
+	execFn = func(string, []string, []string) error { t.Fatal("exec called"); return nil }
+	t.Cleanup(func() { execFn = old })
+	if code, _, errs := r.exec("spawn-exec", "99"); code == 0 || !strings.Contains(errs, "not waiting") {
+		t.Fatalf("an unknown spawn: %d %s", code, errs)
+	}
+}
+
+func TestTrustClaudeDirDoesNothingWithoutAClaudeConfig(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	if err := trustClaudeDir("/w"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(home, ".claude.json")); err == nil {
+		t.Fatal("created a Claude Code config that was not there")
 	}
 }

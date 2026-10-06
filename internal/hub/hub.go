@@ -39,6 +39,8 @@ type Options struct {
 	SessionMax        time.Duration    // web session absolute lifetime; default 7 days
 	AllowConfidential bool             // this hub may host confidential jobs (private, trusted deployments only)
 	RequireRunToken   bool             // refuse agent requests that carry only the device credential and a claimed name
+	MaxSpawns         int              // agents a job may have running or starting at once; default 5
+	SpawnTimeout      time.Duration    // a spawn request not finished by then fails; default 90s
 	AgentLease        time.Duration    // how long an agent with a terminal stays "alive" after its link last vouched for it; default 90s
 	JoinTTL           time.Duration    // how long a device join token works; default 15 minutes
 	InviteTTL         time.Duration    // how long a member invite link works; default 7 days
@@ -70,6 +72,12 @@ func New(db *sql.DB, opt Options) *Hub {
 	}
 	if opt.MsgRate <= 0 {
 		opt.MsgRate = 60
+	}
+	if opt.MaxSpawns <= 0 {
+		opt.MaxSpawns = 5
+	}
+	if opt.SpawnTimeout <= 0 {
+		opt.SpawnTimeout = 90 * time.Second
 	}
 	if opt.AgentLease <= 0 {
 		opt.AgentLease = 90 * time.Second
@@ -133,6 +141,9 @@ func (h *Hub) Sweep() error {
 		return err
 	}
 	if err := c.expireAgentLeases(); err != nil {
+		return err
+	}
+	if err := c.expireSpawns(); err != nil {
 		return err
 	}
 	if err := tx.Commit(); err != nil {
@@ -205,6 +216,12 @@ func (h *Hub) Handler() http.Handler {
 	v1("POST /jobs/{id}/close", jobClose)
 	v1("POST /jobs/{id}/resume", jobResume)
 	v1("POST /agents/{name}/job", agentJob)
+
+	v1("POST /spawns", spawnNew)
+	v1("GET /spawns", spawnList)
+	v1("GET /spawns/{id}", spawnGet)
+	v1("POST /spawns/{id}/report", spawnReport)
+	v1("GET /device/spawns", deviceSpawns)
 
 	v1("POST /agents", agentRegister)
 	v1("GET /agents", agentList)
@@ -606,9 +623,11 @@ func (h *Hub) deviceEvents(r *http.Request, after int64) ([]api.Event, int64, er
 	if p.kind != kindDevice {
 		return nil, 0, forbidden("only a device may poll events")
 	}
-	rows, err := tx.Query(`SELECT e.seq, e.type, a.name, e.payload, e.created_at
-		FROM event e JOIN agent a ON a.id = e.agent_id
-		WHERE a.device_id = ? AND e.seq > ? ORDER BY e.seq LIMIT 200`, p.deviceID, after)
+	// A device sees the events of its agents, and the spawn requests addressed to it.
+	rows, err := tx.Query(`SELECT e.seq, e.type, COALESCE(a.name, ''), e.payload, e.created_at
+		FROM event e LEFT JOIN agent a ON a.id = e.agent_id
+		WHERE (a.device_id = ? OR (e.agent_id IS NULL AND e.type = 'spawn.requested' AND json_extract(e.payload, '$.device_id') = ?))
+		AND e.seq > ? ORDER BY e.seq LIMIT 200`, p.deviceID, p.deviceID, after)
 	if err != nil {
 		return nil, 0, err
 	}

@@ -161,6 +161,19 @@ var Tools = []tool{
 			}
 			return out, nil
 		}},
+	{Name: "handloom_spawn", Description: "Lead only. Start a new agent in a terminal on your own device; it joins your job as a worker. Then give it work with handloom_task_create (assigned to its name). A job may have only a few agents at once.",
+		InputSchema: schema([]string{"name"}, map[string]any{"name": prop("string", "a name for the new agent, for example researcher-1"),
+			"kind": prop("string", "agent kind; default claude"), "model": prop("string", "model name for the agent CLI, optional")}),
+		argv: func(a args) ([]string, error) {
+			out := []string{"spawn", a.str("name")}
+			if k := a.str("kind"); k != "" {
+				out = append(out, "--kind", k)
+			}
+			if m := a.str("model"); m != "" {
+				out = append(out, "--model", m)
+			}
+			return out, nil
+		}},
 	{Name: "handloom_task_list", Description: "List the tasks on the board, optionally by status (open, claimed, submitted, done, cancelled).",
 		InputSchema: schema(nil, map[string]any{"status": prop("string", "filter by status")}),
 		argv: func(a args) ([]string, error) {

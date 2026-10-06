@@ -108,6 +108,7 @@ func (l *Link) runLadder(ctx context.Context) {
 	for _, a := range agents {
 		l.step(ctx, a)
 	}
+	l.runSpawns(ctx)
 }
 
 // vouch tells the hub that an agent's terminal still exists, so the hub can

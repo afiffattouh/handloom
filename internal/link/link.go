@@ -13,6 +13,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -36,6 +37,12 @@ type Options struct {
 	Tick         time.Duration // how often the ladder runs without events; default 10s
 	LiveEvery    time.Duration // how often a live terminal is reported to the hub as alive; default 20s
 	PollWait     int           // long-poll seconds; default 25
+
+	// Spawn: the link starts agents in a tmux server of its own.
+	TmuxSocket string         // tmux -L name; default "handloom"
+	WorkRoot   string         // where spawned agents get their directories; default <home>/work
+	Binary     string         // the handloom binary a spawned pane runs; default this one
+	Tmux       drivers.Runner // replaceable in tests
 
 	Headless        map[string][]string // per-kind headless command overrides
 	HeadlessTimeout time.Duration       // longest a headless turn may run; default 15m
@@ -77,6 +84,20 @@ func New(opt Options) *Link {
 	}
 	if opt.Now == nil {
 		opt.Now = time.Now
+	}
+	if opt.TmuxSocket == "" {
+		opt.TmuxSocket = "handloom"
+	}
+	if opt.WorkRoot == "" {
+		opt.WorkRoot = filepath.Join(client.Home(), "work")
+	}
+	if opt.Binary == "" {
+		if exe, err := os.Executable(); err == nil {
+			opt.Binary = exe
+		}
+	}
+	if opt.Tmux == nil {
+		opt.Tmux = execTmux
 	}
 	if opt.Log == nil {
 		opt.Log = log.New(os.Stderr, "", log.LstdFlags)

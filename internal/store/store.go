@@ -188,6 +188,26 @@ ALTER TABLE audit ADD COLUMN via TEXT NOT NULL DEFAULT '';
 -- B3: an agent with a terminal has a liveness lease that its link renews while
 -- the terminal exists. NULL: no lease (headless and shell agents).
 ALTER TABLE agent ADD COLUMN lease_expires_at INTEGER;
+`, `
+-- C1: spawn. A lead or a human asks for an agent to be started on a device;
+-- the device's link starts it in a terminal it owns and reports back.
+CREATE TABLE spawn (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  project_id INTEGER NOT NULL REFERENCES project(id),
+  device_id  INTEGER NOT NULL REFERENCES device(id),
+  job_id     INTEGER REFERENCES task(id),
+  name       TEXT NOT NULL,
+  kind       TEXT NOT NULL,
+  model      TEXT NOT NULL DEFAULT '',
+  status     TEXT NOT NULL,  -- pending | launching | started | failed
+  pane       TEXT NOT NULL DEFAULT '',
+  error      TEXT NOT NULL DEFAULT '',
+  created_by TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE UNIQUE INDEX spawn_live_name ON spawn(name) WHERE status IN ('pending', 'launching', 'started');
+CREATE INDEX spawn_device ON spawn(device_id, status);
 `}
 
 // Open opens (and migrates) the database at path. Use ":memory:" in tests.

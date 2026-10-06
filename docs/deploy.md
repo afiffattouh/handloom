@@ -19,7 +19,34 @@ The compose file publishes the port on `127.0.0.1` only. Put a TLS proxy (Caddy,
 
 ## Dokploy
 
-Create a project, add a **Compose** application from the Git repo (this `docker-compose.yml`), set the domain and container port `7420` in Dokploy, and set the environment variables below. Dokploy's Traefik issues the certificate. Status: this path is written from the Dokploy docs and has **not been tested on a Dokploy install yet**; the Mantis VPS does not run Dokploy today.
+Verified on 2026-10-06 against Dokploy v0.29 (the owner's instance, Tailscale-only panel, Traefik with Let's Encrypt, wildcard DNS): Handloom runs there as its own project, **Handloom**, with one **Compose** application (`raw` source) and the domain `handloom.example.com`.
+
+How it was set up (all through the Dokploy API, nothing by hand):
+
+1. Build the image for the Dokploy host (`linux/amd64`) and load it there: `docker save handloom-hub:TAG | ssh <dokploy-host> docker load`. There is no git remote yet, so Dokploy cannot build from source; the compose file uses `pull_policy: never`.
+2. `project.create`, then `compose.create` (`sourceType: raw`, the compose file below), `domain.create` (`host`, `port: 7420`, `https: true`, `certificateType: letsencrypt`, `serviceName: handloom`, `domainType: compose`), then `compose.deploy`.
+3. The setup code is in the container log (`docker logs <container>` on the Dokploy host): open `https://<domain>/setup`.
+
+```yaml
+services:
+  handloom:
+    image: handloom-hub:TAG
+    pull_policy: never
+    restart: unless-stopped
+    environment:
+      HANDLOOM_BASE_URL: https://handloom.example.com
+      HANDLOOM_TRUST_PROXY: "1"      # Traefik sets X-Forwarded-For
+    volumes:
+      - handloom-data:/data
+    expose:
+      - "7420"
+volumes:
+  handloom-data:
+```
+
+To ship a new version: `scripts/dokploy-deploy.sh` (needs `DOKPLOY_URL`, `DOKPLOY_API_KEY`, `DOKPLOY_SSH`, `COMPOSE_ID`, `HUB_URL`). It builds, loads the image, updates the compose file's image tag and redeploys. The `/data` volume is kept. If you later publish the repo, Dokploy can build from Git instead and this script is not needed. A Dokploy one-click template was not made.
+
+The admin token printed on first start stays in the container log, which anyone with access to the Dokploy host can read. Create the owner account, then treat the log as sensitive.
 
 ## Security notes
 

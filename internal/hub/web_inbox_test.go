@@ -365,3 +365,41 @@ func TestSilentLeadNeedsYouAfterThirtyMinutes(t *testing.T) {
 		t.Fatalf("a silent lead is not reported: %s", r.body)
 	}
 }
+
+// Twenty people watching at once, one event, everybody gets the hint, and the
+// hub (one database connection) still answers other requests meanwhile.
+func TestManyStreamsOneEvent(t *testing.T) {
+	e := newWebEnv(t, Options{})
+	ag := e.agents()
+	e.owner()
+	hash, _ := HashPassword(goodPassword)
+	const n = 20
+	var readers []*sseReader
+	for i := 0; i < n; i++ {
+		name := fmt.Sprintf("viewer%02d", i)
+		e.hub.db.Exec(`INSERT INTO human(name, token_hash, created_at, password_hash, role) VALUES (?, ?, 1, ?, 'viewer')`, name, name, hash)
+		c := e.login(name, goodPassword).cookie
+		if c == nil {
+			t.Fatalf("login %s failed", name)
+		}
+		r, resp := openStream(t, e, c)
+		defer resp.Body.Close()
+		readers = append(readers, r)
+	}
+	for i, r := range readers {
+		if ev := r.next(5 * time.Second); ev != "resync" {
+			t.Fatalf("stream %d: first event %q", i, ev)
+		}
+	}
+	// The API still answers while twenty streams wait.
+	start := time.Now()
+	ag.lead("POST", "/v1/escalations", api.AskReq{Question: "q"}, nil)
+	if d := time.Since(start); d > 2*time.Second {
+		t.Fatalf("a request took %s with 20 streams open", d)
+	}
+	for i, r := range readers {
+		if ev := r.next(5 * time.Second); ev != "inbox-changed" {
+			t.Fatalf("stream %d: %q after the event", i, ev)
+		}
+	}
+}

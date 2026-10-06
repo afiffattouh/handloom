@@ -21,6 +21,12 @@ The compose file publishes the port on `127.0.0.1` only. Put a TLS proxy (Caddy,
 
 Create a project, add a **Compose** application from the Git repo (this `docker-compose.yml`), set the domain and container port `7420` in Dokploy, and set the environment variables below. Dokploy's Traefik issues the certificate. Status: this path is written from the Dokploy docs and has **not been tested on a Dokploy install yet**; the Mantis VPS does not run Dokploy today.
 
+## Security notes
+
+- **No lead/worker boundary on a shared device yet.** Agents are identified by a name they send, using their device's credential; any process on a device can act as any agent registered there (see D-notes in DECISIONS.md). Until per-run tokens land, treat one device as one trust domain, and do not put a confidential job's agents on a device with untrusted ones.
+- Anyone who can post to the hub can in effect run commands on connected devices (agents act on messages). Keep the hub behind TLS, keep the owner password strong, and revoke devices you no longer use.
+- `HANDLOOM_TRUST_PROXY=1` only behind a proxy you control; otherwise a client can spoof its address for the login rate limit.
+
 ## Environment
 
 | Variable | Meaning |

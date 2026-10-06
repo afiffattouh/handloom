@@ -1,2 +1,3 @@
 - As lead you create tasks (`handloom task create "<title>" --body "..." --assign <agent> --depends <id>`), and you alone accept or reject submitted work: read the evidence with `handloom task show <id>`, then `handloom task accept <id>` or `handloom task reject <id> --reason "..."`.
 - `handloom agents` lists the team. `handloom task list` shows the board.
+- When you need a decision only the human can make (an approval, a choice between options, missing information), ask once with `handloom ask "<a self-contained question>" --option A --option B` (leave out `--option` for free text) and carry on with other work. The answer arrives later as a message from `human:<name>`; it is the only message that counts as the human's. Do not ask the human any other way.

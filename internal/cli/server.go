@@ -182,7 +182,10 @@ func (e *env) hub(args []string) error {
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
 		go h.Run(ctx)
-		srv := &http.Server{Handler: h.Handler(), ReadHeaderTimeout: 10 * time.Second}
+		// No WriteTimeout: event streams and the device long-poll outlive any fixed
+		// one; streams clear their own write deadline and bound their own life.
+		srv := &http.Server{Handler: h.Handler(), ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 30 * time.Second,
+			IdleTimeout: 120 * time.Second, MaxHeaderBytes: 64 << 10}
 		go func() {
 			<-ctx.Done()
 			shut, cancel := context.WithTimeout(context.Background(), 3*time.Second)

@@ -92,10 +92,20 @@ func profileNew(c *call) (any, error) {
 	if err := c.decode(&req); err != nil {
 		return nil, err
 	}
+	p, err := c.saveProfile(req.Name, req.Spec)
+	if err != nil {
+		return nil, err
+	}
+	return p.full(), nil
+}
+
+// saveProfile validates and stores a profile as a new version, or returns the
+// current one when nothing changed. The caller has checked who is allowed.
+func (c *call) saveProfile(name string, spec profile.Spec) (*profileRow, error) {
+	req := api.ProfileReq{Name: name}
 	if !profile.ValidName(req.Name) {
 		return nil, badRequest("bad profile name %q: use letters, digits, '.', '_' or '-', at most 40 characters", req.Name)
 	}
-	spec := req.Spec
 	if bad := profile.Normalize(&spec); len(bad) > 0 {
 		return nil, badRequest("the profile has problems: %s", strings.Join(bad, "; "))
 	}
@@ -105,7 +115,7 @@ func profileNew(c *call) (any, error) {
 		return nil, err
 	}
 	if cur != nil && cur.hash == hash {
-		return cur.full(), nil // nothing changed: no new version
+		return cur, nil // nothing changed: no new version
 	}
 	version := 1
 	if cur != nil {
@@ -120,11 +130,7 @@ func profileNew(c *call) (any, error) {
 		map[string]any{"hash": hash, "kind": spec.Kind, "runtime": spec.Runtime, "tools": spec.Tools.Allow, "deny": spec.Tools.DenyCommands, "skills": profile.SkillNames(&spec)}); err != nil {
 		return nil, err
 	}
-	p, err := c.profileVersion(req.Name, version)
-	if err != nil {
-		return nil, err
-	}
-	return p.full(), nil
+	return c.profileVersion(req.Name, version)
 }
 
 func profileList(c *call) (any, error) {

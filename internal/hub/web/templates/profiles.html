@@ -1,0 +1,16 @@
+{{define "content"}}
+<h1>Profiles</h1>
+<p class="muted">A profile decides what an agent may do and know: its instructions, the tools it may use, the commands it must not run, and its skills. Changing one makes a new version; agents already running keep the version they started with.</p>
+{{with .Extra}}
+{{if .CanEdit}}<p><a class="button" href="/profiles/new">New profile</a></p>{{end}}
+{{range .List}}
+<article class="card">
+  <header><strong><a href="/profiles/{{.Name}}">{{.Name}}</a></strong> <span class="muted">version {{.Version}} · {{.Kind}} · {{.Runtime}} model</span></header>
+  {{if .Description}}<p class="text">{{.Description}}</p>{{end}}
+  <p class="muted">tools: {{range $i, $t := .Tools}}{{if $i}}, {{end}}{{$t}}{{else}}none{{end}}{{if .Skills}} · skills: {{range $i, $s := .Skills}}{{if $i}}, {{end}}{{$s}}{{end}}{{end}}</p>
+</article>
+{{else}}
+<p class="muted">No profiles yet.{{if .CanEdit}} Make the first one.{{end}}</p>
+{{end}}
+{{end}}
+{{end}}

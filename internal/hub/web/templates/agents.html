@@ -1,0 +1,48 @@
+{{define "content"}}
+<h1>Agents</h1>
+{{with .Extra}}
+{{if .CanSpawn}}
+<section aria-labelledby="start">
+  <h2 id="start">Start an agent</h2>
+  <p class="muted">A device's link opens a terminal and runs the agent there. Pick a profile to decide what it may do and know.</p>
+  <form method="post" action="/agents/spawn" class="stack">
+    <input type="hidden" name="csrf" value="{{$.CSRF}}">
+    <label>Name <input name="name" required maxlength="64" value="{{index .Form "name"}}" placeholder="researcher-1" pattern="[A-Za-z0-9][A-Za-z0-9_.\-]*"></label>
+    <label>Profile
+      <select name="profile">
+        <option value="">no profile (read, edit, write, and the handloom commands)</option>
+        {{range .Profiles}}<option value="{{.Name}}"{{if eq .Name (index $.Extra.Form "profile")}} selected{{end}}>{{.Name}} (v{{.Version}}, {{.Runtime}}; {{range $i, $t := .Tools}}{{if $i}}, {{end}}{{$t}}{{end}})</option>{{end}}
+      </select>
+    </label>
+    <label>Device
+      <select name="device" required>
+        {{range .Devices}}<option value="{{.}}"{{if eq . (index $.Extra.Form "device")}} selected{{end}}>{{.}}</option>{{else}}<option value="">no device has joined yet</option>{{end}}
+      </select>
+    </label>
+    <label>Job number (optional) <input name="job" inputmode="numeric" value="{{index .Form "job"}}" placeholder="leave empty for no job"></label>
+    <label>Model (optional) <input name="model" value="{{index .Form "model"}}" placeholder="the profile's, or the CLI's default"></label>
+    <button type="submit">Start</button>
+  </form>
+</section>
+{{end}}
+
+<section aria-labelledby="all">
+  <h2 id="all">Agents</h2>
+  {{range .Agents}}
+  <p class="row"><span><span class="state state-{{.State}}" aria-hidden="true">{{.Glyph}}</span> <strong>{{.Name}}</strong> <span class="muted">{{.Role}} · {{.Kind}} · {{.Device}}{{if .Job}} · job #{{.Job}}{{end}}</span></span> <span class="muted">{{.State}} · {{.Ago}}</span></p>
+  {{else}}
+  <p class="muted">No agents yet.</p>
+  {{end}}
+</section>
+
+<section aria-labelledby="recent">
+  <h2 id="recent">Recent starts</h2>
+  {{range .Spawns}}
+  <p class="row"><span><strong>{{.Name}}</strong> <span class="muted">{{.Kind}} on {{.Device}}{{if .Profile}} · {{.Profile}}{{end}}{{if .Job}} · job #{{.Job}}{{end}}</span></span>
+  <span class="muted">{{.Status}}{{if .Error}}: {{.Error}}{{end}}</span></p>
+  {{else}}
+  <p class="muted">Nothing started from here yet.</p>
+  {{end}}
+</section>
+{{end}}
+{{end}}

@@ -1,0 +1,60 @@
+{{define "content"}}
+{{with .Extra}}
+{{if .IsNew}}<h1>New profile</h1>{{else}}
+<h1>{{.Name}} <span class="muted">version {{.Info.Version}}</span></h1>
+<p class="muted">hash <code>{{.Hash}}</code>{{if .Versions}} · versions:
+  {{range .Versions}}<a href="/profiles/{{$.Extra.Name}}?version={{.Version}}">v{{.Version}}</a> {{end}}{{end}}</p>
+<section aria-labelledby="enf">
+  <h2 id="enf">What this profile enforces</h2>
+  <ul class="plain">{{range .Enforce}}<li>{{.}}</li>{{end}}</ul>
+</section>
+{{end}}
+
+{{if .CanEdit}}
+<h2>{{if .IsNew}}The profile{{else}}Change it{{end}}</h2>
+<form method="post" action="{{if .IsNew}}/profiles{{else}}/profiles/{{.Name}}{{end}}" class="stack">
+  <input type="hidden" name="csrf" value="{{$.CSRF}}">
+  {{if .IsNew}}<label>Name <input name="name" required maxlength="40" value="{{.Name}}" placeholder="researcher" pattern="[A-Za-z0-9][A-Za-z0-9_.\-]*"></label>{{end}}
+  <label>What it is for <input name="description" maxlength="200" value="{{.Spec.Description}}"></label>
+  <label>Where its model runs
+    <select name="runtime"><option value="cloud"{{if eq .Spec.Runtime "cloud"}} selected{{end}}>cloud</option><option value="local"{{if eq .Spec.Runtime "local"}} selected{{end}}>local (confidential jobs need this)</option></select>
+  </label>
+  <label>Model (optional) <input name="model" value="{{.Spec.Model}}" placeholder="sonnet"></label>
+  <fieldset>
+    <legend>Tools it may use</legend>
+    <label class="check"><input type="checkbox" name="tool" value="read"{{if index .Tool "read"}} checked{{end}}> read files</label>
+    <label class="check"><input type="checkbox" name="tool" value="edit"{{if index .Tool "edit"}} checked{{end}}> write and edit files</label>
+    <label class="check"><input type="checkbox" name="tool" value="shell"{{if index .Tool "shell"}} checked{{end}}> run shell commands</label>
+    <label class="check"><input type="checkbox" name="tool" value="web"{{if index .Tool "web"}} checked{{end}}> fetch web pages and search</label>
+  </fieldset>
+  <label><span>Shell commands it must not run: one per line, such as rm or git push</span>
+    <textarea name="deny" rows="3">{{.Deny}}</textarea></label>
+  <label>Instructions (added to the agent's own)
+    <textarea name="prompt" rows="10" class="mono">{{.Spec.Prompt}}</textarea></label>
+
+  <h2>Skills</h2>
+  <p class="muted">A skill is a folder with a SKILL.md. Clear the text of a skill to remove it. Other files in a skill folder stay as they are; to manage those, use <code>handloom profile new</code> with a directory.</p>
+  {{range .Skills}}
+  <div class="skill">
+    <label>Skill <input name="skill_name" value="{{.Name}}" readonly></label>
+    <label>SKILL.md <textarea name="skill_text" rows="8" class="mono">{{.Text}}</textarea></label>
+    {{if .Others}}<p class="muted">also: {{range .Others}}{{.}} {{end}}</p>{{end}}
+  </div>
+  {{end}}
+  <div class="skill">
+    <label>Add a skill: its name <input name="skill_name" placeholder="cite-sources" pattern="[A-Za-z0-9][A-Za-z0-9_.\-]*"></label>
+    <label>SKILL.md <textarea name="skill_text" rows="6" class="mono" placeholder="---&#10;name: cite-sources&#10;description: when to use it&#10;---&#10;What to do."></textarea></label>
+  </div>
+
+  <label>Your password, to confirm <input type="password" name="current_password" autocomplete="current-password" required></label>
+  <button type="submit">{{if .IsNew}}Create profile{{else}}Save as a new version{{end}}</button>
+</form>
+{{else}}
+<p class="text">{{.Spec.Description}}</p>
+<p class="muted">tools: {{range $i, $t := .Spec.Tools.Allow}}{{if $i}}, {{end}}{{$t}}{{else}}none{{end}} · runtime: {{.Spec.Runtime}}{{if .Spec.Tools.DenyCommands}} · never runs: {{range $i, $c := .Spec.Tools.DenyCommands}}{{if $i}}, {{end}}{{$c}}{{end}}{{end}}</p>
+{{if .Spec.Prompt}}<h2>Instructions</h2><pre class="cmd">{{.Spec.Prompt}}</pre>{{end}}
+{{range .Skills}}<h2>Skill: {{.Name}}</h2><pre class="cmd">{{.Text}}</pre>{{end}}
+<p class="muted">Only the owner can change profiles.</p>
+{{end}}
+{{end}}
+{{end}}

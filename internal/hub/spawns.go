@@ -119,6 +119,12 @@ func spawnNew(c *call) (any, error) {
 	if err := c.decode(&req); err != nil {
 		return nil, err
 	}
+	return c.spawnFromRequest(req)
+}
+
+// spawnFromRequest is the spawn request itself, for the API and the web form.
+// The caller has checked the scope.
+func (c *call) spawnFromRequest(req api.SpawnReq) (any, error) {
 	if err := checkName("agent", req.Name); err != nil {
 		return nil, err
 	}

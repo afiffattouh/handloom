@@ -59,3 +59,14 @@ form.inline { display: flex; gap: .4rem; flex-wrap: wrap; align-items: center; m
 details { margin: .2rem 0 .6rem; }
 summary { cursor: pointer; color: var(--accent); padding: .2rem 0; }
 details form { margin: .7rem 0 1rem; padding-left: .8rem; border-left: 2px solid var(--line); }
+a.button { display: inline-block; padding: .6rem 1rem; border-radius: 6px; background: var(--accent); color: var(--accent-text); text-decoration: none; min-height: 44px; line-height: 1.7; }
+fieldset { border: 1px solid var(--line); border-radius: 6px; padding: .6rem .8rem; display: grid; gap: .2rem; }
+legend { color: var(--muted); font-size: .9rem; padding: 0 .3rem; }
+label.check { display: flex; gap: .5rem; align-items: center; color: var(--text); font-size: 1rem; min-height: 32px; }
+label.check input { min-height: 0; width: 1.1rem; height: 1.1rem; }
+textarea.mono, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85rem; }
+.skill { border-left: 2px solid var(--line); padding-left: .8rem; display: grid; gap: .5rem; }
+ul.plain { margin: 0; padding-left: 1.1rem; }
+input[readonly] { background: var(--bg); }
+section + form.stack, ul.plain + form.stack { margin-top: 1.2rem; }
+section ul.plain { margin-bottom: .6rem; }

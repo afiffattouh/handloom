@@ -35,7 +35,7 @@ const (
 	maxForm      = 64 << 10
 )
 
-var pageNames = []string{"setup", "login", "inbox", "closed", "message", "devices", "settings", "invite"}
+var pageNames = []string{"setup", "login", "inbox", "closed", "message", "devices", "settings", "invite", "agents", "profiles", "profile"}
 
 type pageData struct {
 	Title  string
@@ -204,6 +204,13 @@ func (h *Hub) webRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /devices", web(h.authed(h.webDevices)))
 	mux.HandleFunc("POST /devices", web(h.authed(h.webDeviceAdd)))
 	mux.HandleFunc("POST /devices/{name}/revoke", web(h.authed(h.webDeviceRevoke)))
+	mux.HandleFunc("GET /agents", web(h.authed(h.webAgents)))
+	mux.HandleFunc("POST /agents/spawn", web(h.authed(h.webSpawn)))
+	mux.HandleFunc("GET /profiles", web(h.authed(h.webProfiles)))
+	mux.HandleFunc("GET /profiles/new", web(h.authed(h.webProfileNewForm)))
+	mux.HandleFunc("POST /profiles", web(h.authed(h.webProfileSave)))
+	mux.HandleFunc("GET /profiles/{name}", web(h.authed(h.webProfileShow)))
+	mux.HandleFunc("POST /profiles/{name}", web(h.authed(h.webProfileSave)))
 	mux.HandleFunc("GET /settings", web(h.authed(h.webSettings)))
 	mux.HandleFunc("POST /settings/members", web(h.authed(h.webMemberAdd)))
 	mux.HandleFunc("POST /settings/members/{name}/invite", web(h.authed(h.webMemberInvite)))

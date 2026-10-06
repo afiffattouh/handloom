@@ -123,19 +123,41 @@ func (e *env) project(args []string) error {
 
 func (e *env) agent(args []string) error {
 	fs := e.flags("agent")
-	pos, err := fs.need(args, 3, 3, "agent role <name> <lead|worker|observer>")
-	if err != nil || pos[0] != "role" {
-		return usageErr("usage: handloom agent role <name> <lead|worker|observer>")
+	pos, err := fs.parse(args)
+	if err != nil {
+		return err
+	}
+	usage := usageErr("usage: handloom agent role <name> <lead|worker|observer> | agent job <name> <job id | 0>")
+	if len(pos) != 3 || (pos[0] != "role" && pos[0] != "job") {
+		return usage
 	}
 	c, err := conn()
 	if err != nil {
 		return err
 	}
 	var a api.Agent
-	if err := c.Post("/v1/agents/"+url.PathEscape(pos[1])+"/role", api.RoleReq{Role: pos[2]}, &a); err != nil {
-		return err
+	switch pos[0] {
+	case "role":
+		if err := c.Post("/v1/agents/"+url.PathEscape(pos[1])+"/role", api.RoleReq{Role: pos[2]}, &a); err != nil {
+			return err
+		}
+		e.print(a, func() { fmt.Fprintf(e.out, "%s is now %s in project %s.\n", a.Name, a.Role, a.Project) })
+	case "job":
+		n, err := strconv.ParseInt(strings.TrimPrefix(pos[2], "#"), 10, 64)
+		if err != nil {
+			return usage
+		}
+		if err := c.Post("/v1/agents/"+url.PathEscape(pos[1])+"/job", api.AgentJobReq{Job: n}, &a); err != nil {
+			return err
+		}
+		e.print(a, func() {
+			if a.Job == nil {
+				fmt.Fprintf(e.out, "%s is in no job.\n", a.Name)
+				return
+			}
+			fmt.Fprintf(e.out, "%s is now in job #%d as %s.\n", a.Name, *a.Job, a.Role)
+		})
 	}
-	e.print(a, func() { fmt.Fprintf(e.out, "%s is now %s in project %s.\n", a.Name, a.Role, a.Project) })
 	return nil
 }
 
@@ -352,6 +374,7 @@ func (e *env) task(args []string) error {
 	body := fs.String("body", "", "task description")
 	assign := fs.String("assign", "", "agent that must do the task")
 	depends := fs.String("depends", "", "comma-separated ids of tasks that must be done first")
+	job := fs.Int64("job", 0, "job (humans: the job a new task belongs to; list: only that job's tasks)")
 	reason := fs.String("reason", "", "reason")
 	clear := fs.Bool("clear", false, "clear the blocked flag")
 	note := fs.String("note", "", "free-text note for the lead")
@@ -397,6 +420,9 @@ func (e *env) task(args []string) error {
 		}
 		var tasks []api.Task
 		q := url.Values{"status": {*status}, "project": {*project}}
+		if *job != 0 {
+			q.Set("job", strconv.FormatInt(*job, 10))
+		}
 		if err := c.Get("/v1/tasks?"+q.Encode(), &tasks); err != nil {
 			return err
 		}
@@ -422,7 +448,7 @@ func (e *env) task(args []string) error {
 		if len(pos) == 0 {
 			return usageErr("usage: handloom task create <title> [--body B] [--assign A] [--depends 1,2]")
 		}
-		req := api.TaskCreateReq{Title: strings.Join(pos, " "), Body: *body, AssignedTo: *assign, Project: *project}
+		req := api.TaskCreateReq{Title: strings.Join(pos, " "), Body: *body, AssignedTo: *assign, Project: *project, Job: *job}
 		for _, d := range strings.Split(*depends, ",") {
 			if d = strings.TrimPrefix(strings.TrimSpace(d), "#"); d == "" {
 				continue
@@ -468,6 +494,112 @@ func (e *env) task(args []string) error {
 		return act("submit <id> --evidence E [--note N]", "submit", api.SubmitReq{Evidence: evidence, Note: *note})
 	default:
 		return usageErr("unknown task verb %q", sub)
+	}
+	return nil
+}
+
+// ---- jobs ----
+
+func jobLine(j api.Job) string {
+	lead := j.Lead
+	if lead == "" {
+		lead = "no lead yet"
+	}
+	conf := ""
+	if j.Confidential {
+		conf = " [confidential]"
+	}
+	n := j.Tasks
+	return fmt.Sprintf("job #%-3d %-9s %s%s  (lead: %s; tasks: %d open, %d claimed, %d submitted, %d done)",
+		j.ID, j.Status, j.Title, conf, lead, n.Open, n.Claimed, n.Submitted, n.Done)
+}
+
+func (e *env) job(args []string) error {
+	if len(args) == 0 {
+		return usageErr("usage: handloom job new|list|show|close")
+	}
+	sub := args[0]
+	fs := e.flags("job " + sub)
+	body := fs.String("body", "", "what the job is about")
+	lead := fs.String("lead", "", "agent that leads the job")
+	conf := fs.Bool("confidential", false, "the job handles confidential material (needs a hub that allows it)")
+	cancel := fs.Bool("cancel", false, "close: cancel the job and its unfinished tasks")
+	project := fs.String("project", "", "project")
+	pos, err := fs.parse(args[1:])
+	if err != nil {
+		return err
+	}
+	c, err := conn()
+	if err != nil {
+		return err
+	}
+	jobID := func(synopsis string) (int64, error) {
+		if len(pos) != 1 {
+			return 0, usageErr("usage: handloom job %s", synopsis)
+		}
+		v, err := strconv.ParseInt(strings.TrimPrefix(pos[0], "#"), 10, 64)
+		if err != nil {
+			return 0, usageErr("bad job id %q", pos[0])
+		}
+		return v, nil
+	}
+	switch sub {
+	case "new":
+		if len(pos) == 0 {
+			return usageErr("usage: handloom job new <title> [--body B] [--lead AGENT] [--confidential]")
+		}
+		var j api.Job
+		if err := c.Post("/v1/jobs", api.JobNewReq{Title: strings.Join(pos, " "), Body: *body, Lead: *lead, Confidential: *conf, Project: *project}, &j); err != nil {
+			return err
+		}
+		e.print(j, func() { fmt.Fprintln(e.out, "Started "+jobLine(j)) })
+	case "list":
+		var js []api.Job
+		if err := c.Get("/v1/jobs?"+url.Values{"project": {*project}}.Encode(), &js); err != nil {
+			return err
+		}
+		e.print(js, func() {
+			if len(js) == 0 {
+				fmt.Fprintln(e.out, "No jobs.")
+			}
+			for _, j := range js {
+				fmt.Fprintln(e.out, jobLine(j))
+			}
+		})
+	case "show":
+		id, err := jobID("show <id>")
+		if err != nil {
+			return err
+		}
+		var j api.Job
+		if err := c.Get(fmt.Sprintf("/v1/jobs/%d", id), &j); err != nil {
+			return err
+		}
+		var tasks []api.Task
+		if err := c.Get(fmt.Sprintf("/v1/tasks?job=%d", id), &tasks); err != nil {
+			return err
+		}
+		e.print(map[string]any{"job": j, "tasks": tasks}, func() {
+			fmt.Fprintln(e.out, jobLine(j))
+			if j.Body != "" {
+				fmt.Fprintln(e.out, "\n"+j.Body+"\n")
+			}
+			for _, t := range tasks {
+				fmt.Fprintln(e.out, "  "+taskLine(t))
+			}
+		})
+	case "close":
+		id, err := jobID("close <id> [--cancel]")
+		if err != nil {
+			return err
+		}
+		var j api.Job
+		if err := c.Post(fmt.Sprintf("/v1/jobs/%d/close", id), api.JobCloseReq{Cancel: *cancel}, &j); err != nil {
+			return err
+		}
+		e.print(j, func() { fmt.Fprintln(e.out, jobLine(j)) })
+	default:
+		return usageErr("unknown job verb %q", sub)
 	}
 	return nil
 }

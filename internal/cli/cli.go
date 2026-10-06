@@ -38,7 +38,10 @@ Agent verbs (run inside an agent's shell, through the local link):
   handloom agents                                     list agents and their state
   handloom send <to> <text> [--task N]                to: agent name, role:lead, or task:<id>
   handloom inbox [--all]                              read new messages (marks them read)
-  handloom task list [--status S]
+  handloom job list | show <id>                   jobs: a root task with its own lead
+  handloom job new <title> [--body B] [--lead AGENT] [--confidential]   (human)
+  handloom job close <id> [--cancel]                                    (human)
+  handloom task list [--status S] [--job N]
   handloom task show <id>
   handloom task create <title> [--body B] [--assign A] [--depends 1,2]      (lead, human)
   handloom task assign <id> <agent>                                         (lead, human)
@@ -70,6 +73,7 @@ Hub and administration (HANDLOOM_HUB and HANDLOOM_TOKEN set to the hub URL and a
   handloom human add <name>                           (admin)
   handloom project add <name> | list                  (admin)
   handloom agent role <name> <lead|worker|observer>   (admin, human)
+  handloom agent job <name> <job id | 0>              move an agent into a job (admin, human)
   handloom escalations [--status open|answered|all]   list the lead's questions (human)
   handloom answer <id> <answer>                       answer a question (human only)
   handloom audit [--after SEQ]                        (admin, human)
@@ -131,6 +135,8 @@ func Main(args []string, stdout, stderr io.Writer) int {
 		err = e.answer(rest)
 	case "escalations":
 		err = e.escalations(rest)
+	case "job":
+		err = e.job(rest)
 	case "task":
 		err = e.task(rest)
 	case "hook":

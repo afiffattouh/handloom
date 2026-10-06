@@ -484,3 +484,33 @@ func TestAskAndAnswerThroughCLI(t *testing.T) {
 		t.Fatalf("answered list: %s", out)
 	}
 }
+
+// A job with its own lead, through the CLI.
+func TestJobsThroughCLI(t *testing.T) {
+	r := newRig(t)
+	r.run("register", "lead1", "--kind", "shell")
+	r.run("register", "w1", "--kind", "shell")
+	if out := r.as(r.human, "job", "new", "Scan competitors", "--lead", "lead1", "--body", "Twelve of them"); !strings.Contains(out, "Started job #") || !strings.Contains(out, "lead: lead1") {
+		t.Fatalf("job new: %s", out)
+	}
+	if out := r.agentOK("lead1", "inbox"); !strings.Contains(out, "lead of job #") {
+		t.Fatalf("lead1 inbox: %s", out)
+	}
+	if code, _, errs := r.agent("lead1", "job", "new", "x"); code != 1 || !strings.Contains(errs, "for a human") {
+		t.Fatalf("a lead starting a job: %d %s", code, errs)
+	}
+	r.agentOK("lead1", "task", "create", "Fetch pages", "--assign", "w1")
+	if out := r.as(r.human, "task", "list", "--job", "1"); !strings.Contains(out, "Fetch pages") {
+		t.Fatalf("task list --job: %s", out)
+	}
+	if out := r.as(r.human, "job", "show", "1"); !strings.Contains(out, "Twelve of them") || !strings.Contains(out, "Fetch pages") {
+		t.Fatalf("job show: %s", out)
+	}
+	if out := r.as(r.human, "job", "list"); !strings.Contains(out, "1 open") {
+		t.Fatalf("job list: %s", out)
+	}
+	r.as(r.human, "job", "close", "1", "--cancel")
+	if out := r.as(r.human, "agent", "job", "w1", "0"); !strings.Contains(out, "in no job") {
+		t.Fatalf("agent job: %s", out)
+	}
+}

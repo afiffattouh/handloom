@@ -3,6 +3,7 @@ package hub
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -20,6 +21,7 @@ type agentRow struct {
 	stateAt, hookMsgID      int64
 	registeredAt            int64
 	project, device         string
+	jobID                   sql.NullInt64
 }
 
 func (a *agentRow) api() api.Agent {
@@ -27,11 +29,20 @@ func (a *agentRow) api() api.Agent {
 		Name: a.name, Kind: a.kind, Role: a.role, Project: a.project, Device: a.device,
 		State: a.state, StateAt: store.Time(a.stateAt), WakeTarget: a.wakeTarget,
 		SessionID: a.sessionID, Dir: a.dir, RegisteredAt: store.Time(a.registeredAt),
+		Job: nullInt(a.jobID),
 	}
 }
 
+func nullInt(n sql.NullInt64) *int64 {
+	if !n.Valid {
+		return nil
+	}
+	v := n.Int64
+	return &v
+}
+
 const agentSelect = `SELECT a.id, a.project_id, a.device_id, a.name, a.kind, a.role, a.wake_target,
-	a.session_id, a.state, a.state_at, a.hook_msg_id, a.registered_at, p.name, d.name, a.dir
+	a.session_id, a.state, a.state_at, a.hook_msg_id, a.registered_at, p.name, d.name, a.dir, a.job_id
 	FROM agent a JOIN project p ON p.id = a.project_id JOIN device d ON d.id = a.device_id `
 
 type scanner interface{ Scan(...any) error }
@@ -39,7 +50,7 @@ type scanner interface{ Scan(...any) error }
 func scanAgent(s scanner) (*agentRow, error) {
 	a := &agentRow{}
 	err := s.Scan(&a.id, &a.projectID, &a.deviceID, &a.name, &a.kind, &a.role, &a.wakeTarget,
-		&a.sessionID, &a.state, &a.stateAt, &a.hookMsgID, &a.registeredAt, &a.project, &a.device, &a.dir)
+		&a.sessionID, &a.state, &a.stateAt, &a.hookMsgID, &a.registeredAt, &a.project, &a.device, &a.dir, &a.jobID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -71,8 +82,35 @@ func (c *call) agents(where string, args ...any) ([]*agentRow, error) {
 	return out, rows.Err()
 }
 
+// lead is the project-level lead: the one that belongs to no job.
 func (c *call) lead(projectID int64) (*agentRow, error) {
-	return scanAgent(c.tx.QueryRow(agentSelect+`WHERE a.project_id = ? AND a.role = 'lead'`, projectID))
+	return scanAgent(c.tx.QueryRow(agentSelect+`WHERE a.project_id = ? AND a.role = 'lead' AND a.job_id IS NULL`, projectID))
+}
+
+// leadFor is who judges work in a job: the job's own lead, or the project
+// lead when the job has none (and for tasks that belong to no job).
+func (c *call) leadFor(projectID int64, job sql.NullInt64) (*agentRow, error) {
+	if job.Valid {
+		a, err := scanAgent(c.tx.QueryRow(agentSelect+`WHERE a.project_id = ? AND a.role = 'lead' AND a.job_id = ?`, projectID, job.Int64))
+		if err != nil || a != nil {
+			return a, err
+		}
+	}
+	return c.lead(projectID)
+}
+
+// leadOf is the lead an agent reports to: that of its own job, else that of
+// the job of the task it is working on, else the project lead.
+func (c *call) leadOf(a *agentRow) (*agentRow, error) {
+	job := a.jobID
+	if !job.Valid {
+		err := c.tx.QueryRow(`SELECT job_id FROM task WHERE owner_agent_id = ? AND status IN ('claimed', 'submitted') AND job_id IS NOT NULL
+			ORDER BY updated_at DESC LIMIT 1`, a.id).Scan(&job)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return nil, err
+		}
+	}
+	return c.leadFor(a.projectID, job)
 }
 
 // localAgent returns the agent named in the path, which must live on the
@@ -232,12 +270,8 @@ func agentRole(c *call) (any, error) {
 		return nil, notFound("no agent %q", c.r.PathValue("name"))
 	}
 	if req.Role == api.RoleLead {
-		cur, err := c.lead(a.projectID)
-		if err != nil {
+		if err := c.checkLeadFree(a, a.jobID); err != nil {
 			return nil, err
-		}
-		if cur != nil && cur.id != a.id {
-			return nil, conflict("project %s already has a lead (%s); change that agent's role first", a.project, cur.name)
 		}
 	}
 	if _, err := c.tx.Exec(`UPDATE agent SET role = ? WHERE id = ?`, req.Role, a.id); err != nil {
@@ -249,6 +283,28 @@ func agentRole(c *call) (any, error) {
 		return nil, err
 	}
 	return a.api(), nil
+}
+
+// checkLeadFree fails when someone else already leads that job (or the project, without a job).
+func (c *call) checkLeadFree(a *agentRow, job sql.NullInt64) error {
+	var cur *agentRow
+	var err error
+	if job.Valid {
+		cur, err = scanAgent(c.tx.QueryRow(agentSelect+`WHERE a.project_id = ? AND a.role = 'lead' AND a.job_id = ?`, a.projectID, job.Int64))
+	} else {
+		cur, err = c.lead(a.projectID)
+	}
+	if err != nil {
+		return err
+	}
+	if cur != nil && cur.id != a.id {
+		where := "project " + a.project
+		if job.Valid {
+			where = fmt.Sprintf("job %d", job.Int64)
+		}
+		return conflict("%s already has a lead (%s); change that agent's role first", where, cur.name)
+	}
+	return nil
 }
 
 func (c *call) setState(a *agentRow, state string, why string) error {
@@ -364,7 +420,7 @@ func agentWake(c *call) (any, error) {
 			map[string]any{"reason": req.Reason, "messages": ids}); err != nil {
 			return nil, err
 		}
-		lead, err := c.lead(a.projectID)
+		lead, err := c.leadOf(a)
 		if err != nil {
 			return nil, err
 		}

@@ -164,6 +164,18 @@ CREATE TABLE invite (
   created_at INTEGER NOT NULL,
   expires_at INTEGER NOT NULL
 );
+`, `
+-- B1: a job is a root task (kind 'job'). Tasks made for it carry its id; an
+-- agent can belong to a job, and each job has its own lead. Agents and tasks
+-- without a job behave as before: one project-level lead.
+ALTER TABLE task ADD COLUMN kind TEXT NOT NULL DEFAULT 'task';
+ALTER TABLE task ADD COLUMN job_id INTEGER REFERENCES task(id);
+ALTER TABLE task ADD COLUMN parent_id INTEGER REFERENCES task(id);
+ALTER TABLE task ADD COLUMN confidential INTEGER NOT NULL DEFAULT 0;
+CREATE INDEX task_job ON task(job_id);
+ALTER TABLE agent ADD COLUMN job_id INTEGER REFERENCES task(id);
+DROP INDEX agent_one_lead;
+CREATE UNIQUE INDEX agent_one_lead ON agent(project_id, COALESCE(job_id, 0)) WHERE role = 'lead';
 `}
 
 // Open opens (and migrates) the database at path. Use ":memory:" in tests.

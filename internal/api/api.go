@@ -88,6 +88,7 @@ type Agent struct {
 	WakeTarget   string    `json:"wake_target,omitempty"`
 	SessionID    string    `json:"session_id,omitempty"`
 	Dir          string    `json:"dir,omitempty"` // the agent's working directory on its device
+	Job          *int64    `json:"job,omitempty"` // the job this agent belongs to; jobs have their own lead
 	RegisteredAt time.Time `json:"registered_at"`
 }
 
@@ -101,6 +102,8 @@ type DeviceAgent struct {
 
 type Task struct {
 	ID             int64      `json:"id"`
+	Kind           string     `json:"kind,omitempty"` // "job" for a job's root task
+	Job            *int64     `json:"job,omitempty"`  // the job this task belongs to
 	Project        string     `json:"project"`
 	Title          string     `json:"title"`
 	Body           string     `json:"body,omitempty"`
@@ -230,7 +233,46 @@ type TurnEndResp struct {
 	Unread int  `json:"unread"`
 }
 
+// Job is a unit of work: a root task with its own lead, and tasks under it.
+type Job struct {
+	ID           int64     `json:"id"`
+	Project      string    `json:"project"`
+	Title        string    `json:"title"`
+	Body         string    `json:"body,omitempty"`
+	Status       string    `json:"status"` // open | done | cancelled
+	Lead         string    `json:"lead,omitempty"`
+	Confidential bool      `json:"confidential,omitempty"`
+	CreatedBy    string    `json:"created_by"`
+	CreatedAt    time.Time `json:"created_at"`
+	Tasks        JobCounts `json:"tasks"`
+}
+
+type JobCounts struct {
+	Open      int `json:"open"`
+	Claimed   int `json:"claimed"`
+	Submitted int `json:"submitted"`
+	Done      int `json:"done"`
+	Cancelled int `json:"cancelled"`
+}
+
+type JobNewReq struct {
+	Title        string `json:"title"`
+	Body         string `json:"body,omitempty"`
+	Lead         string `json:"lead,omitempty"` // an existing agent that becomes the job's lead
+	Confidential bool   `json:"confidential,omitempty"`
+	Project      string `json:"project,omitempty"`
+}
+
+type JobCloseReq struct {
+	Cancel bool `json:"cancel,omitempty"` // cancel the job and its unfinished tasks instead of finishing it
+}
+
+type AgentJobReq struct {
+	Job int64 `json:"job"` // 0 removes the agent from its job
+}
+
 type TaskCreateReq struct {
+	Job        int64   `json:"job,omitempty"` // humans only; a lead's tasks go into its own job
 	Title      string  `json:"title"`
 	Body       string  `json:"body,omitempty"`
 	AssignedTo string  `json:"assigned_to,omitempty"`

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"handloom/internal/api"
@@ -26,10 +27,14 @@ type taskRow struct {
 	project          string
 	ownerName        string
 	assignedName     string
+	kind             string
+	jobID, parentID  sql.NullInt64
+	confidential     bool
 }
 
 func (t *taskRow) api() api.Task {
 	return api.Task{
+		Kind: kindOrEmpty(t.kind), Job: nullInt(t.jobID),
 		ID: t.id, Project: t.project, Title: t.title, Body: t.body, Status: t.status,
 		Owner: t.ownerName, AssignedTo: t.assignedName, LeaseExpiresAt: store.TimePtr(t.lease),
 		DependsOn: t.deps, Evidence: t.evidence, Note: t.note, BlockedReason: t.blocked,
@@ -38,11 +43,19 @@ func (t *taskRow) api() api.Task {
 	}
 }
 
+func kindOrEmpty(k string) string {
+	if k == "task" {
+		return ""
+	}
+	return k
+}
+
 func (t *taskRow) target() string { return fmt.Sprintf("task:%d", t.id) }
 
 const taskSelect = `SELECT t.id, t.project_id, t.title, t.body, t.status, t.owner_agent_id, t.assigned_to,
 	t.lease_expires_at, t.depends_on, t.evidence, t.note, t.blocked_reason, t.reject_reason, t.created_by,
-	t.created_at, t.updated_at, p.name, COALESCE(o.name, ''), COALESCE(s.name, '')
+	t.created_at, t.updated_at, p.name, COALESCE(o.name, ''), COALESCE(s.name, ''),
+	t.kind, t.job_id, t.parent_id, t.confidential
 	FROM task t JOIN project p ON p.id = t.project_id
 	LEFT JOIN agent o ON o.id = t.owner_agent_id LEFT JOIN agent s ON s.id = t.assigned_to `
 
@@ -51,7 +64,7 @@ func scanTask(s scanner) (*taskRow, error) {
 	var deps, evidence string
 	err := s.Scan(&t.id, &t.projectID, &t.title, &t.body, &t.status, &t.owner, &t.assigned, &t.lease,
 		&deps, &evidence, &t.note, &t.blocked, &t.reject, &t.createdBy, &t.created, &t.updated,
-		&t.project, &t.ownerName, &t.assignedName)
+		&t.project, &t.ownerName, &t.assignedName, &t.kind, &t.jobID, &t.parentID, &t.confidential)
 	if err != nil {
 		return nil, err
 	}
@@ -164,7 +177,7 @@ func (c *call) expireLeases() error {
 		if err := c.emit(t.projectID, 0, "task.lease_expired", map[string]any{"target": t.target(), "detail": payload}); err != nil {
 			return err
 		}
-		lead, err := c.lead(t.projectID)
+		lead, err := c.leadFor(t.projectID, t.jobID)
 		if err != nil {
 			return err
 		}
@@ -211,7 +224,7 @@ func (c *call) reportUnclaimed() error {
 		if err := c.emit(t.projectID, 0, "task.unclaimed", map[string]any{"target": t.target(), "detail": payload}); err != nil {
 			return err
 		}
-		lead, err := c.lead(t.projectID)
+		lead, err := c.leadFor(t.projectID, t.jobID)
 		if err != nil {
 			return err
 		}
@@ -246,6 +259,32 @@ func taskCreate(c *call) (any, error) {
 	if err != nil {
 		return nil, err
 	}
+	// The job: a lead's tasks go into its own job; a human names one (or none).
+	var job sql.NullInt64
+	var jobConfidential bool
+	switch {
+	case c.p.kind == kindDevice:
+		a, err := c.agent()
+		if err != nil {
+			return nil, err
+		}
+		if req.Job != 0 {
+			return nil, forbidden("an agent cannot choose the job; tasks go into the job its lead leads")
+		}
+		job = a.jobID
+	case req.Job != 0:
+		job = sql.NullInt64{Int64: req.Job, Valid: true}
+	}
+	if job.Valid {
+		j, err := c.task(job.Int64)
+		if err != nil || j.kind != "job" || j.projectID != projectID {
+			return nil, notFound("no job %d", job.Int64)
+		}
+		if j.status != api.StatusOpen {
+			return nil, conflict("job %d is %s", j.id, j.status)
+		}
+		jobConfidential = j.confidential
+	}
 	var assignee *agentRow
 	if req.AssignedTo != "" {
 		if assignee, err = c.assignee(projectID, req.AssignedTo); err != nil {
@@ -258,8 +297,11 @@ func taskCreate(c *call) (any, error) {
 		if err != nil {
 			return nil, err
 		}
-		if d.projectID != projectID {
+		if d.projectID != projectID || d.kind == "job" {
 			return nil, notFound("no task %d", dep)
+		}
+		if d.jobID != job {
+			return nil, conflict("task %d belongs to another job; a task depends only on tasks of its own job", dep)
 		}
 		if d.status == api.StatusCancelled {
 			return nil, conflict("task %d is cancelled and cannot be a dependency", dep)
@@ -272,8 +314,13 @@ func taskCreate(c *call) (any, error) {
 		assigned = assignee.id
 	}
 	ms := store.Millis(c.now)
-	res, err := c.tx.Exec(`INSERT INTO task(project_id, title, body, status, assigned_to, depends_on, created_by, created_at, updated_at)
-		VALUES (?, ?, ?, 'open', ?, ?, ?, ?, ?)`, projectID, req.Title, req.Body, assigned, string(depsJSON), c.p.actor(), ms, ms)
+	var parent any
+	if job.Valid {
+		parent = job.Int64
+	}
+	res, err := c.tx.Exec(`INSERT INTO task(project_id, title, body, status, assigned_to, depends_on, created_by, created_at, updated_at, job_id, parent_id, confidential)
+		VALUES (?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?, ?)`, projectID, req.Title, req.Body, assigned, string(depsJSON), c.p.actor(), ms, ms,
+		nullAny(job), parent, jobConfidential)
 	if err != nil {
 		return nil, err
 	}
@@ -290,6 +337,13 @@ func taskCreate(c *call) (any, error) {
 		return nil, err
 	}
 	return t.api(), nil
+}
+
+func nullAny(n sql.NullInt64) any {
+	if !n.Valid {
+		return nil
+	}
+	return n.Int64
 }
 
 func (c *call) assignee(projectID int64, name string) (*agentRow, error) {
@@ -548,6 +602,9 @@ func taskClaim(c *call) (any, error) {
 	if err != nil {
 		return nil, err
 	}
+	if t.kind == "job" {
+		return nil, conflict("#%d is a job, not a task: nobody claims it; its lead creates tasks under it", t.id)
+	}
 	if t.status != api.StatusOpen {
 		return nil, conflict("task %d is %s (owner %s); only an open task can be claimed", t.id, t.status, orNone(t.ownerName))
 	}
@@ -598,7 +655,7 @@ func taskRelease(c *call) (any, error) {
 	if err := c.record(t.projectID, 0, "task.release", t.target(), map[string]any{"owner": a.name}); err != nil {
 		return nil, err
 	}
-	lead, err := c.lead(t.projectID)
+	lead, err := c.leadFor(t.projectID, t.jobID)
 	if err != nil {
 		return nil, err
 	}
@@ -625,7 +682,7 @@ func taskBlock(c *call) (any, error) {
 		return nil, err
 	}
 	if req.Reason != "" {
-		lead, err := c.lead(t.projectID)
+		lead, err := c.leadFor(t.projectID, t.jobID)
 		if err != nil {
 			return nil, err
 		}
@@ -664,7 +721,7 @@ func taskSubmit(c *call) (any, error) {
 		map[string]any{"owner": a.name, "evidence": evidence, "note": req.Note}); err != nil {
 		return nil, err
 	}
-	lead, err := c.lead(t.projectID)
+	lead, err := c.leadFor(t.projectID, t.jobID)
 	if err != nil {
 		return nil, err
 	}
@@ -704,6 +761,16 @@ func taskList(c *call) (any, error) {
 	}
 	if o := q.Get("owner"); o != "" {
 		where, args = where+` AND o.name = ?`, append(args, o)
+	}
+	if j := q.Get("job"); j != "" {
+		id, err := strconv.ParseInt(j, 10, 64)
+		if err != nil {
+			return nil, badRequest("bad job %q", j)
+		}
+		where, args = where+` AND t.job_id = ?`, append(args, id)
+	}
+	if q.Get("jobs") == "" { // job roots are listed by `job list`, not on the task board
+		where += ` AND t.kind = 'task'`
 	}
 	rows, err := c.tasks(where, args...)
 	if err != nil {

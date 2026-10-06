@@ -27,21 +27,22 @@ import (
 )
 
 type Options struct {
-	Lease       time.Duration    // task lease; default 15 minutes
-	Sweep       time.Duration    // how often expired leases are collected; default 5 seconds
-	Unclaimed   time.Duration    // tell the lead when an assigned task stays unclaimed this long; default 10 minutes
-	MsgRate     int              // messages per minute per sender; default 60
-	Notifier    notify.Notifier  // tells the human about escalations; nil means nobody is told
-	BaseURL     string           // public URL of the hub, for links in notifications and the origin check
-	Insecure    bool             // allow the web UI over plain http on a private network
-	TrustProxy  bool             // take the client address from the proxy's X-Forwarded-For
-	SessionIdle time.Duration    // web session idle timeout; default 12h
-	SessionMax  time.Duration    // web session absolute lifetime; default 7 days
-	JoinTTL     time.Duration    // how long a device join token works; default 15 minutes
-	InviteTTL   time.Duration    // how long a member invite link works; default 7 days
-	NtfyToken   string           // access token for the ntfy topic set in Settings (never stored in the database)
-	Now         func() time.Time // clock, replaceable in tests
-	Log         *log.Logger
+	Lease             time.Duration    // task lease; default 15 minutes
+	Sweep             time.Duration    // how often expired leases are collected; default 5 seconds
+	Unclaimed         time.Duration    // tell the lead when an assigned task stays unclaimed this long; default 10 minutes
+	MsgRate           int              // messages per minute per sender; default 60
+	Notifier          notify.Notifier  // tells the human about escalations; nil means nobody is told
+	BaseURL           string           // public URL of the hub, for links in notifications and the origin check
+	Insecure          bool             // allow the web UI over plain http on a private network
+	TrustProxy        bool             // take the client address from the proxy's X-Forwarded-For
+	SessionIdle       time.Duration    // web session idle timeout; default 12h
+	SessionMax        time.Duration    // web session absolute lifetime; default 7 days
+	AllowConfidential bool             // this hub may host confidential jobs (private, trusted deployments only)
+	JoinTTL           time.Duration    // how long a device join token works; default 15 minutes
+	InviteTTL         time.Duration    // how long a member invite link works; default 7 days
+	NtfyToken         string           // access token for the ntfy topic set in Settings (never stored in the database)
+	Now               func() time.Time // clock, replaceable in tests
+	Log               *log.Logger
 }
 
 type Hub struct {
@@ -189,6 +190,12 @@ func (h *Hub) Handler() http.Handler {
 	v1("GET /projects", projectList)
 	v1("GET /audit", auditList)
 	v1("GET /digest", digestGet)
+
+	v1("POST /jobs", jobNew)
+	v1("GET /jobs", jobList)
+	v1("GET /jobs/{id}", jobGet)
+	v1("POST /jobs/{id}/close", jobClose)
+	v1("POST /agents/{name}/job", agentJob)
 
 	v1("POST /agents", agentRegister)
 	v1("GET /agents", agentList)

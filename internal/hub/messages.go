@@ -104,6 +104,24 @@ func messageSend(c *call) (any, error) {
 		if err != nil {
 			return nil, err
 		}
+		if role == api.RoleLead && len(to) > 1 {
+			// Several jobs, several leads: an agent means the lead it reports to.
+			if c.p.kind != kindDevice {
+				return nil, badRequest("there is more than one lead (%s); name one", agentNames(to))
+			}
+			me, err := c.agent()
+			if err != nil {
+				return nil, err
+			}
+			lead, err := c.leadOf(me)
+			if err != nil {
+				return nil, err
+			}
+			to = nil
+			if lead != nil {
+				to = []*agentRow{lead}
+			}
+		}
 		if len(to) == 0 {
 			return nil, notFound("no agent with role %s in this project", role)
 		}
@@ -130,7 +148,7 @@ func messageSend(c *call) (any, error) {
 			}
 			to = append(to, a)
 		}
-		lead, err := c.lead(projectID)
+		lead, err := c.leadFor(projectID, t.jobID)
 		if err != nil {
 			return nil, err
 		}
@@ -271,4 +289,12 @@ func messageDelivered(c *call) (any, error) {
 		return nil, err
 	}
 	return nil, c.audit("message.delivered", "message:"+strconv.FormatInt(id, 10), map[string]any{"method": req.Method, "agent": name})
+}
+
+func agentNames(as []*agentRow) string {
+	names := make([]string, len(as))
+	for i, a := range as {
+		names[i] = a.name
+	}
+	return strings.Join(names, ", ")
 }

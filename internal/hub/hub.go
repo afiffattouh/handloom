@@ -38,6 +38,7 @@ type Options struct {
 	SessionIdle       time.Duration    // web session idle timeout; default 12h
 	SessionMax        time.Duration    // web session absolute lifetime; default 7 days
 	AllowConfidential bool             // this hub may host confidential jobs (private, trusted deployments only)
+	RequireRunToken   bool             // refuse agent requests that carry only the device credential and a claimed name
 	JoinTTL           time.Duration    // how long a device join token works; default 15 minutes
 	InviteTTL         time.Duration    // how long a member invite link works; default 7 days
 	NtfyToken         string           // access token for the ntfy topic set in Settings (never stored in the database)
@@ -289,6 +290,8 @@ type principal struct {
 	role      string // humans: owner | member | viewer
 	deviceID  int64
 	agentName string    // from the Handloom-Agent header; checked in call.agent
+	runToken  string    // from the Handloom-Run-Token header
+	via       string    // how the agent was authenticated: run-token | device-asserted
 	agent     *agentRow // resolved lazily
 }
 
@@ -353,8 +356,8 @@ func (h *Hub) handle(fn func(*call) (any, error)) http.HandlerFunc {
 // because the request's transaction was rolled back.
 func (h *Hub) auditDenied(p *principal, r *http.Request, ae *apiError) {
 	payload, _ := json.Marshal(map[string]string{"reason": ae.msg})
-	_, err := h.db.Exec(`INSERT INTO audit(actor, action, target, payload, created_at) VALUES (?, 'denied', ?, ?, ?)`,
-		p.actor(), r.Method+" "+r.URL.Path, string(payload), store.Millis(h.opt.Now()))
+	_, err := h.db.Exec(`INSERT INTO audit(actor, action, target, payload, created_at, via) VALUES (?, 'denied', ?, ?, ?, ?)`,
+		p.actor(), r.Method+" "+r.URL.Path, string(payload), store.Millis(h.opt.Now()), p.viaName())
 	if err != nil {
 		h.opt.Log.Printf("audit denied: %v", err)
 	}
@@ -391,7 +394,7 @@ func authenticate(tx *sql.Tx, r *http.Request, now time.Time) (*principal, error
 		}
 		return p, nil
 	case strings.HasPrefix(tok, store.PrefixDevice):
-		p := &principal{kind: kindDevice, agentName: api.AgentFrom(r.Header)}
+		p := &principal{kind: kindDevice, agentName: api.AgentFrom(r.Header), runToken: r.Header.Get(api.RunTokenHeader)}
 		var revoked, seen sql.NullInt64
 		err := tx.QueryRow(`SELECT id, name, revoked_at, last_seen_at FROM device WHERE credential_hash = ?`, hash).
 			Scan(&p.deviceID, &p.name, &revoked, &seen)
@@ -429,6 +432,9 @@ func (c *call) agent() (*agentRow, error) {
 	}
 	if a == nil || a.deviceID != c.p.deviceID {
 		return nil, forbidden("agent %q is not registered on device %s", c.p.agentName, c.p.name)
+	}
+	if err := c.verifyRun(a, true); err != nil {
+		return nil, err
 	}
 	c.p.agent = a
 	return a, nil
@@ -488,9 +494,41 @@ func (c *call) audit(action, target string, payload any) error {
 		payload = map[string]any{}
 	}
 	b := marshal(payload)
-	_, err := c.tx.Exec(`INSERT INTO audit(actor, action, target, payload, created_at) VALUES (?, ?, ?, ?, ?)`,
-		c.p.actor(), action, target, string(b), store.Millis(c.now))
+	_, err := c.tx.Exec(`INSERT INTO audit(actor, action, target, payload, created_at, via) VALUES (?, ?, ?, ?, ?, ?)`,
+		c.p.actor(), action, target, string(b), store.Millis(c.now), c.p.viaName())
 	return err
+}
+
+// viaName says how the caller was authenticated, for the audit log.
+func (p *principal) viaName() string {
+	switch {
+	case p == nil:
+		return ""
+	case p.via != "":
+		return p.via
+	}
+	return p.kind
+}
+
+// verifyRun checks the run token a request carries for agent a. Without one
+// the request is only "device-asserted": the device's credential plus a name
+// the caller claims. A hub that requires tokens refuses that for agents
+// (needed=true); the link's own calls on behalf of an agent never need one.
+func (c *call) verifyRun(a *agentRow, needed bool) error {
+	tok := c.p.runToken
+	if tok == "" {
+		if needed && c.h.opt.RequireRunToken {
+			return unauthorized("this hub requires a run token from agents: run `handloom adapter install` again so %s gets one", a.name)
+		}
+		c.p.via = "device-asserted"
+		return nil
+	}
+	if !strings.HasPrefix(tok, store.PrefixRun) || a.runTokenHash == "" ||
+		subtle.ConstantTimeCompare([]byte(store.HashToken(tok)), []byte(a.runTokenHash)) != 1 {
+		return unauthorized("the run token does not belong to agent %s", a.name)
+	}
+	c.p.via = "run-token"
+	return nil
 }
 
 // record writes the audit row and the event for one change.

@@ -514,3 +514,51 @@ func TestJobsThroughCLI(t *testing.T) {
 		t.Fatalf("agent job: %s", out)
 	}
 }
+
+// An adapter install gives the agent a run token in a 0600 file next to its
+// identity; its commands carry it, and the hub can tell.
+func TestAdapterInstallGivesTheAgentARunToken(t *testing.T) {
+	r := newRig(t)
+	dir := t.TempDir()
+	r.run("adapter", "install", "claude", "--name", "tok-agent", "--dir", dir)
+	file := filepath.Join(dir, ".handloom", "tokens", "tok-agent")
+	st, err := os.Stat(file)
+	if err != nil || st.Mode().Perm() != 0o600 {
+		t.Fatalf("token file: %v %v", st, err)
+	}
+	first, _ := os.ReadFile(file)
+	if !strings.HasPrefix(string(first), "hvr_") {
+		t.Fatalf("token file content %q", first)
+	}
+
+	t.Chdir(dir)
+	if out := r.agentOK("tok-agent", "whoami", "--json"); !strings.Contains(out, `"via": "run-token"`) {
+		t.Fatalf("whoami in the project: %s", out)
+	}
+	t.Chdir(t.TempDir())
+	if out := r.agentOK("tok-agent", "whoami", "--json"); !strings.Contains(out, `"via": "device-asserted"`) {
+		t.Fatalf("whoami outside the project: %s", out)
+	}
+
+	// Installing again rotates the token, and the files stay in step.
+	r.run("adapter", "install", "claude", "--name", "tok-agent", "--dir", dir)
+	second, _ := os.ReadFile(file)
+	if string(second) == string(first) {
+		t.Fatal("a second install kept the old token")
+	}
+	t.Chdir(dir)
+	if out := r.agentOK("tok-agent", "whoami", "--json"); !strings.Contains(out, `"via": "run-token"`) {
+		t.Fatalf("whoami after rotation: %s", out)
+	}
+	// A stale file for the same agent is refused, not quietly ignored.
+	os.WriteFile(file, first, 0o600)
+	if code, _, errs := r.agent("tok-agent", "whoami"); code == 0 || !strings.Contains(errs, "run token") {
+		t.Fatalf("a stale token: %d %s", code, errs)
+	}
+	os.WriteFile(file, second, 0o600)
+
+	r.run("adapter", "remove", "claude", "--dir", dir)
+	if _, err := os.Stat(file); err == nil {
+		t.Fatal("remove left the token file")
+	}
+}

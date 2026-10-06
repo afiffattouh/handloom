@@ -22,6 +22,7 @@ type agentRow struct {
 	registeredAt            int64
 	project, device         string
 	jobID                   sql.NullInt64
+	runTokenHash            string
 }
 
 func (a *agentRow) api() api.Agent {
@@ -42,7 +43,7 @@ func nullInt(n sql.NullInt64) *int64 {
 }
 
 const agentSelect = `SELECT a.id, a.project_id, a.device_id, a.name, a.kind, a.role, a.wake_target,
-	a.session_id, a.state, a.state_at, a.hook_msg_id, a.registered_at, p.name, d.name, a.dir, a.job_id
+	a.session_id, a.state, a.state_at, a.hook_msg_id, a.registered_at, p.name, d.name, a.dir, a.job_id, COALESCE(a.run_token_hash, '')
 	FROM agent a JOIN project p ON p.id = a.project_id JOIN device d ON d.id = a.device_id `
 
 type scanner interface{ Scan(...any) error }
@@ -50,7 +51,7 @@ type scanner interface{ Scan(...any) error }
 func scanAgent(s scanner) (*agentRow, error) {
 	a := &agentRow{}
 	err := s.Scan(&a.id, &a.projectID, &a.deviceID, &a.name, &a.kind, &a.role, &a.wakeTarget,
-		&a.sessionID, &a.state, &a.stateAt, &a.hookMsgID, &a.registeredAt, &a.project, &a.device, &a.dir, &a.jobID)
+		&a.sessionID, &a.state, &a.stateAt, &a.hookMsgID, &a.registeredAt, &a.project, &a.device, &a.dir, &a.jobID, &a.runTokenHash)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -127,6 +128,13 @@ func (c *call) localAgent() (*agentRow, error) {
 	if a == nil || a.deviceID != c.p.deviceID {
 		return nil, forbidden("agent %q is not registered on device %s", name, c.p.name)
 	}
+	// Hooks speak for the agent and carry its token; the link's own calls
+	// do not, and are not asked to.
+	if c.p.runToken != "" {
+		if err := c.verifyRun(a, false); err != nil {
+			return nil, err
+		}
+	}
 	return a, nil
 }
 
@@ -141,6 +149,7 @@ func whoami(c *call) (any, error) {
 			}
 			v := a.api()
 			out.Agent = &v
+			out.Via = c.p.via
 		}
 	}
 	return out, nil
@@ -171,6 +180,15 @@ func agentRegister(c *call) (any, error) {
 		if req.Project != "" && req.Project != a.project {
 			return nil, conflict("agent %q is already in project %s", req.Name, a.project)
 		}
+		// A request that carries a token must carry the right one. One that
+		// carries none is the old, device-asserted kind: a hub that requires
+		// tokens refuses it, except for the registration that mints one.
+		// (A rotation is authorised by the device, as it always has been.)
+		if !req.RotateToken && (c.p.runToken != "" || c.h.opt.RequireRunToken) {
+			if err := c.verifyRun(a, true); err != nil {
+				return nil, err
+			}
+		}
 		kind := a.kind
 		if req.Kind != "" {
 			kind = req.Kind
@@ -194,10 +212,19 @@ func agentRegister(c *call) (any, error) {
 		a.kind, a.wakeTarget, a.sessionID, a.dir = kind, wake, session, dir
 		c.p.agent = a
 		if err := c.record(a.projectID, 0, "agent.register", "agent:"+a.name,
-			map[string]any{"kind": kind, "wake_target": wake, "session_id": session, "again": true}); err != nil {
+			map[string]any{"kind": kind, "wake_target": wake, "session_id": session, "again": true, "rotate_token": req.RotateToken}); err != nil {
 			return nil, err
 		}
-		return a.api(), nil
+		out := a.api()
+		if req.RotateToken {
+			if out.RunToken, err = c.mintRunToken(a); err != nil {
+				return nil, err
+			}
+			if err := c.audit("agent.token", "agent:"+a.name, map[string]any{"again": true}); err != nil {
+				return nil, err
+			}
+		}
+		return out, nil
 	}
 	if req.Kind == "" {
 		return nil, badRequest("kind is required")
@@ -226,7 +253,16 @@ func agentRegister(c *call) (any, error) {
 		map[string]any{"kind": a.kind, "role": a.role, "device": a.device, "wake_target": a.wakeTarget}); err != nil {
 		return nil, err
 	}
-	return a.api(), nil
+	out := a.api()
+	if req.RotateToken {
+		if out.RunToken, err = c.mintRunToken(a); err != nil {
+			return nil, err
+		}
+		if err := c.audit("agent.token", "agent:"+a.name, map[string]any{"again": false}); err != nil {
+			return nil, err
+		}
+	}
+	return out, nil
 }
 
 func agentList(c *call) (any, error) {
@@ -286,6 +322,18 @@ func agentRole(c *call) (any, error) {
 }
 
 // checkLeadFree fails when someone else already leads that job (or the project, without a job).
+// mintRunToken gives the agent a new run token, replacing any old one. Only
+// its hash is stored; the token is returned once.
+func (c *call) mintRunToken(a *agentRow) (string, error) {
+	tok := store.NewToken(store.PrefixRun)
+	if _, err := c.tx.Exec(`UPDATE agent SET run_token_hash = ?, run_token_at = ? WHERE id = ?`,
+		store.HashToken(tok), store.Millis(c.now), a.id); err != nil {
+		return "", err
+	}
+	a.runTokenHash = store.HashToken(tok)
+	return tok, nil
+}
+
 func (c *call) checkLeadFree(a *agentRow, job sql.NullInt64) error {
 	var cur *agentRow
 	var err error
@@ -614,7 +662,7 @@ func auditList(c *call) (any, error) {
 	if limit <= 0 || limit > 5000 {
 		limit = 1000
 	}
-	rows, err := c.tx.Query(`SELECT seq, actor, action, target, payload, created_at FROM audit WHERE seq > ? ORDER BY seq LIMIT ?`, after, limit)
+	rows, err := c.tx.Query(`SELECT seq, actor, action, target, payload, created_at, via FROM audit WHERE seq > ? ORDER BY seq LIMIT ?`, after, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -624,7 +672,7 @@ func auditList(c *call) (any, error) {
 		var a api.AuditRow
 		var payload string
 		var at int64
-		if err := rows.Scan(&a.Seq, &a.Actor, &a.Action, &a.Target, &payload, &at); err != nil {
+		if err := rows.Scan(&a.Seq, &a.Actor, &a.Action, &a.Target, &payload, &at, &a.Via); err != nil {
 			return nil, err
 		}
 		a.Payload, a.CreatedAt = []byte(payload), store.Time(at)

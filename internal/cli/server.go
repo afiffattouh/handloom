@@ -184,7 +184,7 @@ func (e *env) hub(args []string) error {
 		}
 		h := hub.New(db, hub.Options{Lease: *lease, Sweep: *sweep, Unclaimed: *unclaimed, Log: logger,
 			Notifier: notifier, BaseURL: setting.Get("BASE_URL"),
-			Insecure: setting.Bool("INSECURE"), TrustProxy: setting.Bool("TRUST_PROXY"), NtfyToken: setting.Get("NTFY_TOKEN"), AllowConfidential: setting.Bool("ALLOW_CONFIDENTIAL")})
+			Insecure: setting.Bool("INSECURE"), TrustProxy: setting.Bool("TRUST_PROXY"), NtfyToken: setting.Get("NTFY_TOKEN"), AllowConfidential: setting.Bool("ALLOW_CONFIDENTIAL"), RequireRunToken: setting.Bool("REQUIRE_RUN_TOKEN")})
 		if ok, why := h.WebEnabled(); !ok {
 			logger.Printf("web UI is off: %s", why)
 		} else if code, err := h.PrepareSetup(); err != nil {

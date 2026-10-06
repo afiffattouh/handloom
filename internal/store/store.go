@@ -176,6 +176,14 @@ CREATE INDEX task_job ON task(job_id);
 ALTER TABLE agent ADD COLUMN job_id INTEGER REFERENCES task(id);
 DROP INDEX agent_one_lead;
 CREATE UNIQUE INDEX agent_one_lead ON agent(project_id, COALESCE(job_id, 0)) WHERE role = 'lead';
+`, `
+-- B2: run tokens. An agent can hold a token (only its hash is stored) that
+-- proves a request comes from the process the link started for it, not from
+-- anything on the device that merely knows its name. The audit log records
+-- how each request was authenticated.
+ALTER TABLE agent ADD COLUMN run_token_hash TEXT;
+ALTER TABLE agent ADD COLUMN run_token_at INTEGER;
+ALTER TABLE audit ADD COLUMN via TEXT NOT NULL DEFAULT '';
 `}
 
 // Open opens (and migrates) the database at path. Use ":memory:" in tests.
@@ -240,6 +248,7 @@ const (
 	PrefixJoin   = "hvj_"
 	PrefixDevice = "hvd_"
 	PrefixHuman  = "hvh_"
+	PrefixRun    = "hvr_" // an agent's run token
 )
 
 // NewToken returns a random token with the given prefix (256 bits of entropy).

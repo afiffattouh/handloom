@@ -21,10 +21,11 @@ import (
 )
 
 type Client struct {
-	HTTP  *http.Client
-	Base  string // hub URL, or http://link for the local socket
-	Token string // bearer token; empty when talking to the link
-	Agent string // sent as Handloom-Agent
+	HTTP     *http.Client
+	Base     string // hub URL, or http://link for the local socket
+	Token    string // bearer token; empty when talking to the link
+	Agent    string // sent as Handloom-Agent
+	RunToken string // the agent's run token, if it has one; sent as Handloom-Run-Token
 }
 
 // Error is an error answer from the hub.
@@ -47,7 +48,11 @@ func Socket(path, agent string) *Client {
 		var d net.Dialer
 		return d.DialContext(ctx, "unix", path)
 	}}
-	return &Client{HTTP: &http.Client{Transport: tr}, Base: "http://link", Agent: agent}
+	c := &Client{HTTP: &http.Client{Transport: tr}, Base: "http://link", Agent: agent}
+	if agent != "" {
+		c.RunToken = LoadRunToken(agent)
+	}
+	return c
 }
 
 func (c *Client) Do(ctx context.Context, method, path string, body, out any) error {
@@ -72,6 +77,9 @@ func (c *Client) Do(ctx context.Context, method, path string, body, out any) err
 	if c.Agent != "" {
 		req.Header.Set(api.AgentHeader, c.Agent)
 		req.Header.Set(api.LegacyAgentHeader, c.Agent) // an older hub reads only this one
+	}
+	if c.RunToken != "" {
+		req.Header.Set(api.RunTokenHeader, c.RunToken)
 	}
 	resp, err := c.HTTP.Do(req)
 	if err != nil {
@@ -193,4 +201,56 @@ func Wait(ctx context.Context, d time.Duration) bool {
 	case <-t.C:
 		return true
 	}
+}
+
+// ---- run tokens ----
+
+// A run token lives in <project>/.handloom/tokens/<agent> (mode 0600), next
+// to the .handloom/agent file that names the agent. Every process the agent
+// runs finds it by walking up from its working directory; the hub checks that
+// it belongs to the agent that is speaking.
+
+func tokenFile(dir, agent string) string {
+	return filepath.Join(dir, ".handloom", "tokens", agent)
+}
+
+// LoadRunToken returns the token for agent from the nearest project directory
+// that has one, or "".
+func LoadRunToken(agent string) string {
+	if agent == "" || strings.ContainsAny(agent, `/\`) {
+		return ""
+	}
+	dir, err := os.Getwd()
+	if err != nil {
+		return ""
+	}
+	for dir != "" {
+		if b, err := os.ReadFile(tokenFile(dir, agent)); err == nil {
+			return strings.TrimSpace(string(b))
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
+		dir = parent
+	}
+	return ""
+}
+
+// SaveRunToken writes the token for agent into dir.
+func SaveRunToken(dir, agent, token string) error {
+	if strings.ContainsAny(agent, `/\`) {
+		return fmt.Errorf("bad agent name %q", agent)
+	}
+	path := tokenFile(dir, agent)
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return err
+	}
+	return os.WriteFile(path, []byte(token+"\n"), 0o600)
+}
+
+// RemoveRunToken deletes the token file for agent in dir.
+func RemoveRunToken(dir, agent string) {
+	os.Remove(tokenFile(dir, agent))
+	os.Remove(filepath.Dir(tokenFile(dir, agent))) // only when empty
 }

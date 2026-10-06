@@ -185,8 +185,12 @@ func (e *env) audit(args []string) error {
 	}
 	e.print(all, func() {
 		for _, r := range all {
-			fmt.Fprintf(e.out, "%5d  %s  %-18s %-18s %-22s %s\n", r.Seq, r.CreatedAt.UTC().Format("15:04:05.000Z"),
-				r.Actor, r.Action, r.Target, string(r.Payload))
+			via := ""
+			if r.Via == "run-token" || r.Via == "device-asserted" {
+				via = "  [" + r.Via + "]" // how an agent was authenticated
+			}
+			fmt.Fprintf(e.out, "%5d  %s  %-18s %-18s %-22s %s%s\n", r.Seq, r.CreatedAt.UTC().Format("15:04:05.000Z"),
+				r.Actor, r.Action, r.Target, string(r.Payload), via)
 		}
 	})
 	return nil
@@ -683,9 +687,15 @@ func (e *env) run(args []string) error {
 	dir, _ := os.Getwd()
 	c := client.Socket(client.SocketPath(), name)
 	var a api.Agent
-	req := api.RegisterReq{Name: name, Kind: *kind, WakeTarget: wakeTarget(), Dir: dir}
+	req := api.RegisterReq{Name: name, Kind: *kind, WakeTarget: wakeTarget(), Dir: dir, RotateToken: true}
 	if err := c.Post("/v1/agents", req, &a); err != nil {
 		return fmt.Errorf("register %s: %w", name, err)
+	}
+	if a.RunToken != "" { // from now on this agent's requests carry it
+		if err := client.SaveRunToken(dir, name, a.RunToken); err != nil {
+			return err
+		}
+		c.RunToken = a.RunToken
 	}
 	if err := c.Post("/v1/agents/"+url.PathEscape(name)+"/state", api.StateReq{State: api.StateIdle}, nil); err != nil {
 		return err

@@ -143,8 +143,13 @@ func (e *env) installAdapter(kind string, spec *adapterSpec, root, name, project
 	// instructions carry the role the human gave it.
 	c := client.Socket(client.SocketPath(), name)
 	var a api.Agent
-	if err := c.Post("/v1/agents", api.RegisterReq{Name: name, Kind: kind, Project: project, Dir: root}, &a); err != nil {
+	if err := c.Post("/v1/agents", api.RegisterReq{Name: name, Kind: kind, Project: project, Dir: root, RotateToken: true}, &a); err != nil {
 		return fmt.Errorf("register %s: %w (is `handloom link run` running on this device?)", name, err)
+	}
+	if a.RunToken != "" {
+		if err := client.SaveRunToken(root, name, a.RunToken); err != nil {
+			return err
+		}
 	}
 
 	// 1. Identity for the CLI and the hooks.
@@ -157,6 +162,7 @@ func (e *env) installAdapter(kind string, spec *adapterSpec, root, name, project
 	removeLegacy(root, spec) // files an install under the old name left behind
 	fmt.Fprintf(e.out, "%s adapter installed in %s for %s (%s, project %s).\n", kind, root, a.Name, a.Role, a.Project)
 	fmt.Fprintf(e.out, "  identity:     %s\n", filepath.Join(root, ".handloom", "agent"))
+	fmt.Fprintf(e.out, "  run token:    %s (mode 0600)\n", filepath.Join(root, ".handloom", "tokens", name))
 
 	// 2. Lifecycle events: native command hooks, or a shim that forwards to
 	// `handloom hook <kind>`. The command is an absolute path, so these files
@@ -248,6 +254,9 @@ func (e *env) removeAdapter(kind string, spec *adapterSpec, root string) error {
 	}
 	if err := writeBlock(filepath.Join(root, spec.instructions), ""); err != nil {
 		return err
+	}
+	if b, err := os.ReadFile(filepath.Join(root, ".handloom", "agent")); err == nil {
+		client.RemoveRunToken(root, strings.TrimSpace(string(b)))
 	}
 	os.Remove(filepath.Join(root, ".handloom", "agent"))
 	os.Remove(filepath.Join(root, ".handloom"))

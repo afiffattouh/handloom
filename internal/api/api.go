@@ -16,6 +16,10 @@ const AgentHeader = "Handloom-Agent"
 // it and clients send it too, so a new binary and an old one still talk.
 const LegacyAgentHeader = "Handloom-Agent"
 
+// RunTokenHeader carries an agent's run token (from its token file, through
+// the link) next to the device credential the link adds.
+const RunTokenHeader = "Handloom-Run-Token"
+
 // AgentFrom returns the calling agent's name from a request, new header first.
 func AgentFrom(h interface{ Get(string) string }) string {
 	if v := h.Get(AgentHeader); v != "" {
@@ -87,8 +91,9 @@ type Agent struct {
 	StateAt      time.Time `json:"state_at"`
 	WakeTarget   string    `json:"wake_target,omitempty"`
 	SessionID    string    `json:"session_id,omitempty"`
-	Dir          string    `json:"dir,omitempty"` // the agent's working directory on its device
-	Job          *int64    `json:"job,omitempty"` // the job this agent belongs to; jobs have their own lead
+	Dir          string    `json:"dir,omitempty"`       // the agent's working directory on its device
+	Job          *int64    `json:"job,omitempty"`       // the job this agent belongs to; jobs have their own lead
+	RunToken     string    `json:"run_token,omitempty"` // only in the answer to a register that asked to rotate it; shown once
 	RegisteredAt time.Time `json:"registered_at"`
 }
 
@@ -160,6 +165,7 @@ type Event struct {
 type AuditRow struct {
 	Seq       int64           `json:"seq"`
 	Actor     string          `json:"actor"`
+	Via       string          `json:"via,omitempty"` // how the actor was authenticated
 	Action    string          `json:"action"`
 	Target    string          `json:"target"`
 	Payload   json.RawMessage `json:"payload"`
@@ -193,6 +199,9 @@ type RegisterReq struct {
 	WakeTarget string `json:"wake_target,omitempty"`
 	SessionID  string `json:"session_id,omitempty"`
 	Dir        string `json:"dir,omitempty"`
+	// RotateToken asks for a new run token, which replaces the old one and is
+	// returned once in the answer. Adapter installs and `run` ask.
+	RotateToken bool `json:"rotate_token,omitempty"`
 }
 
 type RoleReq struct {
@@ -336,7 +345,8 @@ type AnswerReq struct {
 }
 
 type WhoAmI struct {
-	Kind   string `json:"kind"` // admin | human | device
+	Via    string `json:"via,omitempty"` // how the hub knows the agent: run-token | device-asserted
+	Kind   string `json:"kind"`          // admin | human | device
 	Name   string `json:"name,omitempty"`
 	Device string `json:"device,omitempty"`
 	Agent  *Agent `json:"agent,omitempty"`

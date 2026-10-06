@@ -102,17 +102,20 @@ func TestAlive(t *testing.T) {
 		}
 	}
 	ctx := context.Background()
-	if !(&Tmux{Run: run(false, "%3\n")}).Alive(ctx, "/tmp/tmux-0/default:%3") {
+	if !(&Tmux{Run: run(false, "%3 0\n")}).Alive(ctx, "/tmp/tmux-0/default:%3") {
 		t.Fatal("a pane that answers is not alive")
 	}
-	if want := "tmux -S /tmp/tmux-0/default display-message -p -t %3 #{pane_id}"; strings.Join(got[0], " ") != want {
+	if want := "tmux -S /tmp/tmux-0/default display-message -p -t %3 #{pane_id} #{pane_dead}"; strings.Join(got[0], " ") != want {
 		t.Fatalf("tmux command %q, want %q", strings.Join(got[0], " "), want)
 	}
 	// tmux answers an empty line, with success, for a pane that is gone.
 	if (&Tmux{Run: run(false, "\n")}).Alive(ctx, "/tmp/tmux-0/default:%3") {
 		t.Fatal("an empty answer counts as alive")
 	}
-	if (&Tmux{Run: run(false, "%4\n")}).Alive(ctx, "/tmp/tmux-0/default:%3") {
+	if (&Tmux{Run: run(false, "%3 1\n")}).Alive(ctx, "/tmp/tmux-0/default:%3") {
+		t.Fatal("a dead pane kept on screen counts as alive")
+	}
+	if (&Tmux{Run: run(false, "%4 0\n")}).Alive(ctx, "/tmp/tmux-0/default:%3") {
 		t.Fatal("another pane's answer counts as alive")
 	}
 	if (&Tmux{Run: run(true, "no server")}).Alive(ctx, "/tmp/tmux-0/default:%3") {

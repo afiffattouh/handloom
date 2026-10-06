@@ -32,15 +32,15 @@ func CodexArgv(s *Spec, model, bin, home, name string) []string {
 		argv = append(argv, "--model", model)
 	}
 	argv = append(argv,
-		"-c", "mcp_servers.handloom.command="+tomlString(bin),
+		"-c", "mcp_servers.handloom.command="+TOMLString(bin),
 		"-c", `mcp_servers.handloom.args=["mcp"]`,
 		"-c", `mcp_servers.handloom.default_tools_approval_mode="approve"`,
-		"-c", "mcp_servers.handloom.env={HANDLOOM_HOME="+tomlString(home)+",HANDLOOM_AGENT="+tomlString(name)+"}")
+		"-c", "mcp_servers.handloom.env={HANDLOOM_HOME="+TOMLString(home)+",HANDLOOM_AGENT="+TOMLString(name)+"}")
 	return argv
 }
 
-// tomlString quotes s as a TOML basic string.
-func tomlString(s string) string {
+// TOMLString quotes s as a TOML basic string.
+func TOMLString(s string) string {
 	var b strings.Builder
 	b.WriteByte('"')
 	for _, r := range s {

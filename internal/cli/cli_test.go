@@ -830,3 +830,33 @@ func TestSpawnExecStartsCodexThroughMCP(t *testing.T) {
 		t.Fatalf("spawn: %+v", s)
 	}
 }
+
+func TestTrustCodexDir(t *testing.T) {
+	codex := filepath.Join(t.TempDir(), ".codex")
+	t.Setenv("CODEX_HOME", codex)
+	// Codex has never run on this machine: nothing to do, nothing created.
+	if err := trustCodexDir("/w/a"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(codex); err == nil {
+		t.Fatal("created a Codex directory that was not there")
+	}
+	os.MkdirAll(codex, 0o700)
+	os.WriteFile(filepath.Join(codex, "config.toml"), []byte("personality = \"pragmatic\"\n[projects.\"/root\"]\ntrust_level = \"trusted\""), 0o600)
+	for i := 0; i < 2; i++ { // twice: the second time changes nothing
+		if err := trustCodexDir("/w/a\"b"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	b, _ := os.ReadFile(filepath.Join(codex, "config.toml"))
+	text := string(b)
+	if !strings.Contains(text, "personality = \"pragmatic\"") || !strings.Contains(text, `[projects."/root"]`) {
+		t.Fatalf("existing settings were changed:\n%s", text)
+	}
+	if strings.Count(text, `[projects."/w/a\"b"]`) != 1 || !strings.Contains(text, "trust_level = \"trusted\"\n") {
+		t.Fatalf("the directory was not trusted exactly once:\n%s", text)
+	}
+	if st, _ := os.Stat(filepath.Join(codex, "config.toml")); st.Mode().Perm() != 0o600 {
+		t.Fatalf("mode %v", st.Mode().Perm())
+	}
+}

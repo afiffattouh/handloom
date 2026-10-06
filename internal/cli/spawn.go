@@ -192,6 +192,9 @@ func (e *env) spawnExec(args []string) error {
 			}
 		}
 		argv = profile.CodexArgv(ps, s.Model, bin, client.Home(), s.Name)
+		if err := trustCodexDir(dir); err != nil {
+			fmt.Fprintf(e.err, "handloom: could not pre-approve %s for Codex (%v); it may ask\n", dir, err)
+		}
 	default:
 		return fail(fmt.Errorf("cannot start %q agents yet", s.Kind))
 	}
@@ -271,6 +274,48 @@ func trustClaudeDir(dir string) error {
 	}
 	tmp := path + ".handloom-tmp"
 	if err := os.WriteFile(tmp, out, st.Mode().Perm()); err != nil {
+		return err
+	}
+	return os.Rename(tmp, path)
+}
+
+// trustCodexDir answers Codex's "trust this folder?" question in advance for
+// the directory the link made, the way Codex itself records the answer: a
+// [projects."<dir>"] section in config.toml. Without it a fresh work directory
+// stops Codex at that question, and the first thing typed into it (the
+// link's nudge) would answer it by accident. Nothing else in the file is touched.
+func trustCodexDir(dir string) error {
+	home := os.Getenv("CODEX_HOME")
+	if home == "" {
+		h, err := os.UserHomeDir()
+		if err != nil {
+			return err
+		}
+		home = filepath.Join(h, ".codex")
+	}
+	if st, err := os.Stat(home); err != nil || !st.IsDir() {
+		return nil // Codex has never run here
+	}
+	path := filepath.Join(home, "config.toml")
+	raw, err := os.ReadFile(path)
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	header := "[projects." + profile.TOMLString(dir) + "]"
+	if strings.Contains(string(raw), header) {
+		return nil
+	}
+	text := string(raw)
+	if text != "" && !strings.HasSuffix(text, "\n") {
+		text += "\n"
+	}
+	text += "\n" + header + "\ntrust_level = \"trusted\"\n"
+	mode := os.FileMode(0o600)
+	if st, err := os.Stat(path); err == nil {
+		mode = st.Mode().Perm()
+	}
+	tmp := path + ".handloom-tmp"
+	if err := os.WriteFile(tmp, []byte(text), mode); err != nil {
 		return err
 	}
 	return os.Rename(tmp, path)

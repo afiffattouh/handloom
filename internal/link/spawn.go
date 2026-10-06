@@ -91,8 +91,13 @@ func (l *Link) launch(ctx context.Context, s api.Spawn) error {
 		return l.opt.Tmux(ctx, "tmux", append([]string{"-L", l.opt.TmuxSocket}, args...)...)
 	}
 	if _, err := tmux("has-session", "-t", "handloom"); err != nil {
-		_, err = tmux("new-session", "-d", "-s", "handloom", "-n", s.Name, "-c", dir, "-x", "200", "-y", "50", cmd)
-		return err
+		if _, err = tmux("new-session", "-d", "-s", "handloom", "-n", s.Name, "-c", dir, "-x", "200", "-y", "50", cmd); err != nil {
+			return err
+		}
+		// An agent CLI that dies with an error leaves its last screen behind
+		// (a dead pane) instead of vanishing, so the reason can be read.
+		tmux("set-option", "-g", "remain-on-exit", "failed")
+		return nil
 	}
 	_, err := tmux("new-window", "-d", "-t", "handloom:", "-n", s.Name, "-c", dir, cmd)
 	return err

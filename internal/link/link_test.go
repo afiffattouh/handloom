@@ -657,7 +657,7 @@ func TestLinkStartsASpawnInItsOwnTmux(t *testing.T) {
 	s1 := f.requestSpawn("alpha", 0)
 	f.ladder()
 	calls := tl.all()
-	if len(calls) != 2 || !strings.HasPrefix(calls[0], "tmux -L hltest-spawn has-session") {
+	if len(calls) != 3 || !strings.HasPrefix(calls[0], "tmux -L hltest-spawn has-session") || !strings.Contains(calls[2], "remain-on-exit failed") {
 		t.Fatalf("tmux calls: %q", calls)
 	}
 	first := calls[1]

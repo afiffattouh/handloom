@@ -117,7 +117,9 @@ func (c *call) digest() (*api.Digest, error) {
 		ready = append(ready, api.DigestItem{Kind: "job-done", ID: id, Title: title, Detail: "Every task is done. Look over the result, then close the job.", At: at})
 	}
 	jrows.Close()
-	d.ToReview = append(ready, d.ToReview...)
+	if len(ready) > 0 {
+		d.ToReview = append(ready, d.ToReview...)
+	}
 
 	// Agents, and a silent lead.
 	extra, ex = scope("a")

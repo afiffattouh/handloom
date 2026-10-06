@@ -2,6 +2,8 @@ package hub
 
 import (
 	"fmt"
+	"io"
+	"net/http"
 	"net/url"
 	"strings"
 	"testing"
@@ -191,5 +193,21 @@ func TestResumeAndCancelFromTheJobPage(t *testing.T) {
 	e.apiOK(e.admin, "", "GET", fmt.Sprintf("/v1/jobs/%d", j.ID), nil, &got)
 	if got.Status != "cancelled" || got.Tasks.Cancelled != 1 {
 		t.Fatalf("job: %+v", got)
+	}
+}
+
+// The digest is for clients that read JSON: lists are lists, never null.
+func TestTheDigestHasNoNullLists(t *testing.T) {
+	e := newWebEnv(t, Options{})
+	req, _ := http.NewRequest("GET", e.srv.URL+"/v1/digest", nil)
+	req.Header.Set("Authorization", "Bearer "+e.admin)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	raw, _ := io.ReadAll(resp.Body)
+	if strings.Contains(string(raw), "null") {
+		t.Fatalf("null in the digest: %s", raw)
 	}
 }

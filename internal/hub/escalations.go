@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"handloom/internal/api"
+	"handloom/internal/notify"
 	"handloom/internal/store"
 )
 
@@ -158,6 +159,9 @@ func escalationOpen(c *call) (any, error) {
 	if err := c.record(a.projectID, 0, "escalation.open", e.target(), map[string]any{"from": a.name, "task_id": req.TaskID}); err != nil {
 		return nil, err
 	}
+	// The push says only that the lead has a question. The question stays on the hub.
+	c.tell(notify.Notification{Kind: notify.KindEscalation, Title: "Handloom: the lead needs you",
+		Text: "The lead has a question for you. Open the inbox to answer."})
 	return e.api(), nil
 }
 

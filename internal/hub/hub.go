@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"handloom/internal/api"
+	"handloom/internal/notify"
 	"handloom/internal/store"
 )
 
@@ -29,6 +30,8 @@ type Options struct {
 	Sweep     time.Duration    // how often expired leases are collected; default 5 seconds
 	Unclaimed time.Duration    // tell the lead when an assigned task stays unclaimed this long; default 10 minutes
 	MsgRate   int              // messages per minute per sender; default 60
+	Notifier  notify.Notifier  // tells the human about escalations; nil means nobody is told
+	BaseURL   string           // public URL of the hub, for links in notifications
 	Now       func() time.Time // clock, replaceable in tests
 	Log       *log.Logger
 }
@@ -100,7 +103,36 @@ func (h *Hub) Sweep() error {
 	if c.events {
 		h.wake()
 	}
+	c.runAfter()
 	return nil
+}
+
+func (c *call) runAfter() {
+	for _, f := range c.after {
+		f()
+	}
+}
+
+// tell sends a notification after the request commits. It never blocks the
+// request and a failure is logged, not returned: the escalation is stored
+// either way and shows in the inbox.
+func (c *call) tell(n notify.Notification) {
+	h := c.h
+	if h.opt.Notifier == nil {
+		return
+	}
+	if h.opt.BaseURL != "" && n.Link == "" {
+		n.Link = strings.TrimRight(h.opt.BaseURL, "/") + "/inbox"
+	}
+	c.after = append(c.after, func() {
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+			if err := h.opt.Notifier.Notify(ctx, n); err != nil {
+				h.opt.Log.Printf("notify %s: %v", n.Kind, err)
+			}
+		}()
+	})
 }
 
 func (h *Hub) Handler() http.Handler {
@@ -239,7 +271,8 @@ type call struct {
 	p      *principal
 	r      *http.Request
 	now    time.Time
-	events bool // events were written; wake long-pollers after commit
+	events bool     // events were written; wake long-pollers after commit
+	after  []func() // run after a successful commit, never inside the transaction
 }
 
 func (h *Hub) handle(fn func(*call) (any, error)) http.HandlerFunc {
@@ -270,6 +303,7 @@ func (h *Hub) handle(fn func(*call) (any, error)) http.HandlerFunc {
 		if c.events {
 			h.wake()
 		}
+		c.runAfter()
 		writeJSON(w, 200, out)
 	}
 }

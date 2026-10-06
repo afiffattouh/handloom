@@ -2,6 +2,7 @@ package hub
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -13,6 +14,7 @@ import (
 	"time"
 
 	"handloom/internal/api"
+	"handloom/internal/notify"
 	"handloom/internal/store"
 )
 
@@ -1092,4 +1094,55 @@ func TestEscalationValidation(t *testing.T) {
 	// Free text is allowed when no options are given.
 	e.ok(e.lead(), "POST", "/v1/escalations", api.AskReq{Question: "Which name?"}, nil)
 	e.ok(e.afif(), "POST", "/v1/escalations/1/answer", api.AnswerReq{Answer: "Handloom"}, nil)
+}
+
+// fakeNotifier records notifications.
+type fakeNotifier struct {
+	mu  sync.Mutex
+	got []notify.Notification
+	ch  chan struct{}
+}
+
+func newFakeNotifier() *fakeNotifier { return &fakeNotifier{ch: make(chan struct{}, 8)} }
+
+func (f *fakeNotifier) Notify(_ context.Context, n notify.Notification) error {
+	f.mu.Lock()
+	f.got = append(f.got, n)
+	f.mu.Unlock()
+	f.ch <- struct{}{}
+	return nil
+}
+
+// A new escalation notifies the human once, with a link and without the question.
+func TestEscalationNotifiesWithoutContent(t *testing.T) {
+	e := newEnv(t)
+	f := newFakeNotifier()
+	e.hub.opt.Notifier = f
+	e.hub.opt.BaseURL = "https://handloom.example.com/"
+	secret := "Should we fire the contractor named Smith?"
+	e.ok(e.lead(), "POST", "/v1/escalations", api.AskReq{Question: secret}, nil)
+	select {
+	case <-f.ch:
+	case <-time.After(3 * time.Second):
+		t.Fatal("no notification")
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if len(f.got) != 1 {
+		t.Fatalf("%d notifications", len(f.got))
+	}
+	n := f.got[0]
+	if n.Kind != notify.KindEscalation || n.Link != "https://handloom.example.com/inbox" {
+		t.Fatalf("notification: %+v", n)
+	}
+	if strings.Contains(n.Title+n.Text, "Smith") || strings.Contains(n.Title+n.Text, "contractor") {
+		t.Fatalf("the notification leaks the question: %+v", n)
+	}
+	// A rejected ask notifies nobody.
+	e.fail(403, e.worker(), "POST", "/v1/escalations", api.AskReq{Question: "x"})
+	select {
+	case <-f.ch:
+		t.Fatal("a rejected ask sent a notification")
+	case <-time.After(200 * time.Millisecond):
+	}
 }

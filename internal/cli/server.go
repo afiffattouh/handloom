@@ -16,6 +16,7 @@ import (
 	"handloom/internal/client"
 	"handloom/internal/hub"
 	"handloom/internal/link"
+	"handloom/internal/notify"
 	"handloom/internal/store"
 )
 
@@ -86,7 +87,12 @@ func (e *env) hub(args []string) error {
 		}
 		defer db.Close()
 		logger := log.New(e.err, "hub ", log.LstdFlags)
-		h := hub.New(db, hub.Options{Lease: *lease, Sweep: *sweep, Unclaimed: *unclaimed, Log: logger})
+		notifier, err := notifierFromEnv()
+		if err != nil {
+			return err
+		}
+		h := hub.New(db, hub.Options{Lease: *lease, Sweep: *sweep, Unclaimed: *unclaimed, Log: logger,
+			Notifier: notifier, BaseURL: os.Getenv("HANDLOOM_BASE_URL")})
 		ln, err := net.Listen("tcp", *addr)
 		if err != nil {
 			return err
@@ -108,6 +114,30 @@ func (e *env) hub(args []string) error {
 		return nil
 	}
 	return usageErr("usage: handloom hub init|serve|install|uninstall")
+}
+
+// notifierFromEnv reads the notification settings. Secrets stay out of argv:
+// HANDLOOM_NTFY_URL, HANDLOOM_NTFY_TOPIC, HANDLOOM_NTFY_TOKEN, HANDLOOM_WEBHOOK_URL.
+func notifierFromEnv() (notify.Notifier, error) {
+	var m notify.Multi
+	if u := os.Getenv("HANDLOOM_NTFY_URL"); u != "" {
+		n, err := notify.NewNtfy(u, os.Getenv("HANDLOOM_NTFY_TOPIC"), os.Getenv("HANDLOOM_NTFY_TOKEN"))
+		if err != nil {
+			return nil, err
+		}
+		m = append(m, n)
+	}
+	if u := os.Getenv("HANDLOOM_WEBHOOK_URL"); u != "" {
+		w, err := notify.NewWebhook(u)
+		if err != nil {
+			return nil, err
+		}
+		m = append(m, w)
+	}
+	if len(m) == 0 {
+		return nil, nil
+	}
+	return m, nil
 }
 
 func (e *env) link(args []string) error {

@@ -1,5 +1,7 @@
 # Report: handloom M0, M1 and M2
 
+> **Naming:** this file was written when the project was called handloom. The product is now **Handloom** (command `handloom`, short alias `hl`). In the code, the wire and the settings, `handloom` still works: `HANDLOOM_*` environment variables, the `Handloom-Agent` header, `.handloom/agent`, `handloom.db`, `~/.config/handloom`, the `handloom_*` MCP tool names and a `handloom` symlink to the binary are all accepted, and the new names win. Read `handloom` below as `handloom`.
+
 Date: 2026-10-03. Builder: Claude Code on GB10.
 
 ## Status

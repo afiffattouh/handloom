@@ -136,7 +136,7 @@ func (l *Link) handler() http.Handler {
 		},
 		ModifyResponse: func(resp *http.Response) error {
 			req := resp.Request
-			agent := req.Header.Get(api.AgentHeader)
+			agent := api.AgentFrom(req.Header)
 			if resp.StatusCode == 200 && req.Method == "GET" && req.URL.Path == "/v1/inbox" && req.URL.Query().Get("all") == "" {
 				l.sawInbox(agent)
 			}
@@ -154,7 +154,7 @@ func (l *Link) handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.Handle("/v1/", proxy)
 	mux.HandleFunc("POST /local/activity", func(w http.ResponseWriter, r *http.Request) {
-		go l.activity(r.Header.Get(api.AgentHeader))
+		go l.activity(api.AgentFrom(r.Header))
 		w.Write([]byte("{}\n"))
 	})
 	mux.HandleFunc("GET /local/status", func(w http.ResponseWriter, r *http.Request) {

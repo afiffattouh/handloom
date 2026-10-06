@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"handloom/internal/setting"
 	"net/url"
 	"os"
 	"os/exec"
@@ -34,7 +35,7 @@ func (e *env) device(args []string) error {
 		}
 		e.print(tok, func() {
 			fmt.Fprintf(e.out, "Device %s added. One-time join token:\n%s\n\nOn that device run:\n  handloom link join %s %s\n",
-				tok.Name, tok.Token, os.Getenv("HANDLOOM_HUB"), tok.Token)
+				tok.Name, tok.Token, setting.Get("HUB"), tok.Token)
 		})
 	case pos[0] == "list" && len(pos) == 1:
 		var devices []api.Device
@@ -202,7 +203,7 @@ func (e *env) register(args []string) error {
 		if a.WakeTarget != "" {
 			fmt.Fprintf(e.out, "Wake target: %s\n", a.WakeTarget)
 		}
-		if os.Getenv("HANDLOOM_AGENT") != a.Name {
+		if setting.Get("AGENT") != a.Name {
 			fmt.Fprintf(e.out, "In this shell run: export HANDLOOM_AGENT=%s\n", a.Name)
 		}
 	})
@@ -558,5 +559,6 @@ func (e *env) run(args []string) error {
 		return err
 	}
 	os.Setenv("HANDLOOM_AGENT", name)
+	os.Setenv("HANDLOOM_AGENT", name) // an old hook or script in the agent still reads the old name
 	return syscall.Exec(path, command, os.Environ())
 }

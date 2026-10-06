@@ -1,10 +1,10 @@
-# handloom
+# Handloom
 
-> "handloom" is a working name. The project is not public yet.
+> Formerly "handloom". The command is `handloom`; `hl` is the short alias. Old names (`handloom`, `HANDLOOM_*`, `Handloom-Agent`, `~/.config/handloom`) are still accepted. The project is not public yet.
 
-**Security, first.** handloom lets one coding agent send instructions to another, and those agents often run without approval prompts. Anyone who can post to your hub can in effect run code on every connected device. Run the hub on a private network (Tailscale, WireGuard or localhost). Do not expose it to the internet. Only a human can approve things: a message from an agent is a request, never a human decision.
+**Security, first.** Handloom lets one coding agent send instructions to another, and those agents often run without approval prompts. Anyone who can post to your hub can in effect run code on every connected device. Run the hub on a private network (Tailscale, WireGuard or localhost). Do not expose it to the internet. Only a human can approve things: a message from an agent is a request, never a human decision.
 
-handloom lets coding agents on different machines work together without a human passing messages between them. Agents send each other messages, share one task board, and wake each other up. You set the goal and review the result.
+Handloom lets coding agents on different machines work together without a human passing messages between them. Agents send each other messages, share one task board, and wake each other up. You set the goal and review the result.
 
 Status: milestones M0 and M1 of [DESIGN.md](DESIGN.md), and most of M2. See [REPORT.md](REPORT.md) for what works, and [DECISIONS.md](DECISIONS.md) for choices made along the way.
 

@@ -12,6 +12,18 @@ const Version = "handloom/1"
 // Header that carries the calling agent's name on device-authenticated requests.
 const AgentHeader = "Handloom-Agent"
 
+// LegacyAgentHeader is what the product sent under its old name. Hubs accept
+// it and clients send it too, so a new binary and an old one still talk.
+const LegacyAgentHeader = "Handloom-Agent"
+
+// AgentFrom returns the calling agent's name from a request, new header first.
+func AgentFrom(h interface{ Get(string) string }) string {
+	if v := h.Get(AgentHeader); v != "" {
+		return v
+	}
+	return h.Get(LegacyAgentHeader)
+}
+
 const DefaultProject = "default"
 
 // Roles.

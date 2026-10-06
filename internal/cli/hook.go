@@ -3,6 +3,7 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	"handloom/internal/setting"
 	"io"
 	"net/url"
 	"os"
@@ -68,7 +69,7 @@ func hookLog(format string, args ...any) {
 // wakeTarget says where this agent can be woken: its terminal, or, for an
 // agent started with HANDLOOM_HEADLESS=1, a headless turn on its session.
 func wakeTarget() string {
-	if os.Getenv("HANDLOOM_HEADLESS") != "" {
+	if setting.Get("HEADLESS") != "" {
 		return link.HeadlessTarget
 	}
 	return drivers.Detect()

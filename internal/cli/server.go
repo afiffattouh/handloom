@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"fmt"
+	"handloom/internal/setting"
 	"log"
 	"net"
 	"net/http"
@@ -25,10 +26,26 @@ func dataDir(flagValue string) string {
 	if flagValue != "" {
 		return flagValue
 	}
-	if d := os.Getenv("HANDLOOM_DATA"); d != "" {
+	if d := setting.Get("DATA"); d != "" {
 		return d
 	}
+	if _, err := os.Stat("handloom-data"); err != nil {
+		if _, oldErr := os.Stat("handloom-data"); oldErr == nil {
+			return "handloom-data" // a data directory made under the old name
+		}
+	}
 	return "handloom-data"
+}
+
+// dbFile is the database in dir. A hub created under the old name has
+// handloom.db; it keeps using it. New hubs get handloom.db.
+func dbFile(dir string) string {
+	if _, err := os.Stat(filepath.Join(dir, "handloom.db")); err != nil {
+		if _, oldErr := os.Stat(filepath.Join(dir, "handloom.db")); oldErr == nil {
+			return filepath.Join(dir, "handloom.db")
+		}
+	}
+	return filepath.Join(dir, "handloom.db")
 }
 
 func (e *env) hub(args []string) error {
@@ -38,7 +55,7 @@ func (e *env) hub(args []string) error {
 	}
 	fs := e.flags("hub " + sub)
 	data := fs.String("data", "", "data directory (default $HANDLOOM_DATA or ./handloom-data)")
-	defAddr := os.Getenv("HANDLOOM_ADDR")
+	defAddr := setting.Get("ADDR")
 	if defAddr == "" {
 		defAddr = "127.0.0.1:7420"
 	}
@@ -58,7 +75,7 @@ func (e *env) hub(args []string) error {
 		return usageErr("usage: handloom hub %s takes no arguments", sub)
 	}
 	dir := dataDir(*data)
-	dbPath := filepath.Join(dir, "handloom.db")
+	dbPath := dbFile(dir)
 
 	switch sub {
 	case "install":
@@ -66,7 +83,7 @@ func (e *env) hub(args []string) error {
 		if err != nil {
 			return err
 		}
-		if _, err := os.Stat(filepath.Join(abs, "handloom.db")); err != nil {
+		if _, err := os.Stat(dbFile(abs)); err != nil {
 			return fmt.Errorf("no database in %s: run `handloom hub init --data %s` first", abs, abs)
 		}
 		return e.installService(service{
@@ -166,14 +183,14 @@ func (e *env) hub(args []string) error {
 			return err
 		}
 		h := hub.New(db, hub.Options{Lease: *lease, Sweep: *sweep, Unclaimed: *unclaimed, Log: logger,
-			Notifier: notifier, BaseURL: os.Getenv("HANDLOOM_BASE_URL"),
-			Insecure: envBool("HANDLOOM_INSECURE"), TrustProxy: envBool("HANDLOOM_TRUST_PROXY"), NtfyToken: os.Getenv("HANDLOOM_NTFY_TOKEN")})
+			Notifier: notifier, BaseURL: setting.Get("BASE_URL"),
+			Insecure: setting.Bool("INSECURE"), TrustProxy: setting.Bool("TRUST_PROXY"), NtfyToken: setting.Get("NTFY_TOKEN")})
 		if ok, why := h.WebEnabled(); !ok {
 			logger.Printf("web UI is off: %s", why)
 		} else if code, err := h.PrepareSetup(); err != nil {
 			return err
 		} else if code != "" {
-			logger.Printf("this hub has no owner yet. Open %s/setup and enter the setup code: %s", strings.TrimRight(os.Getenv("HANDLOOM_BASE_URL"), "/"), code)
+			logger.Printf("this hub has no owner yet. Open %s/setup and enter the setup code: %s", strings.TrimRight(setting.Get("BASE_URL"), "/"), code)
 		}
 		ln, err := net.Listen("tcp", *addr)
 		if err != nil {
@@ -205,14 +222,14 @@ func (e *env) hub(args []string) error {
 // HANDLOOM_NTFY_URL, HANDLOOM_NTFY_TOPIC, HANDLOOM_NTFY_TOKEN, HANDLOOM_WEBHOOK_URL.
 func notifierFromEnv() (notify.Notifier, error) {
 	var m notify.Multi
-	if u := os.Getenv("HANDLOOM_NTFY_URL"); u != "" {
-		n, err := notify.NewNtfy(u, os.Getenv("HANDLOOM_NTFY_TOPIC"), os.Getenv("HANDLOOM_NTFY_TOKEN"))
+	if u := setting.Get("NTFY_URL"); u != "" {
+		n, err := notify.NewNtfy(u, setting.Get("NTFY_TOPIC"), setting.Get("NTFY_TOKEN"))
 		if err != nil {
 			return nil, err
 		}
 		m = append(m, n)
 	}
-	if u := os.Getenv("HANDLOOM_WEBHOOK_URL"); u != "" {
+	if u := setting.Get("WEBHOOK_URL"); u != "" {
 		w, err := notify.NewWebhook(u)
 		if err != nil {
 			return nil, err
@@ -223,14 +240,6 @@ func notifierFromEnv() (notify.Notifier, error) {
 		return nil, nil
 	}
 	return m, nil
-}
-
-func envBool(name string) bool {
-	switch strings.ToLower(os.Getenv(name)) {
-	case "1", "true", "yes", "on":
-		return true
-	}
-	return false
 }
 
 func (e *env) link(args []string) error {
@@ -321,7 +330,7 @@ func (e *env) healthcheck(args []string) error {
 	}
 	a := *addr
 	if a == "" {
-		a = os.Getenv("HANDLOOM_ADDR")
+		a = setting.Get("ADDR")
 	}
 	if a == "" {
 		a = "127.0.0.1:7420"

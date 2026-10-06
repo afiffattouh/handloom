@@ -7,6 +7,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"handloom/internal/setting"
 	"io"
 	"os"
 	"path/filepath"
@@ -227,15 +228,17 @@ func (l *listFlag) Set(v string) error { *l = append(*l, v); return nil }
 // AgentName finds the calling agent: $HANDLOOM_AGENT, or the nearest .handloom/agent
 // file from dir upward.
 func AgentName(dir string) string {
-	if a := os.Getenv("HANDLOOM_AGENT"); a != "" {
+	if a := setting.Get("AGENT"); a != "" {
 		return a
 	}
 	if dir == "" {
 		dir, _ = os.Getwd()
 	}
 	for dir != "" {
-		if b, err := os.ReadFile(filepath.Join(dir, ".handloom", "agent")); err == nil {
-			return strings.TrimSpace(string(b))
+		for _, d := range []string{".handloom", ".handloom"} { // the old directory still identifies old installs
+			if b, err := os.ReadFile(filepath.Join(dir, d, "agent")); err == nil {
+				return strings.TrimSpace(string(b))
+			}
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
@@ -249,8 +252,8 @@ func AgentName(dir string) string {
 // conn picks how to reach the hub: directly with HANDLOOM_TOKEN (admin or
 // human), or through the local link as an agent.
 func conn() (*client.Client, error) {
-	if tok := os.Getenv("HANDLOOM_TOKEN"); tok != "" {
-		hub := os.Getenv("HANDLOOM_HUB")
+	if tok := setting.Get("TOKEN"); tok != "" {
+		hub := setting.Get("HUB")
 		if hub == "" {
 			return nil, fmt.Errorf("HANDLOOM_TOKEN is set but HANDLOOM_HUB is not")
 		}

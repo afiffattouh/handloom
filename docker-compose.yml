@@ -1,9 +1,9 @@
-# Handloom hub (still named handloom in the code). Works with plain
+# Handloom hub. Works with plain
 # `docker compose up -d` and as a Dokploy "Compose" application.
 #
 # Behind a proxy (Dokploy/Traefik, Caddy, nginx): set the domain and the
 # container port 7420 in the proxy, and leave HANDLOOM_PUBLISH as is.
-# Without a proxy on a private network: HANDLOOM_PUBLISH=0.0.0.0 (handloom speaks
+# Without a proxy on a private network: HANDLOOM_PUBLISH=0.0.0.0 (Handloom speaks
 # plain HTTP; do not expose that to the internet).
 services:
   handloom:

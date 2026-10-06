@@ -107,6 +107,11 @@ func (e *env) installService(s service) error {
 	if err != nil {
 		return err
 	}
+	// A service installed under the old name (handloom-hub, handloom-link) would
+	// fight the new one for the port and the socket: replace it.
+	if err := e.removeLegacyService(s.name); err != nil {
+		return err
+	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
@@ -139,7 +144,32 @@ func (e *env) installService(s service) error {
 	return nil
 }
 
+// removeLegacyService stops and removes the unit the product installed under
+// its old name, if there is one.
+func (e *env) removeLegacyService(name string) error {
+	old := strings.Replace(name, "handloom", "handloom", 1)
+	if old == name {
+		return nil
+	}
+	path, system, err := unitPath(old)
+	if err != nil {
+		return err
+	}
+	if _, err := os.Stat(path); err != nil {
+		return nil
+	}
+	systemctl(system, "disable", "--now", old)
+	if err := os.Remove(path); err != nil {
+		return err
+	}
+	fmt.Fprintf(e.out, "Replaced the old service %s (%s) by %s.\n", old, path, name)
+	return systemctl(system, "daemon-reload")
+}
+
 func (e *env) uninstallService(name string) error {
+	if err := e.removeLegacyService(name); err != nil {
+		return err
+	}
 	path, system, err := unitPath(name)
 	if err != nil {
 		return err

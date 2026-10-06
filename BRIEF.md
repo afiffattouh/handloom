@@ -1,5 +1,7 @@
 # Build brief: handloom, milestones M0 and M1
 
+> **Naming:** this file was written when the project was called handloom. The product is now **Handloom** (command `handloom`, short alias `hl`). In the code, the wire and the settings, `handloom` still works: `HANDLOOM_*` environment variables, the `Handloom-Agent` header, `.handloom/agent`, `handloom.db`, `~/.config/handloom`, the `handloom_*` MCP tool names and a `handloom` symlink to the binary are all accepted, and the new names win. Read `handloom` below as `handloom`.
+
 You are building the first two milestones of handloom, an open-source tool that lets coding agents on different machines coordinate without a human relaying messages.
 
 ## Read first

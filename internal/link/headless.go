@@ -12,6 +12,7 @@ import (
 
 	"handloom/internal/api"
 	"handloom/internal/client"
+	"handloom/internal/setting"
 )
 
 // HeadlessTarget is the wake target of an agent that has no terminal: it is
@@ -97,7 +98,7 @@ func execHeadless(ctx context.Context, agent, dir string, argv []string) (func()
 	cmd.Dir = dir
 	cmd.Stdout, cmd.Stderr = logFile, logFile
 	// The agent's hooks must know who they are and that no terminal exists.
-	cmd.Env = append(os.Environ(), "HANDLOOM_AGENT="+agent, "HANDLOOM_HEADLESS=1")
+	cmd.Env = append(append(os.Environ(), setting.Both("AGENT", agent)...), setting.Both("HEADLESS", "1")...)
 	if err := cmd.Start(); err != nil {
 		logFile.Close()
 		return nil, err

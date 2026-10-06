@@ -107,6 +107,10 @@ install_binary() {
   fi
   on "mkdir -p $(q "$BIN_DIR")"
   put "$file" "$HANDLOOM_BIN"
+  # The product used to be called handloom: agents, hooks and scripts installed
+  # under that name keep working through a symlink. `hl` is the short name,
+  # unless something else already owns it.
+  on "cd $(q "$BIN_DIR") && ln -sf handloom handloom && if [ -e hl ] && [ \"\$(readlink -f hl)\" != \"\$(readlink -f handloom)\" ]; then echo 'Note: hl already exists here; not replacing it.'; else ln -sf handloom hl; fi"
   echo "$HANDLOOM_BIN: $(on "$(q "$HANDLOOM_BIN" version)")"
   on "command -v handloom >/dev/null 2>&1" ||
     echo "Note: $BIN_DIR is not on the PATH of a login shell on $HOST. Agents call \`handloom\`, so add it: export PATH=$BIN_DIR:\$PATH"
@@ -122,7 +126,9 @@ case "$MODE" in
 hub)
   install_binary
   if [ -z "$DATA" ]; then
-    if [ "$REMOTE_UID" = 0 ]; then DATA=/var/lib/handloom; else DATA="$REMOTE_HOME/.local/share/handloom"; fi
+    if [ "$REMOTE_UID" = 0 ]; then DATA=/var/lib/handloom; OLD=/var/lib/handloom; else DATA="$REMOTE_HOME/.local/share/handloom"; OLD="$REMOTE_HOME/.local/share/handloom"; fi
+    # A hub made under the old name keeps its data where it is.
+    if ! on "test -d $(q "$DATA")" && on "test -d $(q "$OLD")"; then DATA="$OLD"; echo "Using the existing data directory $OLD."; fi
   fi
   if [ -z "$ADDR" ]; then
     ip="$(on 'tailscale ip -4 2>/dev/null | head -1' || true)"
@@ -134,7 +140,7 @@ hub)
     fi
   fi
   say "hub database in $DATA"
-  if on "test -f $(q "$DATA/handloom.db")"; then
+  if on "test -f $(q "$DATA/handloom.db") || test -f $(q "$DATA/handloom.db")"; then
     echo "A database is already there; keeping it. The admin token was printed when it was created."
   else
     on "$(q "$HANDLOOM_BIN" hub init --data "$DATA")"
@@ -168,7 +174,7 @@ device)
   echo "reachable from $HOST: $health"
 
   say "join"
-  if [ -z "$REJOIN" ] && on 'test -f "${HANDLOOM_HOME:-$HOME/.config/handloom}/link.json"'; then
+  if [ -z "$REJOIN" ] && on 'test -f "${HANDLOOM_HOME:-${HANDLOOM_HOME:-$HOME/.config/handloom}}/link.json" || test -f "$HOME/.config/handloom/link.json"'; then
     echo "$HOST has already joined a hub; keeping its credential (--rejoin to join again)."
   else
     if [ -z "$JOIN" ]; then
@@ -219,7 +225,7 @@ status)
 remove)
   say "remove handloom from $SERVER"
   on "
-    if [ -x $(q "$HANDLOOM_BIN") ]; then $(q "$HANDLOOM_BIN") link uninstall; $(q "$HANDLOOM_BIN") hub uninstall; rm -f $(q "$HANDLOOM_BIN"); echo 'Removed $HANDLOOM_BIN.'; else echo 'handloom is not installed in $BIN_DIR.'; fi
+    if [ -x $(q "$HANDLOOM_BIN") ]; then $(q "$HANDLOOM_BIN") link uninstall; $(q "$HANDLOOM_BIN") hub uninstall; rm -f $(q "$HANDLOOM_BIN") $(q "$BIN_DIR/handloom"); echo 'Removed $HANDLOOM_BIN.'; else echo 'handloom is not installed in $BIN_DIR.'; fi
   "
   if [ -n "$PURGE" ]; then
     on 'd="${HANDLOOM_HOME:-$HOME/.config/handloom}"; if [ -d "$d" ]; then rm -rf "$d"; echo "Deleted the device credential in $d."; fi'

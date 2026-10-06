@@ -384,7 +384,7 @@ func authenticate(tx *sql.Tx, r *http.Request, now time.Time) (*principal, error
 		}
 		return p, nil
 	case strings.HasPrefix(tok, store.PrefixDevice):
-		p := &principal{kind: kindDevice, agentName: r.Header.Get(api.AgentHeader)}
+		p := &principal{kind: kindDevice, agentName: api.AgentFrom(r.Header)}
 		var revoked, seen sql.NullInt64
 		err := tx.QueryRow(`SELECT id, name, revoked_at, last_seen_at FROM device WHERE credential_hash = ?`, hash).
 			Scan(&p.deviceID, &p.name, &revoked, &seen)

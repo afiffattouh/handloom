@@ -76,6 +76,9 @@ func codexEnforcement(s *Spec) []string {
 	} else {
 		out = append(out, "refused by the Codex sandbox: network access")
 	}
+	if len(s.Write) > 0 {
+		out = append(out, "checked at submit, in repo jobs: it may change only "+strings.Join(s.Write, ", ")+" (a submit with other changed files is refused)")
+	}
 	out = append(out, "never asks for approval (-a never)",
 		"not enforced: which shell commands run (the sandbox limits files and network, not commands)",
 		"not enforced: time, turns or cost limits (the link only watches whether the terminal exists)")

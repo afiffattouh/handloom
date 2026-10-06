@@ -94,7 +94,12 @@ func Enforcement(s *Spec) []string {
 	for _, c := range s.Tools.DenyCommands {
 		out = append(out, "refused by Claude Code: the shell command "+c)
 	}
-	out = append(out, "not enforced: file paths (an agent can read and write anywhere its tools reach)",
-		"not enforced: time, turns or cost limits (the link only watches whether the terminal exists)")
+	if len(s.Write) > 0 {
+		out = append(out, "checked at submit, in repo jobs: it may change only "+strings.Join(s.Write, ", ")+" (a submit with other changed files is refused)",
+			"not enforced while it works: it can still write elsewhere; the check is what it has changed when it submits")
+	} else {
+		out = append(out, "not enforced: file paths (an agent can read and write anywhere its tools reach)")
+	}
+	out = append(out, "not enforced: time, turns or cost limits (the link only watches whether the terminal exists)")
 	return out
 }

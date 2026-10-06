@@ -29,6 +29,8 @@
   </fieldset>
   <label><span>Shell commands it must not run: one per line, such as rm or git push</span>
     <textarea name="deny" rows="3">{{.Deny}}</textarea></label>
+  <label><span>Paths it may change in a repository job, one pattern per line, such as src/** or docs/*.md. Checked when it submits; empty means no check.</span>
+    <textarea name="write" rows="3" class="mono">{{.WriteText}}</textarea></label>
   <label>Instructions (added to the agent's own)
     <textarea name="prompt" rows="10" class="mono">{{.Spec.Prompt}}</textarea></label>
 

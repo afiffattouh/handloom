@@ -361,6 +361,14 @@ type ProfileReq struct {
 	Spec profile.Spec `json:"spec"`
 }
 
+// ScopeRefusal is a link telling the hub it refused an agent's submit because
+// the agent had changed files its profile does not allow.
+type ScopeRefusal struct {
+	Agent string   `json:"agent"`
+	Task  int64    `json:"task"`
+	Paths []string `json:"paths"`
+}
+
 type AgentJobReq struct {
 	Job int64 `json:"job"` // 0 removes the agent from its job
 }

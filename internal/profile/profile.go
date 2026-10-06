@@ -31,13 +31,14 @@ import (
 
 // Spec is the part of a profile that is versioned and hashed.
 type Spec struct {
-	Description string `json:"description,omitempty" yaml:"description"`
-	Kind        string `json:"kind" yaml:"kind"`       // the agent CLI: claude
-	Runtime     string `json:"runtime" yaml:"runtime"` // cloud | local: where the model runs
-	Model       string `json:"model,omitempty" yaml:"model"`
-	Prompt      string `json:"prompt,omitempty" yaml:"-"`
-	Tools       Tools  `json:"tools" yaml:"tools"`
-	Skills      []File `json:"skills,omitempty" yaml:"-"` // files of the skills, path relative to the skills directory
+	Description string   `json:"description,omitempty" yaml:"description"`
+	Kind        string   `json:"kind" yaml:"kind"`       // the agent CLI: claude
+	Runtime     string   `json:"runtime" yaml:"runtime"` // cloud | local: where the model runs
+	Model       string   `json:"model,omitempty" yaml:"model"`
+	Prompt      string   `json:"prompt,omitempty" yaml:"-"`
+	Tools       Tools    `json:"tools" yaml:"tools"`
+	Write       []string `json:"write,omitempty" yaml:"write"` // in a repo job: the paths (globs, relative to the worktree) the agent may change; checked when it submits
+	Skills      []File   `json:"skills,omitempty" yaml:"-"`    // files of the skills, path relative to the skills directory
 }
 
 type Tools struct {
@@ -64,6 +65,7 @@ var (
 	nameRE    = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]{0,39}$`)
 	skillRE   = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$`)
 	modelRE   = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:/-]{0,63}$`)
+	globRE    = regexp.MustCompile(`^[A-Za-z0-9._/*?-]+$`)
 	commandRE = regexp.MustCompile(`^[A-Za-z0-9._/-]+( [A-Za-z0-9._/=:@-]+){0,3}$`)
 	tools     = map[string]bool{"read": true, "edit": true, "shell": true, "web": true}
 	kinds     = map[string]bool{"claude": true, "codex": true}
@@ -122,6 +124,14 @@ func Normalize(s *Spec) []string {
 		seen[t] = true
 	}
 	sort.Strings(s.Tools.Allow)
+	for _, g := range s.Write {
+		if !globRE.MatchString(g) || len(g) > 120 || strings.Contains(g, "..") || strings.HasPrefix(g, "/") {
+			bad = append(bad, fmt.Sprintf("write entry %q must be a relative path pattern (letters, digits, . _ - / and the wildcards * ? **)", g))
+		}
+	}
+	if len(s.Write) > 50 {
+		bad = append(bad, "more than 50 write entries")
+	}
 	for _, c := range s.Tools.DenyCommands {
 		if !commandRE.MatchString(c) || len(c) > 80 {
 			bad = append(bad, fmt.Sprintf("deny_commands entry %q must be a command with at most three plain words (no quotes, brackets or wildcards)", c))
@@ -194,12 +204,13 @@ func SkillNames(s *Spec) []string {
 }
 
 type yamlFile struct {
-	Name        string `yaml:"name"`
-	Description string `yaml:"description"`
-	Kind        string `yaml:"kind"`
-	Runtime     string `yaml:"runtime"`
-	Model       string `yaml:"model"`
-	Tools       Tools  `yaml:"tools"`
+	Name        string   `yaml:"name"`
+	Description string   `yaml:"description"`
+	Kind        string   `yaml:"kind"`
+	Runtime     string   `yaml:"runtime"`
+	Model       string   `yaml:"model"`
+	Tools       Tools    `yaml:"tools"`
+	Write       []string `yaml:"write"`
 }
 
 // ReadDir reads a profile directory.
@@ -214,7 +225,7 @@ func ReadDir(dir string) (string, *Spec, error) {
 	if err := dec.Decode(&y); err != nil {
 		return "", nil, fmt.Errorf("profile.yaml: %w", err)
 	}
-	s := &Spec{Description: y.Description, Kind: y.Kind, Runtime: y.Runtime, Model: y.Model, Tools: y.Tools}
+	s := &Spec{Description: y.Description, Kind: y.Kind, Runtime: y.Runtime, Model: y.Model, Tools: y.Tools, Write: y.Write}
 	if b, err := os.ReadFile(filepath.Join(dir, "PROMPT.md")); err == nil {
 		s.Prompt = strings.TrimSpace(string(b))
 	} else if !os.IsNotExist(err) {
@@ -252,7 +263,7 @@ func WriteDir(dir, name string, s *Spec) error {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
-	y, err := yaml.Marshal(yamlFile{Name: name, Description: s.Description, Kind: s.Kind, Runtime: s.Runtime, Model: s.Model, Tools: s.Tools})
+	y, err := yaml.Marshal(yamlFile{Name: name, Description: s.Description, Kind: s.Kind, Runtime: s.Runtime, Model: s.Model, Tools: s.Tools, Write: s.Write})
 	if err != nil {
 		return err
 	}

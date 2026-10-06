@@ -246,3 +246,64 @@ func TestTheHashOfAStoredSpecNeverChanges(t *testing.T) {
 		t.Fatalf("the hash of the reference profile changed: %s, want %s", got, wantV1)
 	}
 }
+
+func TestMatchWrite(t *testing.T) {
+	cases := []struct {
+		globs []string
+		path  string
+		want  bool
+	}{
+		{nil, "anything/at/all.go", true},
+		{[]string{"src/**"}, "src/a.go", true},
+		{[]string{"src/**"}, "src/deep/er/a.go", true},
+		{[]string{"src/**"}, "src", false},
+		{[]string{"src/**"}, "srcx/a.go", false},
+		{[]string{"src/**"}, "other/src/a.go", false},
+		{[]string{"src/"}, "src/a/b.go", true},
+		{[]string{"*.md"}, "README.md", true},
+		{[]string{"*.md"}, "docs/README.md", false},
+		{[]string{"**/*.md"}, "docs/a/README.md", true},
+		{[]string{"**/*.md"}, "README.md", true},
+		{[]string{"docs/*.md", "src/**"}, "docs/x.md", true},
+		{[]string{"docs/*.md", "src/**"}, "docs/x/y.md", false},
+		{[]string{"a?c.txt"}, "abc.txt", true},
+		{[]string{"a?c.txt"}, "abbc.txt", false},
+		{[]string{"src/**"}, "./src/a.go", true},
+		{[]string{"src/**"}, "src/../etc/passwd", false},
+		{[]string{"main.go"}, "main.go", true},
+		{[]string{"main.go"}, "main.go.bak", false},
+	}
+	for _, c := range cases {
+		if got := MatchWrite(c.globs, c.path); got != c.want {
+			t.Errorf("MatchWrite(%v, %q) = %v, want %v", c.globs, c.path, got, c.want)
+		}
+	}
+}
+
+func TestWriteGlobsAreValidated(t *testing.T) {
+	for _, g := range []string{"/etc/**", "../x/**", "a/../b", "a b", "a;rm", "src/**\n", "$(x)"} {
+		s := good()
+		s.Write = []string{g}
+		if bad := Normalize(s); len(bad) == 0 {
+			t.Errorf("write entry %q accepted", g)
+		}
+	}
+	s := good()
+	s.Write = []string{"src/**", "docs/*.md", "main.go", "tests/"}
+	if bad := Normalize(s); len(bad) != 0 {
+		t.Fatalf("good globs refused: %v", bad)
+	}
+}
+
+func TestAdapterFilesAreNotTheAgentsWork(t *testing.T) {
+	for _, p := range []string{".handloom/scope.json", ".claude/settings.local.json", ".codex/hooks.json", "CLAUDE.md", "AGENTS.md"} {
+		if !AdapterPath(p) {
+			t.Errorf("%s should be ignored by the scope check", p)
+		}
+	}
+	for _, p := range []string{"src/CLAUDE.md", "docs/AGENTS.md", "main.go", ".github/workflows/x.yml", ".claudex"} {
+		if AdapterPath(p) {
+			t.Errorf("%s is the agent's work", p)
+		}
+	}
+}

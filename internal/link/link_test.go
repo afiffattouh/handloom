@@ -19,6 +19,7 @@ import (
 	"handloom/internal/client"
 	"handloom/internal/drivers"
 	"handloom/internal/hub"
+	"handloom/internal/profile"
 	"handloom/internal/store"
 )
 
@@ -828,4 +829,155 @@ func (f *fixture) requestSpawnAfterFail(name string, job, old int64) api.Spawn {
 	dev := client.Direct(f.url, f.cred)
 	f.must(dev.Post(fmt.Sprintf("/v1/spawns/%d/report", old), api.SpawnReport{Status: "failed", Error: "test"}, nil))
 	return f.requestSpawn(name, job)
+}
+
+// ---- the scope check ----
+
+// scopedAgent starts an agent of a repo job under a profile that may only
+// change src/**, with a task assigned to it that it has claimed. It returns
+// the agent's client (through the link socket), its worktree and the task.
+func (f *fixture) scopedAgent(write []string) (*client.Client, string, api.Task) {
+	f.t.Helper()
+	tl := &tmuxLog{}
+	f.spawnLink(tl)
+	repo := gitRepo(f.t)
+	os.MkdirAll(filepath.Join(repo, "src"), 0o755)
+	os.WriteFile(filepath.Join(repo, "src", "a.go"), []byte("package src\n"), 0o644)
+	gitOut(f.t, repo, "add", ".")
+	gitOut(f.t, repo, "commit", "-q", "-m", "src")
+	f.must(f.admin.Post("/v1/profiles", api.ProfileReq{Name: "coder", Spec: profile.Spec{Kind: "claude", Tools: profile.Tools{Allow: []string{"read", "edit"}}, Write: write}}, nil))
+	j := f.repoJob(repo)
+	var s api.Spawn
+	f.must(f.human.Post("/v1/spawns", api.SpawnReq{Name: "alpha", Profile: "coder", Job: j.ID, Device: "dev"}, &s))
+	f.ladder()
+	if got := f.spawnStatus(s.ID).Status; got != "launching" {
+		f.t.Fatalf("spawn: %+v", f.spawnStatus(s.ID))
+	}
+	ac := client.Socket(f.link.opt.Socket, "alpha")
+	f.must(ac.Post("/v1/agents", api.RegisterReq{Name: "alpha", Kind: "claude"}, nil))
+	dev := client.Direct(f.url, f.cred)
+	f.must(dev.Post(fmt.Sprintf("/v1/spawns/%d/report", s.ID), api.SpawnReport{Status: "started"}, nil))
+	var task api.Task
+	f.must(f.human.Post("/v1/tasks", api.TaskCreateReq{Title: "change src", Job: j.ID, AssignedTo: "alpha"}, &task))
+	f.must(ac.Post(fmt.Sprintf("/v1/tasks/%d/claim", task.ID), nil, nil))
+	return ac, filepath.Join(f.link.opt.WorkRoot, fmt.Sprintf("job-%d", j.ID), "alpha"), task
+}
+
+func (f *fixture) submit(ac *client.Client, task api.Task) error {
+	return ac.Post(fmt.Sprintf("/v1/tasks/%d/submit", task.ID), api.SubmitReq{Evidence: []string{"file:x"}}, nil)
+}
+
+func TestSubmitIsRefusedForFilesOutsideTheProfilesScope(t *testing.T) {
+	f := newFixture(t)
+	ac, dir, task := f.scopedAgent([]string{"src/**"})
+	cleanAdapterFiles := func() {
+		// What the adapter and the agent CLI write is not the agent's work.
+		os.WriteFile(filepath.Join(dir, "CLAUDE.md"), []byte("rules"), 0o644)
+		os.MkdirAll(filepath.Join(dir, ".claude"), 0o755)
+		os.WriteFile(filepath.Join(dir, ".claude", "settings.local.json"), []byte("{}"), 0o644)
+		os.MkdirAll(filepath.Join(dir, ".handloom"), 0o755)
+		os.WriteFile(filepath.Join(dir, ".handloom", "scope.json"), []byte(`{"write":["**"]}`), 0o600) // an agent cannot widen its own scope
+	}
+	cleanAdapterFiles()
+
+	// Outside the scope: an untracked file.
+	os.MkdirAll(filepath.Join(dir, "docs"), 0o755)
+	os.WriteFile(filepath.Join(dir, "docs", "x.md"), []byte("x"), 0o644)
+	err := f.submit(ac, task)
+	var ce *client.Error
+	if !errors.As(err, &ce) || ce.Status != 409 || !strings.Contains(ce.Msg, "docs/x.md") || !strings.Contains(ce.Msg, "src/**") {
+		t.Fatalf("a new file outside the scope: %v", err)
+	}
+	if got := f.task(task.ID).Status; got != "claimed" {
+		t.Fatalf("the refused submit reached the hub: task is %s", got)
+	}
+	os.Remove(filepath.Join(dir, "docs", "x.md"))
+
+	// A tracked file outside the scope, edited and then committed: still refused.
+	os.WriteFile(filepath.Join(dir, "main.go"), []byte("package main // changed\n"), 0o644)
+	if err := f.submit(ac, task); err == nil || !strings.Contains(err.Error(), "main.go") {
+		t.Fatalf("an edited file outside the scope: %v", err)
+	}
+	gitOut(t, dir, "add", "-A")
+	gitOut(t, dir, "-c", "user.email=a@b", "-c", "user.name=a", "commit", "-q", "-m", "oops")
+	if err := f.submit(ac, task); err == nil || !strings.Contains(err.Error(), "main.go") {
+		t.Fatalf("a committed change outside the scope: %v", err)
+	}
+	gitOut(t, dir, "checkout", "-q", "HEAD~1", "--", "main.go")
+	gitOut(t, dir, "-c", "user.email=a@b", "-c", "user.name=a", "commit", "-q", "-am", "revert")
+
+	// A rename out of the scope counts for both names.
+	gitOut(t, dir, "mv", "src/a.go", "docs-a.go")
+	if err := f.submit(ac, task); err == nil || !strings.Contains(err.Error(), "docs-a.go") {
+		t.Fatalf("a rename out of the scope: %v", err)
+	}
+	gitOut(t, dir, "mv", "docs-a.go", "src/a.go")
+
+	// The refusals are on record and the lead was told.
+	if rows := f.audit("task.scope_refused"); len(rows) < 3 {
+		t.Fatalf("%d refusals audited", len(rows))
+	}
+	found := false
+	for _, m := range f.inbox(f.lead) {
+		found = found || (strings.Contains(m.Body, "alpha tried to submit") && strings.Contains(m.Body, "main.go"))
+	}
+	if !found {
+		t.Fatal("the lead was not told")
+	}
+
+	// Now only src/ and adapter files differ from where it started: the submit goes through.
+	os.WriteFile(filepath.Join(dir, "src", "b.go"), []byte("package src\n"), 0o644)
+	os.WriteFile(filepath.Join(dir, "src", "a.go"), []byte("package src // better\n"), 0o644)
+	if err := f.submit(ac, task); err != nil {
+		t.Fatalf("a submit inside the scope: %v", err)
+	}
+	if got := f.task(task.ID).Status; got != "submitted" {
+		t.Fatalf("task is %s", got)
+	}
+}
+
+func TestTheScopeCheckFailsClosedAndSparesOthers(t *testing.T) {
+	f := newFixture(t)
+	ac, dir, task := f.scopedAgent([]string{"src/**"})
+	// A worktree that cannot be inspected is not waved through.
+	os.RemoveAll(dir)
+	var ce *client.Error
+	if err := f.submit(ac, task); !errors.As(err, &ce) || ce.Status != 500 || !strings.Contains(ce.Msg, "could not check") {
+		t.Fatalf("an unreadable worktree: %v", err)
+	}
+	// Agents the link did not start, and profiles without write, are not checked.
+	var plain api.Task
+	f.must(f.human.Post("/v1/tasks", api.TaskCreateReq{Title: "plain", AssignedTo: "worker"}, &plain))
+	f.must(f.worker.Post(fmt.Sprintf("/v1/tasks/%d/claim", plain.ID), nil, nil))
+	if err := f.worker.Post(fmt.Sprintf("/v1/tasks/%d/submit", plain.ID), api.SubmitReq{Evidence: []string{"file:x"}}, nil); err != nil {
+		t.Fatalf("an agent without a scope: %v", err)
+	}
+}
+
+func TestAnAgentCannotFileARefusalThroughTheSocket(t *testing.T) {
+	f := newFixture(t)
+	err := f.worker.Post("/v1/device/scope-refused", api.ScopeRefusal{Agent: "lead", Task: 1, Paths: []string{"x"}}, nil)
+	var ce *client.Error
+	if !errors.As(err, &ce) || ce.Status != 403 {
+		t.Fatalf("an agent filing a scope refusal: %v", err)
+	}
+	if rows := f.audit("task.scope_refused"); len(rows) != 0 {
+		t.Fatal("a refusal was recorded")
+	}
+}
+
+func TestAProfileWithoutWriteIsNotChecked(t *testing.T) {
+	f := newFixture(t)
+	ac, dir, task := f.scopedAgent(nil)
+	os.WriteFile(filepath.Join(dir, "anything.txt"), []byte("x"), 0o644)
+	if err := f.submit(ac, task); err != nil {
+		t.Fatalf("no write list, no check: %v", err)
+	}
+}
+
+func (f *fixture) task(id int64) api.Task {
+	f.t.Helper()
+	var t api.Task
+	f.must(f.human.Get(fmt.Sprintf("/v1/tasks/%d", id), &t))
+	return t
 }

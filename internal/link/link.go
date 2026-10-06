@@ -180,6 +180,14 @@ func (l *Link) handler() http.Handler {
 	}
 	mux := http.NewServeMux()
 	mux.Handle("/v1/", proxy)
+	mux.HandleFunc("POST /v1/tasks/{id}/submit", l.submitGate(proxy)) // more specific than /v1/: it wins
+	// A refused submit is reported by the link itself, with its own credential. An
+	// agent reaching the hub through this socket must not be able to file one.
+	mux.HandleFunc("/v1/device/scope-refused", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusForbidden)
+		fmt.Fprintln(w, `{"error":"only the link reports refused submits","code":"forbidden"}`)
+	})
 	mux.HandleFunc("POST /local/activity", func(w http.ResponseWriter, r *http.Request) {
 		go l.activity(api.AgentFrom(r.Header))
 		w.Write([]byte("{}\n"))

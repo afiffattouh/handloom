@@ -120,3 +120,25 @@ func TestConfidentialJobsStartTheirLeadFromALocalProfile(t *testing.T) {
 	}
 	e.ok(e.afif(), "POST", "/v1/jobs", api.JobNewReq{Title: "x", Confidential: true, Device: "d1", LeadProfile: "private"}, nil)
 }
+
+func TestOnlyTheDeviceReportsARefusedSubmit(t *testing.T) {
+	e := newEnv(t)
+	var j api.Job
+	e.ok(e.afif(), "POST", "/v1/jobs", api.JobNewReq{Title: "Fix", Lead: "lead"}, &j)
+	var task api.Task
+	e.ok(e.lead(), "POST", "/v1/tasks", api.TaskCreateReq{Title: "t", AssignedTo: "worker"}, &task)
+	e.ok(e.worker(), "POST", taskPath(task.ID, "claim"), nil, nil)
+	e.inbox(e.lead())
+	req := api.ScopeRefusal{Agent: "worker", Task: task.ID, Paths: []string{"docs/x.md", "main.go"}}
+	e.fail(403, e.afif(), "POST", "/v1/device/scope-refused", req)
+	e.fail(403, caller{e.d2, ""}, "POST", "/v1/device/scope-refused", req) // not this agent's device
+	e.fail(404, caller{e.d1, ""}, "POST", "/v1/device/scope-refused", api.ScopeRefusal{Agent: "worker", Task: 999})
+	e.ok(caller{e.d1, ""}, "POST", "/v1/device/scope-refused", req, nil)
+	if !e.audited("task.scope_refused", fmt.Sprintf("task:%d", task.ID)) {
+		t.Fatal("not audited")
+	}
+	got := e.inboxBodies(e.lead())
+	if !strings.Contains(got, "worker tried to submit") || !strings.Contains(got, "docs/x.md, main.go") {
+		t.Fatalf("the lead's mail: %q", got)
+	}
+}

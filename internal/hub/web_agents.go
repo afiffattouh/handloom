@@ -22,6 +22,7 @@ type profileView struct {
 	Versions  []api.ProfileInfo
 	Skills    []skillView
 	Deny      string
+	WriteText string
 	Tool      map[string]bool
 	CanEdit   bool
 	IsNew     bool
@@ -82,6 +83,7 @@ func (q *webReq) profileForm(status int, errMsg string, v *profileView) error {
 		v.Tool[t] = true
 	}
 	v.Deny = strings.Join(v.Spec.Tools.DenyCommands, "\n")
+	v.WriteText = strings.Join(v.Spec.Write, "\n")
 	v.Skills = skillViews(&v.Spec)
 	if !v.IsNew {
 		v.Enforce = profile.Enforcement(&v.Spec)
@@ -130,6 +132,11 @@ func specFromForm(q *webReq, old *profile.Spec) profile.Spec {
 	for _, line := range strings.Split(strings.ReplaceAll(f.Get("deny"), "\r\n", "\n"), "\n") {
 		if line = strings.TrimSpace(line); line != "" {
 			s.Tools.DenyCommands = append(s.Tools.DenyCommands, line)
+		}
+	}
+	for _, line := range strings.Split(strings.ReplaceAll(f.Get("write"), "\r\n", "\n"), "\n") {
+		if line = strings.TrimSpace(line); line != "" {
+			s.Write = append(s.Write, line)
 		}
 	}
 	keep := map[string][]profile.File{}

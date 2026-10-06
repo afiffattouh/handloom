@@ -101,6 +101,9 @@ func (l *Link) launch(ctx context.Context, s api.Spawn) error {
 		if err := l.worktree(ctx, s, dir); err != nil {
 			return err
 		}
+		if err := l.recordScope(ctx, s, dir); err != nil {
+			return err
+		}
 	}
 	home := client.Home()
 	cmd := fmt.Sprintf("env HANDLOOM_HOME=%s PATH=%s HANDLOOM_SPAWN=%d %s spawn-exec %d",

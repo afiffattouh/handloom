@@ -8,7 +8,7 @@ Status: draft, 2026-10-06. Delta on `WORKSPACE-DESIGN-v0.3.md`; where they disag
 
 | v0.3 claim | Reality | Fix |
 |---|---|---|
-| "No SQLite-only SQL outside one package" | False: raw SQL sits in `internal/hub` at 16+ call sites; AUTOINCREMENT, PRAGMA, `unixepoch` leak | Milestone A moves every query behind a store interface. Do not write Postgres code; fix the boundary only, or drop the Postgres promise |
+| "No SQLite-only SQL outside one package" | False: raw SQL sits in `internal/hub` at 16+ call sites; AUTOINCREMENT, PRAGMA, `unixepoch` leak | Milestone A moves every query behind a store interface. Decided against the full refactor (D37 in DECISIONS.md): new SQL goes in `store`, the existing ~55 hub sites stay, and the Postgres promise is dropped for now |
 | Agents have a lead/worker boundary | Agent identity is a self-asserted `Handloom-Agent` header and the link proxy injects the device credential for any local caller (`hub.go` authenticate, `link.go` proxy) | Until per-run tokens (milestone B), **one trust domain per device**. Docs must say so; A must not advertise the boundary |
 | Human tokens | Never expire (`agents.go`) | Become scoped API tokens with expiry, shown once |
 | Join tokens | No TTL, unauthenticated endpoint | 15-minute TTL, rate limit before DB lookup |

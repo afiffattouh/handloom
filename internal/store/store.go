@@ -8,6 +8,9 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -151,17 +154,28 @@ func Open(path string) (*sql.DB, error) {
 	// One connection: the hub serialises all access, and an in-memory
 	// database exists per connection.
 	db.SetMaxOpenConns(1)
-	if err := migrate(db); err != nil {
+	if err := migrate(db, path); err != nil {
 		db.Close()
 		return nil, err
 	}
 	return db, nil
 }
 
-func migrate(db *sql.DB) error {
+func migrate(db *sql.DB, path string) error {
 	var v int
 	if err := db.QueryRow(`PRAGMA user_version`).Scan(&v); err != nil {
 		return err
+	}
+	if v > len(migrations) {
+		return fmt.Errorf("the database has schema version %d but this handloom knows only %d: refusing to touch it; run a newer handloom, or restore a backup", v, len(migrations))
+	}
+	// An existing database that is about to change gets a snapshot first, so
+	// an upgrade can be rolled back by restoring it with the old binary.
+	if v > 0 && v < len(migrations) && path != ":memory:" {
+		snap := filepath.Join(filepath.Dir(path), "backups", fmt.Sprintf("pre-v%d.db", len(migrations)))
+		if err := Backup(db, snap); err != nil {
+			return fmt.Errorf("snapshot before migration: %w", err)
+		}
 	}
 	for i := v; i < len(migrations); i++ {
 		tx, err := db.Begin()
@@ -244,4 +258,52 @@ func Init(db *sql.DB, now time.Time) (adminToken string, err error) {
 		return "", err
 	}
 	return adminToken, tx.Commit()
+}
+
+// Backup writes a consistent copy of the live database to dest with VACUUM
+// INTO. It is safe while the hub runs; copying handloom.db and its WAL by hand is not.
+// dest must not exist: an old snapshot is replaced.
+func Backup(db *sql.DB, dest string) error {
+	if err := os.MkdirAll(filepath.Dir(dest), 0o700); err != nil {
+		return err
+	}
+	if err := os.Remove(dest); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	if _, err := db.Exec(`VACUUM INTO '` + strings.ReplaceAll(dest, "'", "''") + `'`); err != nil {
+		return err
+	}
+	return os.Chmod(dest, 0o600)
+}
+
+// Restore puts a backup in place of the database at dst. The hub must be
+// stopped. The backup is checked first: integrity and schema version.
+func Restore(src, dst string, force bool) error {
+	if _, err := os.Stat(dst); err == nil && !force {
+		return fmt.Errorf("%s exists; stop the hub and use --force to replace it", dst)
+	}
+	db, err := sql.Open("sqlite", "file:"+src+"?mode=ro")
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	var check string
+	if err := db.QueryRow(`PRAGMA integrity_check`).Scan(&check); err != nil || check != "ok" {
+		return fmt.Errorf("the backup failed its integrity check: %v %s", err, check)
+	}
+	var v int
+	if err := db.QueryRow(`PRAGMA user_version`).Scan(&v); err != nil {
+		return err
+	}
+	if v > len(migrations) {
+		return fmt.Errorf("the backup has schema version %d; this handloom knows %d", v, len(migrations))
+	}
+	tmp := dst + ".restore"
+	if err := Backup(db, tmp); err != nil {
+		return err
+	}
+	for _, ext := range []string{"-wal", "-shm"} {
+		os.Remove(dst + ext) // stale journals of the replaced database
+	}
+	return os.Rename(tmp, dst)
 }

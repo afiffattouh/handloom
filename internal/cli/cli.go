@@ -60,7 +60,10 @@ Device:
 
 Hub and administration (HANDLOOM_HUB and HANDLOOM_TOKEN set to the hub URL and a token):
   handloom hub init [--data DIR]                      create the database, print the admin token once
-  handloom hub serve [--data DIR] [--addr A] [--lease 15m]
+  handloom hub serve [--data DIR] [--addr A] [--lease 15m] [--auto-init]
+  handloom hub backup --to FILE [--data DIR]          consistent copy while the hub runs
+  handloom hub restore --from FILE [--data DIR] [--force]    hub must be stopped
+  handloom healthcheck [--addr A]                     exit 0 if the hub answers /healthz (for containers)
   handloom hub install [--data DIR] [--addr A] | uninstall     run the hub as a systemd service
   handloom device add <name> | list | revoke <name>   (admin)
   handloom human add <name>                           (admin)
@@ -119,6 +122,8 @@ func Main(args []string, stdout, stderr io.Writer) int {
 		err = e.send(rest)
 	case "inbox":
 		err = e.inbox(rest)
+	case "healthcheck":
+		err = e.healthcheck(rest)
 	case "ask":
 		err = e.ask(rest)
 	case "answer":

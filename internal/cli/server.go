@@ -37,11 +37,19 @@ func (e *env) hub(args []string) error {
 	}
 	fs := e.flags("hub " + sub)
 	data := fs.String("data", "", "data directory (default $HANDLOOM_DATA or ./handloom-data)")
-	addr := fs.String("addr", "127.0.0.1:7420", "listen address")
+	defAddr := os.Getenv("HANDLOOM_ADDR")
+	if defAddr == "" {
+		defAddr = "127.0.0.1:7420"
+	}
+	addr := fs.String("addr", defAddr, "listen address (default $HANDLOOM_ADDR or 127.0.0.1:7420)")
 	lease := fs.Duration("lease", 15*time.Minute, "task lease")
 	sweep := fs.Duration("sweep", 5*time.Second, "how often expired leases are collected")
 	unclaimed := fs.Duration("unclaimed", 10*time.Minute, "tell the lead when an assigned task stays unclaimed this long")
-	if _, err := fs.need(args, 0, 0, "hub init|serve|install|uninstall [--data DIR] [--addr A] [--lease D]"); err != nil {
+	autoInit := fs.Bool("auto-init", false, "serve: create the database on first start and print the admin token to the log (containers)")
+	to := fs.String("to", "", "backup: file to write")
+	from := fs.String("from", "", "restore: backup file to restore")
+	force := fs.Bool("force", false, "restore: replace an existing database (stop the hub first)")
+	if _, err := fs.need(args, 0, 0, "hub init|serve|backup|restore|install|uninstall [--data DIR] [--addr A] [--lease D]"); err != nil {
 		return err
 	}
 	dir := dataDir(*data)
@@ -77,16 +85,57 @@ func (e *env) hub(args []string) error {
 		}
 		fmt.Fprintf(e.out, "Hub database created at %s\n\nAdmin token (shown once, store it safely):\n%s\n", dbPath, tok)
 		return nil
-	case "serve":
-		if _, err := os.Stat(dbPath); err != nil {
-			return fmt.Errorf("no database at %s: run `handloom hub init --data %s` first", dbPath, dir)
+	case "backup":
+		if *to == "" {
+			return usageErr("usage: handloom hub backup --to FILE [--data DIR]   (safe while the hub runs)")
 		}
 		db, err := store.Open(dbPath)
 		if err != nil {
 			return err
 		}
 		defer db.Close()
+		if err := store.Backup(db, *to); err != nil {
+			return err
+		}
+		fmt.Fprintf(e.out, "Backup written to %s (mode 0600). It holds hashed tokens and all hub data: keep it private.\n", *to)
+		return nil
+	case "restore":
+		if *from == "" {
+			return usageErr("usage: handloom hub restore --from FILE [--data DIR] [--force]   (stop the hub first)")
+		}
+		if err := os.MkdirAll(dir, 0o700); err != nil {
+			return err
+		}
+		if err := store.Restore(*from, dbPath, *force); err != nil {
+			return err
+		}
+		fmt.Fprintf(e.out, "Restored %s from %s. Start the hub again.\n", dbPath, *from)
+		return nil
+	case "serve":
 		logger := log.New(e.err, "hub ", log.LstdFlags)
+		if _, err := os.Stat(dbPath); err != nil {
+			if !*autoInit {
+				return fmt.Errorf("no database at %s: run `handloom hub init --data %s` first", dbPath, dir)
+			}
+			if err := os.MkdirAll(dir, 0o700); err != nil {
+				return err
+			}
+			idb, err := store.Open(dbPath)
+			if err != nil {
+				return err
+			}
+			tok, err := store.Init(idb, time.Now())
+			idb.Close()
+			if err != nil {
+				return err
+			}
+			logger.Printf("first start: database created at %s. Admin token (shown once, store it safely): %s", dbPath, tok)
+		}
+		db, err := store.Open(dbPath)
+		if err != nil {
+			return err
+		}
+		defer db.Close()
 		notifier, err := notifierFromEnv()
 		if err != nil {
 			return err
@@ -113,7 +162,7 @@ func (e *env) hub(args []string) error {
 		}
 		return nil
 	}
-	return usageErr("usage: handloom hub init|serve|install|uninstall")
+	return usageErr("usage: handloom hub init|serve|backup|restore|install|uninstall")
 }
 
 // notifierFromEnv reads the notification settings. Secrets stay out of argv:
@@ -217,4 +266,34 @@ func (e *env) link(args []string) error {
 		return nil
 	}
 	return usageErr("usage: handloom link join|run|install|uninstall|status")
+}
+
+// healthcheck is for container HEALTHCHECK: distroless images have no curl.
+func (e *env) healthcheck(args []string) error {
+	fs := e.flags("healthcheck")
+	addr := fs.String("addr", "", "hub address (default $HANDLOOM_ADDR or 127.0.0.1:7420)")
+	if _, err := fs.need(args, 0, 0, "healthcheck [--addr A]"); err != nil {
+		return err
+	}
+	a := *addr
+	if a == "" {
+		a = os.Getenv("HANDLOOM_ADDR")
+	}
+	if a == "" {
+		a = "127.0.0.1:7420"
+	}
+	if h, p, err := net.SplitHostPort(a); err == nil && (h == "" || h == "0.0.0.0" || h == "::") {
+		a = net.JoinHostPort("127.0.0.1", p)
+	}
+	c := &http.Client{Timeout: 3 * time.Second}
+	resp, err := c.Get("http://" + a + "/healthz")
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return fmt.Errorf("healthz answered %s", resp.Status)
+	}
+	fmt.Fprintln(e.out, "ok")
+	return nil
 }

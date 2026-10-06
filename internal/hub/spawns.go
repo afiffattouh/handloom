@@ -20,7 +20,7 @@ import (
 // fixed table by kind.
 
 // spawnKinds are the agent kinds a link knows how to start.
-var spawnKinds = map[string]bool{"claude": true}
+var spawnKinds = map[string]bool{"claude": true, "codex": true}
 
 var modelRE = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:/-]{0,63}$`)
 

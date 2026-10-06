@@ -66,7 +66,7 @@ var (
 	modelRE   = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:/-]{0,63}$`)
 	commandRE = regexp.MustCompile(`^[A-Za-z0-9._/-]+( [A-Za-z0-9._/=:@-]+){0,3}$`)
 	tools     = map[string]bool{"read": true, "edit": true, "shell": true, "web": true}
-	kinds     = map[string]bool{"claude": true}
+	kinds     = map[string]bool{"claude": true, "codex": true}
 )
 
 // ValidName reports whether name can name a profile.
@@ -82,7 +82,25 @@ func Normalize(s *Spec) []string {
 		s.Kind = "claude"
 	}
 	if !kinds[s.Kind] {
-		bad = append(bad, fmt.Sprintf("kind %q is not supported yet (supported: claude)", s.Kind))
+		bad = append(bad, fmt.Sprintf("kind %q is not supported yet (supported: claude, codex)", s.Kind))
+	}
+	if s.Kind == "codex" {
+		// Codex limits files and network with its sandbox; it cannot be told which
+		// commands to refuse, cannot have its shell taken away, and loads skills
+		// in a way we have not verified. Say so instead of dropping the wish.
+		if len(s.Tools.DenyCommands) > 0 {
+			bad = append(bad, "codex cannot refuse specific shell commands (its sandbox limits files and network, not commands): use a claude profile for deny_commands")
+		}
+		if len(s.Skills) > 0 {
+			bad = append(bad, "skills are not supported for codex agents yet")
+		}
+		hasShell := false
+		for _, t := range s.Tools.Allow {
+			hasShell = hasShell || t == "shell"
+		}
+		if !hasShell {
+			bad = append(bad, "codex always has a shell (inside its sandbox): list shell in tools, or use claude to take it away")
+		}
 	}
 	if s.Runtime != Cloud && s.Runtime != Local {
 		bad = append(bad, fmt.Sprintf("runtime must be cloud or local, not %q", s.Runtime))

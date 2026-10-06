@@ -786,3 +786,47 @@ func TestSpawnExecMaterializesAProfile(t *testing.T) {
 		t.Fatalf("spawn: %+v", s)
 	}
 }
+
+func TestSpawnExecStartsCodexThroughMCP(t *testing.T) {
+	r := newRig(t)
+	t.Setenv("HOME", t.TempDir())
+	work := t.TempDir()
+	bin := t.TempDir()
+	os.WriteFile(filepath.Join(bin, "codex"), []byte("#!/bin/sh\n"), 0o755)
+	t.Setenv("PATH", bin+":"+os.Getenv("PATH"))
+	t.Setenv("TMUX", "/tmp/tmux-1000/handloom,123,0")
+	t.Setenv("TMUX_PANE", "%9")
+	var gotArgv []string
+	old := execFn
+	execFn = func(path string, argv []string, env []string) error { gotArgv = argv; return nil }
+	t.Cleanup(func() { execFn = old })
+
+	spec := filepath.Join(t.TempDir(), "coder")
+	os.MkdirAll(spec, 0o755)
+	os.WriteFile(filepath.Join(spec, "profile.yaml"), []byte("name: coder\nkind: codex\ntools:\n  allow: [read, edit, shell]\n"), 0o644)
+	os.WriteFile(filepath.Join(spec, "PROMPT.md"), []byte("Write small functions.\n"), 0o644)
+	r.as(r.admin, "profile", "new", spec)
+	r.as(r.human, "spawn", "tester", "--profile", "coder", "--device", "dev", "--wait", "0")
+	waitSpawn(t, r, 1, "launching")
+
+	t.Chdir(work)
+	r.run("spawn-exec", "1")
+
+	line := strings.Join(gotArgv, " ")
+	for _, want := range []string{"codex --enable hooks --dangerously-bypass-hook-trust -a never -s workspace-write", "mcp_servers.handloom.command=", `HANDLOOM_AGENT="tester"`} {
+		if !strings.Contains(line, want) {
+			t.Errorf("argv lacks %q: %s", want, line)
+		}
+	}
+	for _, f := range []string{"AGENTS.md", ".codex/hooks.json", ".handloom/tokens/tester"} {
+		if _, err := os.Stat(filepath.Join(work, f)); err != nil {
+			t.Errorf("%s: %v", f, err)
+		}
+	}
+	if b, _ := os.ReadFile(filepath.Join(work, "AGENTS.md")); !strings.Contains(string(b), "Write small functions.") || !strings.Contains(string(b), "Your profile: coder") {
+		t.Errorf("AGENTS.md lacks the profile prompt:\n%s", b)
+	}
+	if s := waitSpawn(t, r, 1, "started"); s.Kind != "codex" || s.Profile != "coder@1" {
+		t.Fatalf("spawn: %+v", s)
+	}
+}

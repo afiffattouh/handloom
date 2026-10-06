@@ -175,6 +175,23 @@ func (e *env) spawnExec(args []string) error {
 		if err := trustClaudeDir(dir); err != nil {
 			fmt.Fprintf(e.err, "handloom: could not pre-approve %s for Claude Code (%v); it may ask\n", dir, err)
 		}
+	case "codex":
+		prof, err := fetchSpawnProfile(c, s)
+		if err != nil {
+			return fail(err)
+		}
+		bin, err := os.Executable()
+		if err != nil {
+			return fail(err)
+		}
+		ps := &profile.Spec{Kind: "codex", Tools: profile.Tools{Allow: []string{"edit", "read", "shell"}}}
+		if prof != nil {
+			ps = &prof.Spec
+			if ps.Prompt != "" {
+				extra = fmt.Sprintf("## Your profile: %s (version %d)\n\n%s", prof.Name, prof.Version, ps.Prompt)
+			}
+		}
+		argv = profile.CodexArgv(ps, s.Model, bin, client.Home(), s.Name)
 	default:
 		return fail(fmt.Errorf("cannot start %q agents yet", s.Kind))
 	}

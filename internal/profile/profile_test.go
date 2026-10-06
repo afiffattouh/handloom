@@ -173,3 +173,62 @@ func TestEnforcementIsHonest(t *testing.T) {
 		}
 	}
 }
+
+func TestCodexProfilesAreHonestAboutWhatCodexCannotDo(t *testing.T) {
+	ok := &Spec{Kind: "codex", Tools: Tools{Allow: []string{"read", "shell"}}, Prompt: "x"}
+	if bad := Normalize(ok); len(bad) != 0 {
+		t.Fatalf("a plain codex profile: %v", bad)
+	}
+	for name, mutate := range map[string]func(*Spec){
+		"deny commands": func(s *Spec) { s.Tools.DenyCommands = []string{"rm"} },
+		"skills":        func(s *Spec) { s.Skills = []File{{Path: "a/SKILL.md", Content: "x"}} },
+		"no shell":      func(s *Spec) { s.Tools.Allow = []string{"read"} },
+	} {
+		s := &Spec{Kind: "codex", Tools: Tools{Allow: []string{"read", "shell"}}}
+		mutate(s)
+		if bad := Normalize(s); len(bad) == 0 {
+			t.Errorf("codex with %s was accepted", name)
+		}
+	}
+}
+
+func TestCodexArgv(t *testing.T) {
+	s := &Spec{Kind: "codex", Tools: Tools{Allow: []string{"edit", "read", "shell"}}}
+	Normalize(s)
+	argv := CodexArgv(s, "", "/opt/hl/handloom", "/home/u/.config/handloom", "worker-1")
+	line := strings.Join(argv, " ")
+	for _, want := range []string{"codex --enable hooks --dangerously-bypass-hook-trust -a never -s workspace-write",
+		`-c mcp_servers.handloom.command="/opt/hl/handloom"`, `-c mcp_servers.handloom.args=["mcp"]`,
+		`mcp_servers.handloom.default_tools_approval_mode="approve"`,
+		`-c mcp_servers.handloom.env={HANDLOOM_HOME="/home/u/.config/handloom",HANDLOOM_AGENT="worker-1"}`} {
+		if !strings.Contains(line, want) {
+			t.Errorf("argv lacks %q:\n%s", want, line)
+		}
+	}
+	if strings.Contains(line, "--search") || strings.Contains(line, "--model") {
+		t.Errorf("web search or a model without being asked: %s", line)
+	}
+	// Read-only without edit; search with web; the model of the spawn wins.
+	ro := &Spec{Kind: "codex", Model: "gpt-x", Tools: Tools{Allow: []string{"read", "shell", "web"}}}
+	line = strings.Join(CodexArgv(ro, "gpt-y", "/b", "/h", "n"), " ")
+	for _, want := range []string{"-s read-only", "--search", "--model gpt-y"} {
+		if !strings.Contains(line, want) {
+			t.Errorf("argv lacks %q: %s", want, line)
+		}
+	}
+	// Quotes and backslashes in a path cannot break out of the TOML string.
+	got := strings.Join(CodexArgv(s, "", `/a"b\c`, "/h", "n"), " ")
+	if !strings.Contains(got, `command="/a\"b\\c"`) {
+		t.Errorf("TOML quoting: %s", got)
+	}
+}
+
+func TestCodexEnforcementText(t *testing.T) {
+	s := &Spec{Kind: "codex", Tools: Tools{Allow: []string{"read", "shell"}}}
+	text := strings.Join(Enforcement(s), "\n")
+	for _, want := range []string{"refused by the Codex sandbox: writing files", "refused by the Codex sandbox: network", "not enforced: which shell commands run"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("lacks %q:\n%s", want, text)
+		}
+	}
+}

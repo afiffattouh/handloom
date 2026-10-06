@@ -34,7 +34,9 @@ h2 { font-size: 1rem; margin: 1.6rem 0 .6rem; color: var(--muted); font-weight: 
 .card.attention { border-left: 4px solid var(--accent); }
 .card header { display: flex; justify-content: space-between; gap: .6rem; flex-wrap: wrap; }
 .text { white-space: pre-wrap; overflow-wrap: anywhere; margin: .4rem 0; }
-.row { display: flex; justify-content: space-between; gap: .8rem; flex-wrap: wrap; margin: .25rem 0; }
+.row { display: flex; justify-content: space-between; align-items: baseline; gap: .1rem .8rem; flex-wrap: wrap; margin: 0; padding: .35rem 0; border-bottom: 1px solid var(--line); }
+.row:last-child { border-bottom: 0; }
+.row > :last-child { margin-left: auto; }
 .buttons { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; margin-top: .5rem; }
 .buttons form { margin: 0; display: flex; gap: .4rem; flex-wrap: wrap; }
 button.secondary { background: none; color: var(--accent); border: 1px solid var(--accent); }

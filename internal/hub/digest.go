@@ -17,7 +17,7 @@ const leadSilence = 30 * time.Minute
 var activityVerbs = map[string]string{
 	"task.create": "created", "task.claim": "claimed", "task.submit": "submitted", "task.accept": "accepted",
 	"task.reject": "rejected", "task.block": "marked blocked", "task.cancel": "cancelled", "task.release": "released",
-	"escalation.open": "asked a question", "escalation.answer": "answered", "agent.register": "registered",
+	"escalation.open": "asked", "escalation.answer": "answered", "agent.register": "joined the project",
 }
 
 // digest builds the human's view of the project(s). Agents see only their own project.
@@ -120,7 +120,7 @@ func (c *call) digest() (*api.Digest, error) {
 		if !ok {
 			continue
 		}
-		d.Activity = append(d.Activity, api.Activity{At: store.Time(at), Text: fmt.Sprintf("%s %s %s", actor, verb, target)})
+		d.Activity = append(d.Activity, api.Activity{At: store.Time(at), Text: strings.TrimSpace(fmt.Sprintf("%s %s %s", who(actor), verb, what(target)))})
 	}
 	if err := arows.Err(); err != nil {
 		return nil, err
@@ -134,4 +134,26 @@ func digestGet(c *call) (any, error) {
 		return nil, err
 	}
 	return c.digest()
+}
+
+// who and what turn audit identifiers into words for people.
+func who(actor string) string {
+	for _, p := range []string{"agent:", "human:"} {
+		if strings.HasPrefix(actor, p) {
+			return strings.TrimPrefix(actor, p)
+		}
+	}
+	return actor
+}
+
+func what(target string) string {
+	switch {
+	case strings.HasPrefix(target, "task:"):
+		return "task #" + strings.TrimPrefix(target, "task:")
+	case strings.HasPrefix(target, "escalation:"):
+		return "question #" + strings.TrimPrefix(target, "escalation:")
+	case strings.HasPrefix(target, "agent:"):
+		return "" // "researcher registered" reads better than "registered agent:researcher"
+	}
+	return target
 }

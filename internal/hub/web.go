@@ -151,7 +151,7 @@ func (h *Hub) webHeaders(w http.ResponseWriter) {
 	hd.Set("Content-Security-Policy", "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'")
 	hd.Set("X-Content-Type-Options", "nosniff")
 	hd.Set("X-Frame-Options", "DENY")
-	hd.Set("Referrer-Policy", "no-referrer")
+	hd.Set("Referrer-Policy", "same-origin")
 	hd.Set("Cache-Control", "no-store")
 	hd.Set("Cross-Origin-Opener-Policy", "same-origin")
 	if h.useSecureCookie() {
@@ -216,10 +216,15 @@ func (h *Hub) webRoutes(mux *http.ServeMux) {
 // setup): the browser must say the request is same-origin.
 func (h *Hub) strictSameOrigin(r *http.Request) bool {
 	want := h.webOrigin(r)
+	sfs := r.Header.Get("Sec-Fetch-Site")
 	if o := r.Header.Get("Origin"); o != "" {
+		if o == "null" {
+			// Browsers send "null" for same-origin form posts under some
+			// referrer policies; the fetch metadata tells the truth.
+			return sfs == "same-origin"
+		}
 		return want != "" && o == want
 	}
-	sfs := r.Header.Get("Sec-Fetch-Site")
 	return sfs == "same-origin" || sfs == "none"
 }
 
@@ -228,6 +233,9 @@ func (h *Hub) strictSameOrigin(r *http.Request) bool {
 // and has to pass the token check.
 func (h *Hub) looseSameOrigin(r *http.Request) bool {
 	if o := r.Header.Get("Origin"); o != "" {
+		if o == "null" {
+			return r.Header.Get("Sec-Fetch-Site") == "same-origin"
+		}
 		return o == h.webOrigin(r)
 	}
 	if sfs := r.Header.Get("Sec-Fetch-Site"); sfs != "" {

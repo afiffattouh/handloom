@@ -251,10 +251,11 @@ func TestSetupNeedsSameOrigin(t *testing.T) {
 	e := newWebEnv(t, Options{})
 	form := url.Values{"code": {e.code}, "name": {"afif"}, "password": {goodPassword}, "password2": {goodPassword}}
 	for name, h := range map[string]map[string]string{
-		"foreign origin":   {"Origin": "https://evil.example"},
-		"null origin":      {"Origin": "null"},
-		"no origin at all": {"Origin": ""},
-		"cross-site fetch": {"Origin": "", "Sec-Fetch-Site": "cross-site"},
+		"foreign origin":                {"Origin": "https://evil.example"},
+		"null origin":                   {"Origin": "null"},
+		"no origin at all":              {"Origin": ""},
+		"cross-site fetch":              {"Origin": "", "Sec-Fetch-Site": "cross-site"},
+		"null origin from another site": {"Origin": "null", "Sec-Fetch-Site": "cross-site"},
 	} {
 		if r := e.req("POST", "/setup", form, nil, h); r.status != 403 {
 			t.Errorf("%s: %d", name, r.status)
@@ -264,6 +265,12 @@ func TestSetupNeedsSameOrigin(t *testing.T) {
 	e.hub.db.QueryRow(`SELECT count(*) FROM human`).Scan(&owners)
 	if owners != 0 {
 		t.Fatal("a refused request created an account")
+	}
+	// A browser that sends Origin: null for a same-origin form post (it does
+	// under some referrer policies) is recognised by its fetch metadata.
+	if r := e.req("POST", "/setup", url.Values{"code": {"AAAA-BBBB-CCCC"}, "name": {"afif"}, "password": {goodPassword}, "password2": {goodPassword}}, nil,
+		map[string]string{"Origin": "null", "Sec-Fetch-Site": "same-origin"}); r.status != 403 || !strings.Contains(r.body, "setup code") {
+		t.Fatalf("null origin with same-origin metadata should reach the code check: %d", r.status)
 	}
 	// A browser that sends Sec-Fetch-Site but no Origin still works.
 	if r := e.req("POST", "/setup", form, nil, map[string]string{"Origin": "", "Sec-Fetch-Site": "same-origin"}); r.status != 303 {
@@ -418,7 +425,7 @@ func TestSecurityHeaders(t *testing.T) {
 		if !strings.Contains(csp, "default-src 'none'") || !strings.Contains(csp, "frame-ancestors 'none'") || strings.Contains(csp, "unsafe-inline") {
 			t.Errorf("%s: CSP %q", path, csp)
 		}
-		if r.header.Get("X-Content-Type-Options") != "nosniff" || r.header.Get("Referrer-Policy") != "no-referrer" || r.header.Get("Strict-Transport-Security") == "" {
+		if r.header.Get("X-Content-Type-Options") != "nosniff" || r.header.Get("Referrer-Policy") != "same-origin" || r.header.Get("Strict-Transport-Security") == "" {
 			t.Errorf("%s: headers %v", path, r.header)
 		}
 	}

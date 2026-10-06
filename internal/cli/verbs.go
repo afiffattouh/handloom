@@ -520,7 +520,7 @@ func jobLine(j api.Job) string {
 
 func (e *env) job(args []string) error {
 	if len(args) == 0 {
-		return usageErr("usage: handloom job new|list|show|close")
+		return usageErr("usage: handloom job new|list|show|resume|close")
 	}
 	sub := args[0]
 	fs := e.flags("job " + sub)
@@ -592,6 +592,19 @@ func (e *env) job(args []string) error {
 				fmt.Fprintln(e.out, "  "+taskLine(t))
 			}
 		})
+	case "resume":
+		id, err := jobID("resume <id> --lead AGENT")
+		if err != nil {
+			return err
+		}
+		if *lead == "" {
+			return usageErr("usage: handloom job resume <id> --lead AGENT")
+		}
+		var j api.Job
+		if err := c.Post(fmt.Sprintf("/v1/jobs/%d/resume", id), api.JobResumeReq{Lead: *lead}, &j); err != nil {
+			return err
+		}
+		e.print(j, func() { fmt.Fprintln(e.out, "Resumed "+jobLine(j)) })
 	case "close":
 		id, err := jobID("close <id> [--cancel]")
 		if err != nil {

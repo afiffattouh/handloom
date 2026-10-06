@@ -355,13 +355,13 @@ func TestSilentLeadNeedsYouAfterThirtyMinutes(t *testing.T) {
 	var task api.Task
 	ag.lead("POST", "/v1/tasks", api.TaskCreateReq{Title: "work"}, &task)
 
-	if r := e.req("GET", "/inbox", nil, c, nil); strings.Contains(r.body, "is unknown while work is open") {
+	if r := e.req("GET", "/inbox", nil, c, nil); strings.Contains(r.body, "is unknown while 1 task(s) are unfinished") {
 		t.Fatal("a lead that registered a moment ago is reported silent")
 	}
 	e.clock.advance(31 * time.Minute)
 	// A task assigned to nobody is not "work in flight"; claim it first.
 	ag.worker("POST", fmt.Sprintf("/v1/tasks/%d/claim", task.ID), nil, nil)
-	if r := e.req("GET", "/inbox", nil, c, nil); !strings.Contains(r.body, "The lead (lead) is unknown while work is open") {
+	if r := e.req("GET", "/inbox", nil, c, nil); !strings.Contains(r.body, "The lead (lead) is unknown while 1 task(s) are unfinished") {
 		t.Fatalf("a silent lead is not reported: %s", r.body)
 	}
 }

@@ -90,14 +90,33 @@ func (c *call) digest() (*api.Digest, error) {
 	if err != nil {
 		return nil, err
 	}
-	busy := len(tasks) > 0
 	for _, a := range agents {
 		d.Agents = append(d.Agents, a.api())
-		silent := c.now.Sub(store.Time(a.stateAt)) > leadSilence
-		if a.role == api.RoleLead && busy && silent && (a.state == api.StateOffline || a.state == api.StateUnknown) {
-			d.NeedsYou = append(d.NeedsYou, api.DigestItem{Kind: "lead-silent", Title: fmt.Sprintf("The lead (%s) is %s while work is open", a.name, a.state),
-				Who: a.name, At: store.Time(a.stateAt)})
+		if a.role != api.RoleLead {
+			continue
 		}
+		// A lead that is offline, or has been unknown for a while, while its
+		// work is unfinished: somebody has to resume it.
+		silent := a.state == api.StateOffline ||
+			(a.state == api.StateUnknown && c.now.Sub(store.Time(a.stateAt)) > leadSilence)
+		if !silent {
+			continue
+		}
+		n, err := c.leadWork(a)
+		if err != nil {
+			return nil, err
+		}
+		if n == 0 {
+			continue
+		}
+		item := api.DigestItem{Kind: "lead-silent", Who: a.name, At: store.Time(a.stateAt),
+			Title: fmt.Sprintf("The lead (%s) is %s while %d task(s) are unfinished", a.name, a.state, n)}
+		if a.jobID.Valid {
+			item.ID = a.jobID.Int64
+			item.Title = fmt.Sprintf("The lead of job #%d (%s) is %s while %d task(s) are unfinished", a.jobID.Int64, a.name, a.state, n)
+			item.Detail = fmt.Sprintf("Resume it: handloom job resume %d --lead <agent>", a.jobID.Int64)
+		}
+		d.NeedsYou = append(d.NeedsYou, item)
 	}
 
 	// Recent activity from the audit log (humans and the admin only: the log spans projects).

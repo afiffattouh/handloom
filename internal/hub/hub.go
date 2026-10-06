@@ -39,6 +39,7 @@ type Options struct {
 	SessionMax        time.Duration    // web session absolute lifetime; default 7 days
 	AllowConfidential bool             // this hub may host confidential jobs (private, trusted deployments only)
 	RequireRunToken   bool             // refuse agent requests that carry only the device credential and a claimed name
+	AgentLease        time.Duration    // how long an agent with a terminal stays "alive" after its link last vouched for it; default 90s
 	JoinTTL           time.Duration    // how long a device join token works; default 15 minutes
 	InviteTTL         time.Duration    // how long a member invite link works; default 7 days
 	NtfyToken         string           // access token for the ntfy topic set in Settings (never stored in the database)
@@ -69,6 +70,9 @@ func New(db *sql.DB, opt Options) *Hub {
 	}
 	if opt.MsgRate <= 0 {
 		opt.MsgRate = 60
+	}
+	if opt.AgentLease <= 0 {
+		opt.AgentLease = 90 * time.Second
 	}
 	if opt.JoinTTL <= 0 {
 		opt.JoinTTL = 15 * time.Minute
@@ -126,6 +130,9 @@ func (h *Hub) Sweep() error {
 		return err
 	}
 	if err := c.reportUnclaimed(); err != nil {
+		return err
+	}
+	if err := c.expireAgentLeases(); err != nil {
 		return err
 	}
 	if err := tx.Commit(); err != nil {
@@ -196,12 +203,14 @@ func (h *Hub) Handler() http.Handler {
 	v1("GET /jobs", jobList)
 	v1("GET /jobs/{id}", jobGet)
 	v1("POST /jobs/{id}/close", jobClose)
+	v1("POST /jobs/{id}/resume", jobResume)
 	v1("POST /agents/{name}/job", agentJob)
 
 	v1("POST /agents", agentRegister)
 	v1("GET /agents", agentList)
 	v1("POST /agents/{name}/role", agentRole)
 	v1("POST /agents/{name}/state", agentState)
+	v1("POST /agents/{name}/heartbeat", agentHeartbeat)
 	v1("POST /agents/{name}/turn-end", agentTurnEnd)
 	v1("POST /agents/{name}/wake", agentWake)
 	v1("GET /device/agents", deviceAgents)

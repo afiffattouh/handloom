@@ -82,19 +82,20 @@ type Device struct {
 }
 
 type Agent struct {
-	Name         string    `json:"name"`
-	Kind         string    `json:"kind"`
-	Role         string    `json:"role"`
-	Project      string    `json:"project"`
-	Device       string    `json:"device"`
-	State        string    `json:"state"`
-	StateAt      time.Time `json:"state_at"`
-	WakeTarget   string    `json:"wake_target,omitempty"`
-	SessionID    string    `json:"session_id,omitempty"`
-	Dir          string    `json:"dir,omitempty"`       // the agent's working directory on its device
-	Job          *int64    `json:"job,omitempty"`       // the job this agent belongs to; jobs have their own lead
-	RunToken     string    `json:"run_token,omitempty"` // only in the answer to a register that asked to rotate it; shown once
-	RegisteredAt time.Time `json:"registered_at"`
+	Name         string     `json:"name"`
+	Kind         string     `json:"kind"`
+	Role         string     `json:"role"`
+	Project      string     `json:"project"`
+	Device       string     `json:"device"`
+	State        string     `json:"state"`
+	StateAt      time.Time  `json:"state_at"`
+	WakeTarget   string     `json:"wake_target,omitempty"`
+	SessionID    string     `json:"session_id,omitempty"`
+	Dir          string     `json:"dir,omitempty"`              // the agent's working directory on its device
+	Job          *int64     `json:"job,omitempty"`              // the job this agent belongs to; jobs have their own lead
+	LeaseUntil   *time.Time `json:"lease_expires_at,omitempty"` // an agent with a terminal is alive until then; its link renews it
+	RunToken     string     `json:"run_token,omitempty"`        // only in the answer to a register that asked to rotate it; shown once
+	RegisteredAt time.Time  `json:"registered_at"`
 }
 
 // DeviceAgent is what a link sees for each agent on its own device.
@@ -274,6 +275,10 @@ type JobNewReq struct {
 
 type JobCloseReq struct {
 	Cancel bool `json:"cancel,omitempty"` // cancel the job and its unfinished tasks instead of finishing it
+}
+
+type JobResumeReq struct {
+	Lead string `json:"lead"` // the agent that takes over as the job's lead
 }
 
 type AgentJobReq struct {

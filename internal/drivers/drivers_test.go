@@ -2,6 +2,7 @@ package drivers
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 )
@@ -86,5 +87,40 @@ func TestForAndDetect(t *testing.T) {
 	t.Setenv("HERDR_PANE_ID", "")
 	if got := Detect(); got != "" {
 		t.Fatalf("no terminal: %q", got)
+	}
+}
+
+func TestAlive(t *testing.T) {
+	var got [][]string
+	run := func(fail bool, out string) Runner {
+		return func(_ context.Context, name string, args ...string) (string, error) {
+			got = append(got, append([]string{name}, args...))
+			if fail {
+				return out, errors.New("exit 1")
+			}
+			return out, nil
+		}
+	}
+	ctx := context.Background()
+	if !(&Tmux{Run: run(false, "%3\n")}).Alive(ctx, "/tmp/tmux-0/default:%3") {
+		t.Fatal("a pane that answers is not alive")
+	}
+	if want := "tmux -S /tmp/tmux-0/default display-message -p -t %3 #{pane_id}"; strings.Join(got[0], " ") != want {
+		t.Fatalf("tmux command %q, want %q", strings.Join(got[0], " "), want)
+	}
+	if (&Tmux{Run: run(true, "no server")}).Alive(ctx, "/tmp/tmux-0/default:%3") {
+		t.Fatal("a missing pane is alive")
+	}
+	if (&Tmux{Run: run(false, "")}).Alive(ctx, "nopane") {
+		t.Fatal("a malformed target is alive")
+	}
+	if !(&Herdr{Run: run(false, `{"result":{"pane":{}}}`)}).Alive(ctx, "w1:p2") {
+		t.Fatal("a herdr pane that answers is not alive")
+	}
+	if (&Herdr{Run: run(false, `{"error":{"code":"pane_not_found"}}`)}).Alive(ctx, "w1:p2") {
+		t.Fatal("a herdr pane_not_found answer counts as alive")
+	}
+	if (&Herdr{Run: run(true, "")}).Alive(ctx, "w1:p2") || (&Herdr{Run: run(false, "")}).Alive(ctx, "") {
+		t.Fatal("herdr error or empty target is alive")
 	}
 }

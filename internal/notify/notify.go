@@ -19,6 +19,7 @@ import (
 // Notification kinds.
 const (
 	KindEscalation = "escalation" // the lead asked the human a question
+	KindLeadLost   = "lead-lost"  // a lead went offline with work unfinished
 )
 
 type Notification struct {

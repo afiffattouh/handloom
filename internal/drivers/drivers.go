@@ -19,6 +19,9 @@ type Driver interface {
 	Name() string
 	// Nudge types line into the terminal at target and submits it.
 	Nudge(ctx context.Context, target, line string) error
+	// Alive reports whether the terminal at target still exists. A failed
+	// check counts as "not alive"; callers tolerate a few misses.
+	Alive(ctx context.Context, target string) bool
 }
 
 // Runner runs a command and returns its combined output. Tests replace it.
@@ -75,6 +78,20 @@ func (t *Tmux) Name() string { return "tmux" }
 // as a command instead of read by an agent.
 var shells = map[string]bool{"bash": true, "sh": true, "zsh": true, "fish": true, "dash": true, "ksh": true, "tcsh": true, "csh": true}
 
+func (t *Tmux) Alive(ctx context.Context, target string) bool {
+	i := strings.LastIndex(target, ":")
+	if i < 0 || target[i+1:] == "" {
+		return false
+	}
+	socket, pane := target[:i], target[i+1:]
+	args := []string{}
+	if socket != "" {
+		args = append(args, "-S", socket)
+	}
+	_, err := t.Run(ctx, "tmux", append(args, "display-message", "-p", "-t", pane, "#{pane_id}")...)
+	return err == nil
+}
+
 func (t *Tmux) Nudge(ctx context.Context, target, line string) error {
 	i := strings.LastIndex(target, ":")
 	if i < 0 || target[i+1:] == "" {
@@ -118,6 +135,14 @@ type Herdr struct {
 }
 
 func (h *Herdr) Name() string { return "herdr" }
+
+func (h *Herdr) Alive(ctx context.Context, target string) bool {
+	if target == "" {
+		return false
+	}
+	out, err := h.Run(ctx, "herdr", "pane", "get", target)
+	return err == nil && !strings.Contains(out, `"error"`)
+}
 
 func (h *Herdr) Nudge(ctx context.Context, target, line string) error {
 	if target == "" {

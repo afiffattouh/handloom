@@ -63,6 +63,7 @@ func (e *env) hub(args []string) error {
 	lease := fs.Duration("lease", 15*time.Minute, "task lease")
 	sweep := fs.Duration("sweep", 5*time.Second, "how often expired leases are collected")
 	unclaimed := fs.Duration("unclaimed", 10*time.Minute, "tell the lead when an assigned task stays unclaimed this long")
+	agentLease := fs.Duration("agent-lease", 90*time.Second, "mark an agent with a terminal offline when its link has not vouched for it this long")
 	autoInit := fs.Bool("auto-init", false, "serve: create the database on first start and print the admin token to the log (containers)")
 	to := fs.String("to", "", "backup: file to write")
 	from := fs.String("from", "", "restore: backup file to restore")
@@ -184,7 +185,7 @@ func (e *env) hub(args []string) error {
 		}
 		h := hub.New(db, hub.Options{Lease: *lease, Sweep: *sweep, Unclaimed: *unclaimed, Log: logger,
 			Notifier: notifier, BaseURL: setting.Get("BASE_URL"),
-			Insecure: setting.Bool("INSECURE"), TrustProxy: setting.Bool("TRUST_PROXY"), NtfyToken: setting.Get("NTFY_TOKEN"), AllowConfidential: setting.Bool("ALLOW_CONFIDENTIAL"), RequireRunToken: setting.Bool("REQUIRE_RUN_TOKEN")})
+			Insecure: setting.Bool("INSECURE"), TrustProxy: setting.Bool("TRUST_PROXY"), NtfyToken: setting.Get("NTFY_TOKEN"), AllowConfidential: setting.Bool("ALLOW_CONFIDENTIAL"), RequireRunToken: setting.Bool("REQUIRE_RUN_TOKEN"), AgentLease: *agentLease})
 		if ok, why := h.WebEnabled(); !ok {
 			logger.Printf("web UI is off: %s", why)
 		} else if code, err := h.PrepareSetup(); err != nil {

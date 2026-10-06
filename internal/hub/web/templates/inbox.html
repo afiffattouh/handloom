@@ -37,6 +37,7 @@
     {{else}}
     <article class="card attention">
       <header><strong>{{.Title}}</strong> <span class="muted">{{.Ago}}</span></header>
+      {{if .Detail}}<p class="text muted">{{.Detail}}</p>{{end}}
     </article>
     {{end}}
   {{else}}

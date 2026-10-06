@@ -25,9 +25,22 @@ type fakeDriver struct {
 	mu     sync.Mutex
 	nudges []string // "target|line"
 	err    error
+	dead   bool // the terminal is gone: Alive says no
+}
+
+func (f *fakeDriver) setDead(v bool) {
+	f.mu.Lock()
+	f.dead = v
+	f.mu.Unlock()
 }
 
 func (f *fakeDriver) Name() string { return "tmux" }
+
+func (f *fakeDriver) Alive(_ context.Context, _ string) bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return !f.dead
+}
 
 func (f *fakeDriver) Nudge(_ context.Context, target, line string) error {
 	f.mu.Lock()
@@ -529,4 +542,53 @@ func waitFor(t *testing.T, cond func() bool) {
 		time.Sleep(10 * time.Millisecond)
 	}
 	t.Fatal("condition not reached")
+}
+
+func (f *fixture) lease(agent string) *time.Time {
+	f.t.Helper()
+	var as []api.Agent
+	f.must(f.human.Get("/v1/agents", &as))
+	for _, a := range as {
+		if a.Name == agent {
+			return a.LeaseUntil
+		}
+	}
+	f.t.Fatalf("no agent %s", agent)
+	return nil
+}
+
+// The link vouches for an agent's terminal while it exists, and only then;
+// agents without a terminal are not asked to.
+func TestLadderVouchesForLiveTerminals(t *testing.T) {
+	f := newFixture(t)
+	f.state(f.worker, api.StateWorking)
+	f.ladder()
+	first := f.lease("worker")
+	if first == nil {
+		t.Fatal("no lease after the ladder ran with a live terminal")
+	}
+	if f.lease("lead") != nil {
+		t.Fatal("an agent with no terminal got a lease")
+	}
+
+	// Not renewed more often than LiveEvery.
+	f.advance(5 * time.Second)
+	f.ladder()
+	if got := f.lease("worker"); got == nil || !got.Equal(*first) {
+		t.Fatalf("renewed too soon: %v then %v", first, got)
+	}
+	f.advance(30 * time.Second)
+	f.ladder()
+	second := f.lease("worker")
+	if second == nil || !second.After(*first) {
+		t.Fatalf("not renewed after LiveEvery: %v then %v", first, second)
+	}
+
+	// The terminal disappears: the lease is left to run out.
+	f.driver.setDead(true)
+	f.advance(30 * time.Second)
+	f.ladder()
+	if got := f.lease("worker"); got == nil || !got.Equal(*second) {
+		t.Fatalf("a dead terminal was vouched for: %v then %v", second, got)
+	}
 }

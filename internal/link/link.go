@@ -34,6 +34,7 @@ type Options struct {
 	Heartbeat    time.Duration // extend leases of an active agent this often; default 2m
 	BlockedGrace time.Duration // an agent must be blocked this long before the lead is told; default 30s
 	Tick         time.Duration // how often the ladder runs without events; default 10s
+	LiveEvery    time.Duration // how often a live terminal is reported to the hub as alive; default 20s
 	PollWait     int           // long-poll seconds; default 25
 
 	Headless        map[string][]string // per-kind headless command overrides
@@ -66,6 +67,7 @@ func New(opt Options) *Link {
 	def(&opt.Heartbeat, 2*time.Minute)
 	def(&opt.BlockedGrace, 30*time.Second)
 	def(&opt.Tick, 10*time.Second)
+	def(&opt.LiveEvery, 20*time.Second)
 	def(&opt.HeadlessTimeout, 15*time.Minute)
 	if opt.HeadlessRun == nil {
 		opt.HeadlessRun = execHeadless

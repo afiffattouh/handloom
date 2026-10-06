@@ -2,6 +2,7 @@ package link
 
 import (
 	"context"
+	"net/url"
 	"time"
 
 	"handloom/internal/api"
@@ -18,6 +19,7 @@ type memo struct {
 	state           string // agent state as last seen from the hub
 	headlessRunning bool   // a headless turn started by this link is still running
 	lastHeartbeat   time.Time
+	lastLive        time.Time // when this agent's terminal was last reported alive
 }
 
 func (l *Link) memoFor(agent string) *memo {
@@ -108,8 +110,35 @@ func (l *Link) runLadder(ctx context.Context) {
 	}
 }
 
+// vouch tells the hub that an agent's terminal still exists, so the hub can
+// tell "quiet" from "gone". Agents without a terminal (headless, none) are
+// resumable and have nothing to vouch for.
+func (l *Link) vouch(ctx context.Context, a api.DeviceAgent, now time.Time) {
+	if a.WakeTarget == "" || a.WakeTarget == HeadlessTarget {
+		return
+	}
+	l.mu.Lock()
+	due := now.Sub(l.memoFor(a.Name).lastLive) >= l.opt.LiveEvery
+	l.mu.Unlock()
+	if !due {
+		return
+	}
+	drv, target, err := l.opt.Drivers(a.WakeTarget)
+	if err != nil || !drv.Alive(ctx, target) {
+		return
+	}
+	if err := l.hub.Do(ctx, "POST", "/v1/agents/"+url.PathEscape(a.Name)+"/heartbeat", nil, nil); err != nil {
+		l.opt.Log.Printf("heartbeat %s: %v", a.Name, err)
+		return
+	}
+	l.mu.Lock()
+	l.memoFor(a.Name).lastLive = now
+	l.mu.Unlock()
+}
+
 func (l *Link) step(ctx context.Context, a api.DeviceAgent) {
 	now := l.opt.Now()
+	l.vouch(ctx, a, now)
 	l.mu.Lock()
 	m := l.memoFor(a.Name)
 	if m.state != a.State {

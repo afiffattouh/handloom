@@ -184,6 +184,10 @@ CREATE UNIQUE INDEX agent_one_lead ON agent(project_id, COALESCE(job_id, 0)) WHE
 ALTER TABLE agent ADD COLUMN run_token_hash TEXT;
 ALTER TABLE agent ADD COLUMN run_token_at INTEGER;
 ALTER TABLE audit ADD COLUMN via TEXT NOT NULL DEFAULT '';
+`, `
+-- B3: an agent with a terminal has a liveness lease that its link renews while
+-- the terminal exists. NULL: no lease (headless and shell agents).
+ALTER TABLE agent ADD COLUMN lease_expires_at INTEGER;
 `}
 
 // Open opens (and migrates) the database at path. Use ":memory:" in tests.

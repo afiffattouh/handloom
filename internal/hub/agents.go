@@ -23,6 +23,7 @@ type agentRow struct {
 	project, device         string
 	jobID                   sql.NullInt64
 	runTokenHash            string
+	lease                   sql.NullInt64
 }
 
 func (a *agentRow) api() api.Agent {
@@ -30,7 +31,7 @@ func (a *agentRow) api() api.Agent {
 		Name: a.name, Kind: a.kind, Role: a.role, Project: a.project, Device: a.device,
 		State: a.state, StateAt: store.Time(a.stateAt), WakeTarget: a.wakeTarget,
 		SessionID: a.sessionID, Dir: a.dir, RegisteredAt: store.Time(a.registeredAt),
-		Job: nullInt(a.jobID),
+		Job: nullInt(a.jobID), LeaseUntil: store.TimePtr(a.lease),
 	}
 }
 
@@ -43,7 +44,7 @@ func nullInt(n sql.NullInt64) *int64 {
 }
 
 const agentSelect = `SELECT a.id, a.project_id, a.device_id, a.name, a.kind, a.role, a.wake_target,
-	a.session_id, a.state, a.state_at, a.hook_msg_id, a.registered_at, p.name, d.name, a.dir, a.job_id, COALESCE(a.run_token_hash, '')
+	a.session_id, a.state, a.state_at, a.hook_msg_id, a.registered_at, p.name, d.name, a.dir, a.job_id, COALESCE(a.run_token_hash, ''), a.lease_expires_at
 	FROM agent a JOIN project p ON p.id = a.project_id JOIN device d ON d.id = a.device_id `
 
 type scanner interface{ Scan(...any) error }
@@ -51,7 +52,7 @@ type scanner interface{ Scan(...any) error }
 func scanAgent(s scanner) (*agentRow, error) {
 	a := &agentRow{}
 	err := s.Scan(&a.id, &a.projectID, &a.deviceID, &a.name, &a.kind, &a.role, &a.wakeTarget,
-		&a.sessionID, &a.state, &a.stateAt, &a.hookMsgID, &a.registeredAt, &a.project, &a.device, &a.dir, &a.jobID, &a.runTokenHash)
+		&a.sessionID, &a.state, &a.stateAt, &a.hookMsgID, &a.registeredAt, &a.project, &a.device, &a.dir, &a.jobID, &a.runTokenHash, &a.lease)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -105,8 +106,10 @@ func (c *call) leadFor(projectID int64, job sql.NullInt64) (*agentRow, error) {
 func (c *call) leadOf(a *agentRow) (*agentRow, error) {
 	job := a.jobID
 	if !job.Valid {
-		err := c.tx.QueryRow(`SELECT job_id FROM task WHERE owner_agent_id = ? AND status IN ('claimed', 'submitted') AND job_id IS NOT NULL
-			ORDER BY updated_at DESC LIMIT 1`, a.id).Scan(&job)
+		// The job of the task it is working on, else of its latest task in a job that is still open.
+		err := c.tx.QueryRow(`SELECT t.job_id FROM task t JOIN task j ON j.id = t.job_id
+			WHERE t.owner_agent_id = ? AND t.job_id IS NOT NULL AND j.status = 'open'
+			ORDER BY (t.status IN ('claimed', 'submitted')) DESC, t.updated_at DESC LIMIT 1`, a.id).Scan(&job)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return nil, err
 		}
@@ -367,7 +370,13 @@ func (c *call) setState(a *agentRow, state string, why string) error {
 		payload["reason"] = why
 	}
 	a.state = state
-	return c.record(a.projectID, 0, "agent.state", "agent:"+a.name, payload)
+	if err := c.record(a.projectID, 0, "agent.state", "agent:"+a.name, payload); err != nil {
+		return err
+	}
+	if state == api.StateOffline {
+		return c.leadLost(a)
+	}
+	return nil
 }
 
 // agentState is called by adapter hooks through the link.

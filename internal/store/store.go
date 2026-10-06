@@ -139,6 +139,21 @@ CREATE TABLE escalation (
   answered_at   INTEGER
 );
 CREATE INDEX escalation_open ON escalation(project_id, answered_at);
+`, `
+-- A: web accounts. A human with a password_hash can sign in to the web UI;
+-- the API token stays as it was. role: owner | member | viewer.
+ALTER TABLE human ADD COLUMN password_hash TEXT;
+ALTER TABLE human ADD COLUMN role TEXT NOT NULL DEFAULT 'member';
+CREATE TABLE web_session (
+  id_hash      TEXT PRIMARY KEY, -- sha256 of the random session id; the id lives only in the cookie
+  human_id     INTEGER NOT NULL REFERENCES human(id),
+  csrf         TEXT NOT NULL,
+  created_at   INTEGER NOT NULL,
+  last_seen_at INTEGER NOT NULL,
+  expires_at   INTEGER NOT NULL,
+  ip           TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX web_session_human ON web_session(human_id);
 `}
 
 // Open opens (and migrates) the database at path. Use ":memory:" in tests.

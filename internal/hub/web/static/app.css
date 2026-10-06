@@ -1,0 +1,30 @@
+:root {
+  --bg: #f7f6f3; --panel: #ffffff; --text: #1f2328; --muted: #656d76; --line: #d8d6d0;
+  --accent: #1f5f4a; --accent-text: #ffffff; --err-bg: #fde8e6; --err: #8f1d12; --ok-bg: #e5f3ec; --ok: #14573b;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14161a; --panel: #1c1f24; --text: #e6e6e3; --muted: #9aa0a6; --line: #2e333a;
+    --accent: #4aa384; --accent-text: #0b1f18; --err-bg: #3a1c19; --err: #ffb4a9; --ok-bg: #16322a; --ok: #8fd8b8;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+.top { display: flex; align-items: center; gap: 1rem; padding: .6rem 1rem; background: var(--panel); border-bottom: 1px solid var(--line); }
+.top nav { flex: 1; display: flex; gap: 1rem; }
+.top .who { display: flex; align-items: center; gap: .6rem; margin: 0; color: var(--muted); font-size: .9rem; }
+.brand { font-weight: 650; color: var(--text); text-decoration: none; letter-spacing: .01em; }
+a { color: var(--accent); }
+main { max-width: 42rem; margin: 0 auto; padding: 1.5rem 1rem 4rem; }
+h1 { font-size: 1.4rem; margin: .2rem 0 1rem; }
+.muted { color: var(--muted); }
+.stack { display: grid; gap: .9rem; }
+label { display: grid; gap: .25rem; font-size: .9rem; color: var(--muted); }
+input { font: inherit; padding: .55rem .65rem; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--text); min-height: 44px; }
+input:focus-visible, button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button { font: inherit; padding: .6rem 1rem; border: 0; border-radius: 6px; background: var(--accent); color: var(--accent-text); cursor: pointer; min-height: 44px; }
+button.link { background: none; color: var(--accent); padding: .3rem .4rem; min-height: 0; text-decoration: underline; }
+.error, .notice { padding: .65rem .8rem; border-radius: 6px; margin: 0 0 1rem; }
+.error { background: var(--err-bg); color: var(--err); }
+.notice { background: var(--ok-bg); color: var(--ok); }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .9em; }

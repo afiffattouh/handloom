@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -49,8 +50,12 @@ func (e *env) hub(args []string) error {
 	to := fs.String("to", "", "backup: file to write")
 	from := fs.String("from", "", "restore: backup file to restore")
 	force := fs.Bool("force", false, "restore: replace an existing database (stop the hub first)")
-	if _, err := fs.need(args, 0, 0, "hub init|serve|backup|restore|install|uninstall [--data DIR] [--addr A] [--lease D]"); err != nil {
+	pos, err := fs.need(args, 0, 1, "hub init|serve|backup|restore|reset-password|install|uninstall [--data DIR] [--addr A] [--lease D]")
+	if err != nil {
 		return err
+	}
+	if len(pos) > 0 && sub != "reset-password" {
+		return usageErr("usage: handloom hub %s takes no arguments", sub)
 	}
 	dir := dataDir(*data)
 	dbPath := filepath.Join(dir, "handloom.db")
@@ -99,6 +104,26 @@ func (e *env) hub(args []string) error {
 		}
 		fmt.Fprintf(e.out, "Backup written to %s (mode 0600). It holds hashed tokens and all hub data: keep it private.\n", *to)
 		return nil
+	case "reset-password":
+		// Local recovery: whoever can read the database may set a password.
+		name := ""
+		if len(pos) > 0 {
+			name = pos[0]
+		}
+		if name == "" {
+			return usageErr("usage: handloom hub reset-password <name> [--data DIR]   (prints a new password once)")
+		}
+		db, err := store.Open(dbPath)
+		if err != nil {
+			return err
+		}
+		defer db.Close()
+		pw, err := hub.ResetPassword(db, name, time.Now())
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(e.out, "New password for %s (shown once; every session of that human is signed out):\n%s\n", name, pw)
+		return nil
 	case "restore":
 		if *from == "" {
 			return usageErr("usage: handloom hub restore --from FILE [--data DIR] [--force]   (stop the hub first)")
@@ -141,7 +166,15 @@ func (e *env) hub(args []string) error {
 			return err
 		}
 		h := hub.New(db, hub.Options{Lease: *lease, Sweep: *sweep, Unclaimed: *unclaimed, Log: logger,
-			Notifier: notifier, BaseURL: os.Getenv("HANDLOOM_BASE_URL")})
+			Notifier: notifier, BaseURL: os.Getenv("HANDLOOM_BASE_URL"),
+			Insecure: envBool("HANDLOOM_INSECURE"), TrustProxy: envBool("HANDLOOM_TRUST_PROXY")})
+		if ok, why := h.WebEnabled(); !ok {
+			logger.Printf("web UI is off: %s", why)
+		} else if code, err := h.PrepareSetup(); err != nil {
+			return err
+		} else if code != "" {
+			logger.Printf("this hub has no owner yet. Open %s/setup and enter the setup code: %s", strings.TrimRight(os.Getenv("HANDLOOM_BASE_URL"), "/"), code)
+		}
 		ln, err := net.Listen("tcp", *addr)
 		if err != nil {
 			return err
@@ -187,6 +220,14 @@ func notifierFromEnv() (notify.Notifier, error) {
 		return nil, nil
 	}
 	return m, nil
+}
+
+func envBool(name string) bool {
+	switch strings.ToLower(os.Getenv(name)) {
+	case "1", "true", "yes", "on":
+		return true
+	}
+	return false
 }
 
 func (e *env) link(args []string) error {

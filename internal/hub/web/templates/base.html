@@ -1,0 +1,28 @@
+{{define "base"}}<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Title}} · Handloom</title>
+{{if .CSRF}}<meta name="csrf-token" content="{{.CSRF}}">{{end}}
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="/">Handloom</a>
+  {{if .Human}}<nav>
+    <a href="/inbox">Inbox</a>
+  </nav>
+  <form method="post" action="/logout" class="who">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <span>{{.Human.Name}} · {{.Human.Role}}</span>
+    <button type="submit" class="link">Sign out</button>
+  </form>{{end}}
+</header>
+<main>
+{{if .Notice}}<p class="notice">{{.Notice}}</p>{{end}}
+{{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{end}}
+{{template "content" .}}
+</main>
+</body>
+</html>{{end}}

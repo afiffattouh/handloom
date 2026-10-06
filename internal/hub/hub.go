@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html/template"
 	"io"
 	"log"
 	"net/http"
@@ -26,14 +27,18 @@ import (
 )
 
 type Options struct {
-	Lease     time.Duration    // task lease; default 15 minutes
-	Sweep     time.Duration    // how often expired leases are collected; default 5 seconds
-	Unclaimed time.Duration    // tell the lead when an assigned task stays unclaimed this long; default 10 minutes
-	MsgRate   int              // messages per minute per sender; default 60
-	Notifier  notify.Notifier  // tells the human about escalations; nil means nobody is told
-	BaseURL   string           // public URL of the hub, for links in notifications
-	Now       func() time.Time // clock, replaceable in tests
-	Log       *log.Logger
+	Lease       time.Duration    // task lease; default 15 minutes
+	Sweep       time.Duration    // how often expired leases are collected; default 5 seconds
+	Unclaimed   time.Duration    // tell the lead when an assigned task stays unclaimed this long; default 10 minutes
+	MsgRate     int              // messages per minute per sender; default 60
+	Notifier    notify.Notifier  // tells the human about escalations; nil means nobody is told
+	BaseURL     string           // public URL of the hub, for links in notifications and the origin check
+	Insecure    bool             // allow the web UI over plain http on a private network
+	TrustProxy  bool             // take the client address from the proxy's X-Forwarded-For
+	SessionIdle time.Duration    // web session idle timeout; default 12h
+	SessionMax  time.Duration    // web session absolute lifetime; default 7 days
+	Now         func() time.Time // clock, replaceable in tests
+	Log         *log.Logger
 }
 
 type Hub struct {
@@ -43,6 +48,7 @@ type Hub struct {
 	mu     sync.Mutex
 	notify chan struct{} // closed and replaced whenever events are written
 	rate   map[string]*bucket
+	pages  map[string]*template.Template
 }
 
 func New(db *sql.DB, opt Options) *Hub {
@@ -58,13 +64,23 @@ func New(db *sql.DB, opt Options) *Hub {
 	if opt.MsgRate <= 0 {
 		opt.MsgRate = 60
 	}
+	if opt.SessionIdle <= 0 {
+		opt.SessionIdle = 12 * time.Hour
+	}
+	if opt.SessionMax <= 0 {
+		opt.SessionMax = 7 * 24 * time.Hour
+	}
 	if opt.Now == nil {
 		opt.Now = time.Now
 	}
 	if opt.Log == nil {
 		opt.Log = log.New(io.Discard, "", 0)
 	}
-	return &Hub{db: db, opt: opt, notify: make(chan struct{}), rate: map[string]*bucket{}}
+	h := &Hub{db: db, opt: opt, notify: make(chan struct{}), rate: map[string]*bucket{}}
+	if err := h.loadTemplates(); err != nil {
+		panic(err) // the templates are embedded: a parse error is a build bug
+	}
+	return h
 }
 
 // Run collects expired leases until ctx is done.
@@ -147,6 +163,8 @@ func (h *Hub) Handler() http.Handler {
 
 	mux.HandleFunc("POST /v1/devices/join", h.handleJoin)
 	mux.HandleFunc("GET /v1/events", h.handleEvents)
+
+	h.webRoutes(mux)
 
 	v1("GET /whoami", whoami)
 	v1("POST /admin/devices", adminDeviceAdd)
@@ -246,6 +264,7 @@ const (
 type principal struct {
 	kind      string
 	name      string // human or device name
+	role      string // humans: owner | member | viewer
 	deviceID  int64
 	agentName string    // from the Handloom-Agent header; checked in call.agent
 	agent     *agentRow // resolved lazily
@@ -345,7 +364,7 @@ func authenticate(tx *sql.Tx, r *http.Request, now time.Time) (*principal, error
 		return &principal{kind: kindAdmin}, nil
 	case strings.HasPrefix(tok, store.PrefixHuman):
 		p := &principal{kind: kindHuman}
-		if err := tx.QueryRow(`SELECT name FROM human WHERE token_hash = ?`, hash).Scan(&p.name); err != nil {
+		if err := tx.QueryRow(`SELECT name, role FROM human WHERE token_hash = ?`, hash).Scan(&p.name, &p.role); err != nil {
 			return nil, unauthorized("invalid token")
 		}
 		return p, nil
@@ -589,17 +608,25 @@ type bucket struct {
 
 // rateOK is a token bucket: MsgRate messages per minute per sender.
 func (h *Hub) rateOK(key string, now time.Time) bool {
+	return h.allowRate(key, float64(h.opt.MsgRate), float64(h.opt.MsgRate), now)
+}
+
+// allowRate is a token bucket with the given burst, refilled perMinute tokens
+// a minute. Keys are namespaced by the caller.
+func (h *Hub) allowRate(key string, burst, perMinute float64, now time.Time) bool {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	max := float64(h.opt.MsgRate)
+	if len(h.rate) > 20000 { // unauthenticated keys (login by address) must not grow without bound
+		h.rate = map[string]*bucket{}
+	}
 	b := h.rate[key]
 	if b == nil {
-		b = &bucket{tokens: max, at: now}
+		b = &bucket{tokens: burst, at: now}
 		h.rate[key] = b
 	}
-	b.tokens += now.Sub(b.at).Minutes() * max
-	if b.tokens > max {
-		b.tokens = max
+	b.tokens += now.Sub(b.at).Minutes() * perMinute
+	if b.tokens > burst {
+		b.tokens = burst
 	}
 	b.at = now
 	if b.tokens < 1 {

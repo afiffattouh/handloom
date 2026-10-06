@@ -8,8 +8,12 @@ The hub is one container: `handloom hub serve`. Data lives in one volume at `/da
 git clone <repo> && cd <repo>
 export HANDLOOM_BASE_URL=https://handloom.example.com      # the public URL, used in notification links
 docker compose up -d --build
-docker compose logs handloom | grep "Admin token"      # shown once on first start: store it
+docker compose logs handloom | grep -E "Admin token|setup code"   # both shown in the log; store the admin token
 ```
+
+Open `$HANDLOOM_BASE_URL/setup`, enter the setup code from the log and create the owner account. The wizard closes for good once an owner exists. A hub without an owner prints a new code every time it starts. Forgot the password? `docker compose exec handloom /handloom hub reset-password <name>` prints a new one (there is no web reset and no email).
+
+The web UI needs https (or `localhost`). With a plain `http://` address it stays off and says why in the log; on a private network (Tailscale, WireGuard) set `HANDLOOM_INSECURE=1` to turn it on anyway.
 
 The compose file publishes the port on `127.0.0.1` only. Put a TLS proxy (Caddy, nginx, Traefik) in front of it. handloom speaks plain HTTP; do not publish it to the internet without TLS. Set `HANDLOOM_PUBLISH=0.0.0.0` only on a private network (Tailscale, WireGuard).
 
@@ -24,6 +28,8 @@ Create a project, add a **Compose** application from the Git repo (this `docker-
 | `HANDLOOM_BASE_URL` | public URL; links in notifications point here |
 | `HANDLOOM_NTFY_URL`, `HANDLOOM_NTFY_TOPIC`, `HANDLOOM_NTFY_TOKEN` | phone push through ntfy (the push has a generic line and a link, never the question) |
 | `HANDLOOM_WEBHOOK_URL` | the same notification as JSON |
+| `HANDLOOM_INSECURE` | `1` allows the web UI over plain http on a private network |
+| `HANDLOOM_TRUST_PROXY` | `1` when a proxy in front of the hub sets `X-Forwarded-For` (its last entry is used for login rate limits); leave unset otherwise |
 | `HANDLOOM_DATA`, `HANDLOOM_ADDR` | set by the image (`/data`, `0.0.0.0:7420`) |
 
 ## Backup and restore

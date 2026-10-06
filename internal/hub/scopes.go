@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"handloom/internal/api"
+	"handloom/internal/store"
 )
 
 // Action is one row of the scope table in DESIGN.md section 6.
@@ -18,12 +19,15 @@ const (
 	ActEscalationAnswer Action = "escalation.answer" // answer escalation
 )
 
-const subjectHuman = "human"
+const (
+	subjectHuman  = "human"        // owner and member
+	subjectViewer = "human:viewer" // reads only
+)
 
 // scopeTable is DESIGN.md section 6, cell for cell. A missing entry means "no".
 // The hub checks it on every request; nothing the client sends can change it.
 var scopeTable = map[Action]map[string]bool{
-	ActRead:             {api.RoleLead: true, api.RoleWorker: true, api.RoleObserver: true, subjectHuman: true},
+	ActRead:             {api.RoleLead: true, api.RoleWorker: true, api.RoleObserver: true, subjectHuman: true, subjectViewer: true},
 	ActSend:             {api.RoleLead: true, api.RoleWorker: true, subjectHuman: true},
 	ActTaskManage:       {api.RoleLead: true, subjectHuman: true},
 	ActTaskWork:         {api.RoleLead: true, api.RoleWorker: true},
@@ -46,10 +50,14 @@ func (c *call) allow(action Action) error {
 		}
 		return forbidden("the admin token may not %s; use a human token", action)
 	case kindHuman:
-		if Allowed(action, subjectHuman) {
+		subject := subjectHuman
+		if c.p.role == store.RoleViewer {
+			subject = subjectViewer
+		}
+		if Allowed(action, subject) {
 			return nil
 		}
-		return forbidden("a human may not %s", action)
+		return forbidden("a %s may not %s", c.p.role, action)
 	case kindDevice:
 		a, err := c.agent()
 		if err != nil {

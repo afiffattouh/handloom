@@ -1086,3 +1086,52 @@ func TestAnAgentCannotForgeAVerification(t *testing.T) {
 		t.Fatalf("the check was overwritten: %+v", got)
 	}
 }
+
+func TestTheLinkCommitsForAgentsWhoseCLICannot(t *testing.T) {
+	f := newFixture(t)
+	f.spawnLink(&tmuxLog{})
+	repo := gitRepo(t)
+	os.MkdirAll(filepath.Join(repo, "src"), 0o755)
+	os.WriteFile(filepath.Join(repo, "src", ".keep"), nil, 0o644)
+	gitOut(t, repo, "add", ".")
+	gitOut(t, repo, "commit", "-q", "-m", "src")
+	f.must(f.admin.Post("/v1/profiles", api.ProfileReq{Name: "coder", Spec: profile.Spec{Kind: "codex", Tools: profile.Tools{Allow: []string{"read", "edit", "shell"}}, Write: []string{"src/**"}}}, nil))
+	j := f.repoJobVerify(repo, "test -f src/new.txt")
+	var s api.Spawn
+	f.must(f.human.Post("/v1/spawns", api.SpawnReq{Name: "alpha", Profile: "coder", Job: j.ID, Device: "dev"}, &s))
+	f.ladder()
+	ac := client.Socket(f.link.opt.Socket, "alpha")
+	f.must(ac.Post("/v1/agents", api.RegisterReq{Name: "alpha", Kind: "codex"}, nil))
+	f.must(client.Direct(f.url, f.cred).Post(fmt.Sprintf("/v1/spawns/%d/report", s.ID), api.SpawnReport{Status: "started"}, nil))
+	var task api.Task
+	f.must(f.human.Post("/v1/tasks", api.TaskCreateReq{Title: "add a file", Job: j.ID, AssignedTo: "alpha"}, &task))
+	f.must(ac.Post(fmt.Sprintf("/v1/tasks/%d/claim", task.ID), nil, nil))
+	dir := filepath.Join(f.link.opt.WorkRoot, fmt.Sprintf("job-%d", j.ID), "alpha")
+	base := gitOut(t, dir, "rev-parse", "HEAD")
+
+	// What the CLI wrote itself is not committed; the agent's work is, in its name.
+	os.WriteFile(filepath.Join(dir, "AGENTS.md"), []byte("rules"), 0o644)
+	os.MkdirAll(filepath.Join(dir, ".codex"), 0o755)
+	os.WriteFile(filepath.Join(dir, ".codex", "hooks.json"), []byte("{}"), 0o644)
+	os.WriteFile(filepath.Join(dir, "src", "new.txt"), []byte("hi"), 0o644)
+	// A hook in the repository must not run in the link's name.
+	os.WriteFile(filepath.Join(repo, ".git", "hooks", "pre-commit"), []byte("#!/bin/sh\ntouch /tmp/handloom-hook-ran-"+filepath.Base(dir)+"\nexit 1\n"), 0o755)
+	if err := f.submit(ac, task); err != nil {
+		t.Fatal(err)
+	}
+	if got := gitOut(t, dir, "rev-parse", "HEAD"); got == base {
+		t.Fatal("nothing was committed")
+	}
+	if got := gitOut(t, dir, "log", "-1", "--format=%an <%ae>"); got != "alpha <alpha@handloom.local>" {
+		t.Fatalf("commit author: %q", got)
+	}
+	if files := gitOut(t, dir, "show", "--name-only", "--format=", "HEAD"); strings.TrimSpace(files) != "src/new.txt" {
+		t.Fatalf("committed files: %q", files)
+	}
+	if _, err := os.Stat("/tmp/handloom-hook-ran-" + filepath.Base(dir)); err == nil {
+		t.Fatal("the repository's pre-commit hook ran")
+	}
+	if ck := f.waitCheck(task.ID); ck.ExitCode != 0 {
+		t.Fatalf("the check should pass on the committed work: %+v", ck)
+	}
+}

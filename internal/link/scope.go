@@ -32,6 +32,10 @@ type scopeRecord struct {
 	Base   string   `json:"base"`
 	Write  []string `json:"write"`
 	Verify string   `json:"verify,omitempty"` // the job's verify command, run in Dir after a submit goes through
+	// Autocommit: the agent's CLI cannot commit in its worktree (Codex's sandbox
+	// keeps the repository's .git read-only), so the link commits what it
+	// changed when it submits.
+	Autocommit bool `json:"autocommit,omitempty"`
 }
 
 func (l *Link) scopeFile(agent string) string {
@@ -72,7 +76,7 @@ func (l *Link) recordScope(ctx context.Context, s api.Spawn, dir string) error {
 		}
 		write = p.Spec.Write
 	}
-	if len(write) == 0 && s.Verify == "" {
+	if len(write) == 0 && s.Verify == "" && s.Kind != "codex" {
 		os.Remove(l.scopeFile(s.Name)) // an earlier agent of the same name must not leave its limits behind
 		return nil
 	}
@@ -80,7 +84,7 @@ func (l *Link) recordScope(ctx context.Context, s api.Spawn, dir string) error {
 	if err != nil {
 		return err
 	}
-	rec := scopeRecord{Spawn: s.ID, Agent: s.Name, Dir: dir, Base: strings.TrimSpace(base), Write: write, Verify: s.Verify}
+	rec := scopeRecord{Spawn: s.ID, Agent: s.Name, Dir: dir, Base: strings.TrimSpace(base), Write: write, Verify: s.Verify, Autocommit: s.Kind == "codex"}
 	if s.Job != nil {
 		rec.Job = *s.Job
 	}
@@ -129,6 +133,11 @@ func (l *Link) submitGate(next http.Handler) http.HandlerFunc {
 		}
 		var taskID int64
 		fmt.Sscan(r.PathValue("id"), &taskID)
+		if rec.Autocommit {
+			if err := l.autoCommit(r.Context(), rec, taskID); err != nil {
+				l.opt.Log.Printf("commit for %s: %v", agent, err)
+			}
+		}
 		if len(rec.Write) == 0 { // nothing to check, but the work may still be verified
 			l.forwardAndVerify(w, r, next, rec, taskID)
 			return
@@ -195,4 +204,27 @@ func (l *Link) forwardAndVerify(w http.ResponseWriter, r *http.Request, next htt
 	if sw.status == http.StatusOK && rec.Verify != "" && taskID > 0 {
 		go l.runVerify(rec, taskID)
 	}
+}
+
+// autoCommit commits what the agent changed in its worktree, in its own name,
+// without running the repository's hooks (they would run here, as the link's
+// user). The files handloom and the agent CLI wrote are left out.
+func (l *Link) autoCommit(ctx context.Context, rec *scopeRecord, taskID int64) error {
+	git := func(args ...string) (string, error) {
+		return l.opt.Git(ctx, "git", append([]string{"-C", rec.Dir}, args...)...)
+	}
+	args := []string{"add", "-A", "--", "."}
+	for _, p := range []string{".handloom", ".claude", ".codex", ".pi", ".opencode", "CLAUDE.md", "AGENTS.md"} {
+		args = append(args, ":(exclude)"+p)
+	}
+	if _, err := git(args...); err != nil {
+		return err
+	}
+	if _, err := git("diff", "--cached", "--quiet"); err == nil {
+		return nil // nothing to commit
+	}
+	name := rec.Agent
+	_, err := git("-c", "user.name="+name, "-c", "user.email="+name+"@handloom.local",
+		"commit", "-q", "--no-verify", "-m", fmt.Sprintf("%s: work for task #%d", name, taskID))
+	return err
 }

@@ -445,60 +445,76 @@ func (c *call) profileByAgent() (map[string]string, error) {
 	return out, rows.Err()
 }
 
-// utilisation turns the agent.state events into the share of the range each
-// agent spent working, idle, blocked and off (offline or unknown).
-func utilisation(rows []arow, agents []*agentRow, since, now time.Time) []UtilRow {
-	type seg struct {
-		state string
-		from  time.Time
+type segment struct {
+	State    string
+	From, To time.Time
+}
+
+// stateSegments turns one agent's agent.state events into the stretches of time
+// it spent in each state within [since, now], starting at its registration.
+func stateSegments(ev []arow, a *agentRow, since, now time.Time) []segment {
+	state := ""
+	var inRange []arow
+	for _, e := range ev {
+		if e.at.Before(since) {
+			state = str(e.payload, "state")
+		} else {
+			inRange = append(inRange, e)
+		}
 	}
+	if state == "" {
+		if len(inRange) > 0 {
+			state = str(inRange[0].payload, "was")
+		} else {
+			state = a.state
+		}
+	}
+	from := since
+	if reg := store.Time(a.registeredAt); reg.After(from) {
+		from = reg
+	}
+	if !from.Before(now) {
+		return nil
+	}
+	var out []segment
+	cur, last := state, from
+	for _, e := range inRange {
+		if e.at.After(last) {
+			out = append(out, segment{cur, last, e.at})
+			last = e.at
+		}
+		cur = str(e.payload, "state")
+	}
+	return append(out, segment{cur, last, now})
+}
+
+func stateEvents(rows []arow) map[string][]arow {
 	events := map[string][]arow{}
 	for _, r := range rows {
 		if r.action == "agent.state" {
-			events[strings.TrimPrefix(r.target, "agent:")] = append(events[strings.TrimPrefix(r.target, "agent:")], r)
+			n := strings.TrimPrefix(r.target, "agent:")
+			events[n] = append(events[n], r)
 		}
 	}
+	return events
+}
+
+// utilisation is the share of the range each agent spent working, idle, blocked and off (offline or unknown).
+func utilisation(rows []arow, agents []*agentRow, since, now time.Time) []UtilRow {
+	events := stateEvents(rows)
 	var out []UtilRow
 	for _, a := range agents {
-		ev := events[a.name]
-		// The state at the start of the range: the last event before it, or the first event's "was".
-		state := ""
-		var inRange []arow
-		for _, e := range ev {
-			if e.at.Before(since) {
-				state = str(e.payload, "state")
-			} else {
-				inRange = append(inRange, e)
-			}
-		}
-		if state == "" {
-			if len(inRange) > 0 {
-				state = str(inRange[0].payload, "was")
-			} else {
-				state = a.state
-			}
-		}
-		from := since
-		if reg := store.Time(a.registeredAt); reg.After(from) {
-			from = reg
-		}
-		if !from.Before(now) {
+		segs := stateSegments(events[a.name], a, since, now)
+		if len(segs) == 0 {
 			continue
 		}
-		var tot = map[string]time.Duration{}
-		cur := state
-		last := from
-		for _, e := range inRange {
-			if e.at.After(last) {
-				tot[cur] += e.at.Sub(last)
-				last = e.at
-			}
-			cur = str(e.payload, "state")
-		}
-		tot[cur] += now.Sub(last)
-		span := now.Sub(from)
+		span := segs[len(segs)-1].To.Sub(segs[0].From)
 		if span <= 0 {
 			continue
+		}
+		tot := map[string]time.Duration{}
+		for _, s := range segs {
+			tot[s.State] += s.To.Sub(s.From)
 		}
 		pct := func(d time.Duration) int { return int(d * 100 / span) }
 		u := UtilRow{Agent: a.name, Working: pct(tot[api.StateWorking]), Idle: pct(tot[api.StateIdle]), Blocked: pct(tot[api.StateBlocked])}

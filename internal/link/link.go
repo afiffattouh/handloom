@@ -60,8 +60,9 @@ type Link struct {
 	hub  *client.Client
 	kick chan struct{}
 
-	mu   sync.Mutex
-	memo map[string]*memo
+	mu      sync.Mutex
+	memo    map[string]*memo
+	tailing bool // the screen-reading loop is running
 }
 
 func New(opt Options) *Link {
@@ -196,6 +197,8 @@ func (l *Link) handler() http.Handler {
 	mux.HandleFunc("POST /v1/tasks/{id}/verify", linkOnly("verification results"))
 	mux.HandleFunc("/v1/device/merges", linkOnly("the merges to do"))
 	mux.HandleFunc("/v1/device/kcollects", linkOnly("the notes to gather"))
+	mux.HandleFunc("/v1/device/tails", linkOnly("the screens wanted"))
+	mux.HandleFunc("POST /v1/device/tails/{name}", linkOnly("screens"))
 	mux.HandleFunc("POST /v1/kcollects/{id}/report", linkOnly("note collections"))
 	mux.HandleFunc("POST /v1/merges/{id}/report", linkOnly("merge results"))
 	mux.HandleFunc("POST /local/activity", func(w http.ResponseWriter, r *http.Request) {

@@ -1,1 +1,47 @@
-{{define "content"}}<div class="card"><div class="empty">Agent page is coming.</div></div>{{end}}
+{{define "content"}}
+{{with .Extra}}
+<div class="page-head">
+  <div><h1>{{.Name}}</h1>
+    <p class="desc"><span class="badge outline">{{.Kind}}</span>{{if .Profile}} <span class="mono">{{.Profile}}</span>{{end}} · {{.Role}} on {{.Device}}{{if .Job}} · <a href="/jobs/{{.Job}}">job #{{.Job}}</a>{{end}}</p></div>
+  <div class="acts"><span class="badge {{.Badge}}"><i class="dot{{.Dot}}"></i>{{.State}} for {{.StateFor}}</span></div>
+</div>
+
+<div class="card"><div class="kpis">
+  <div class="kpi"><span class="desc">Working on</span><span class="v sm">{{if .Task}}#{{.TaskID}} {{.Task}}{{else}}nothing claimed{{end}}</span><span class="delta">{{if .Job}}<a class="plain-link" href="/jobs/{{.Job}}">job #{{.Job}}</a>{{end}}</span></div>
+  <div class="kpi"><span class="desc">Lease</span><span class="v num">{{.LeasePct}}<small>%</small></span><span class="delta">{{.LeaseNote}}</span></div>
+  <div class="kpi"><span class="desc">Accepted, 7 days</span><span class="v num">{{.Accepted}}</span><span class="delta">{{.Rejected}} sent back</span></div>
+  <div class="kpi"><span class="desc">Checks passed</span><span class="v num">{{.Checks}}</span><span class="delta">{{.ChecksNote}}</span></div>
+  <div class="kpi"><span class="desc">Idle</span><span class="v num">{{.Idle}}</span><span class="delta">of the last 24 hours</span></div>
+</div></div>
+
+<div class="grid2">
+  <section class="card" aria-labelledby="term">
+    <div class="ch"><div><h2 id="term">Terminal</h2><p class="desc">The last lines on its screen, read-only, refreshed while this page is open.</p></div></div>
+    <div class="cc">
+      {{if .CanWatch}}
+      <pre class="inset screen" id="screen" data-tail="/agents/{{.Name}}/tail" data-watch="/agents/{{.Name}}/watch">Waiting for the machine to send the screen…</pre>
+      {{else}}
+      <p class="desc">{{.WatchWhy}}</p>
+      {{end}}
+      {{if .Attach}}<details><summary>Look at it yourself</summary><p class="desc">Run this on {{.Device}} (detach with Ctrl-b d):</p><div class="inset sel">{{.Attach}}</div></details>{{end}}
+    </div>
+    <div class="cf"><span class="desc">The screen is read on the machine, held in the hub's memory for a minute, and never written to disk. Secrets that look like tokens are removed first.</span></div>
+  </section>
+
+  <div class="stream-col">
+    <section class="card" aria-labelledby="today">
+      <div class="ch"><div><h2 id="today">Last 24 hours</h2><p class="desc">State over time</p></div></div>
+      <div class="cc">{{.Timeline}}</div>
+      <div class="legend"><span><i class="c-primary"></i>working</span><span><i class="c-idle"></i>idle</span><span><i class="c-warn"></i>blocked</span></div>
+    </section>
+    <section class="card" aria-labelledby="recent">
+      <div class="ch"><div><h2 id="recent">Recent tasks</h2></div></div>
+      <div class="cc flush tw"><table><thead><tr><th>Task</th><th>State</th><th>Updated</th></tr></thead><tbody>
+        {{range .Recent}}<tr><td><span class="mono muted">#{{.ID}}</span> {{.Title}}</td><td class="nw"><span class="badge {{.Badge}}">{{.Status}}</span></td><td class="nw desc">{{.Ago}}</td></tr>{{else}}<tr><td colspan="3" class="empty">No tasks yet.</td></tr>{{end}}
+      </tbody></table></div>
+    </section>
+  </div>
+</div>
+<script src="/static/tail.js" defer></script>
+{{end}}
+{{end}}

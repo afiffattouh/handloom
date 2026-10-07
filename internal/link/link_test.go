@@ -1402,3 +1402,38 @@ func TestAnAgentCannotReachTheNoteCollectionEndpoints(t *testing.T) {
 		}
 	}
 }
+
+// ---- the terminal view ----
+
+func TestScreensAreScrubbedBeforeTheyLeaveTheMachine(t *testing.T) {
+	cred := "hvd_" + strings.Repeat("a1", 16)
+	text := "ok\nexport HANDLOOM_TOKEN=hva_abcdefghijklmnopqrstuvwx\nAuthorization: Bearer abcdefghijklmnopqrstuvwxyz123456\nkey sk-ant-abcdefghijklmnopqrstuvwxyz\nGH ghp_abcdefghijklmnopqrstuvwxyz0123456789\nrun token hvr_ABCDEFGH12345678 and " + cred + "\nnothing secret here"
+	got := redactScreen(text, cred, "runtoken-exact-value")
+	for _, leak := range []string{"hva_abcdefgh", "abcdefghijklmnopqrstuvwxyz123456", "sk-ant-abc", "ghp_abc", "hvr_ABCDEFGH", cred} {
+		if strings.Contains(got, leak) {
+			t.Errorf("%q survived: %s", leak, got)
+		}
+	}
+	if !strings.Contains(got, "nothing secret here") || !strings.Contains(got, "ok\n") {
+		t.Fatalf("ordinary text was damaged: %s", got)
+	}
+	if got := redactScreen("short abc", "abc"); got != "short abc" {
+		t.Fatalf("a very short secret must not shred ordinary text: %q", got)
+	}
+}
+
+func TestAnAgentCannotReachTheScreenEndpoints(t *testing.T) {
+	f := newFixture(t)
+	for _, c := range []struct{ method, path string }{{"GET", "/v1/device/tails"}, {"POST", "/v1/device/tails/worker"}} {
+		var err error
+		if c.method == "GET" {
+			err = f.worker.Get(c.path, nil)
+		} else {
+			err = f.worker.Post(c.path, api.TailReq{Text: "x"}, nil)
+		}
+		var ce *client.Error
+		if !errors.As(err, &ce) || ce.Status != 403 {
+			t.Fatalf("%s %s from an agent: %v", c.method, c.path, err)
+		}
+	}
+}

@@ -24,6 +24,12 @@ type Driver interface {
 	Alive(ctx context.Context, target string) bool
 }
 
+// Capturer is implemented by drivers that can read what is on the terminal.
+type Capturer interface {
+	// Capture returns the last lines lines of the terminal at target, as plain text.
+	Capture(ctx context.Context, target string, lines int) (string, error)
+}
+
 // Runner runs a command and returns its combined output. Tests replace it.
 type Runner func(ctx context.Context, name string, args ...string) (string, error)
 
@@ -94,6 +100,19 @@ func (t *Tmux) Alive(ctx context.Context, target string) bool {
 	// A pane that exited but is kept on screen (remain-on-exit) is dead too.
 	out, err := t.Run(ctx, "tmux", append(args, "display-message", "-p", "-t", pane, "#{pane_id} #{pane_dead}")...)
 	return err == nil && strings.TrimSpace(out) == pane+" 0"
+}
+
+func (t *Tmux) Capture(ctx context.Context, target string, lines int) (string, error) {
+	i := strings.LastIndex(target, ":")
+	if i < 0 || target[i+1:] == "" {
+		return "", fmt.Errorf("bad tmux target %q", target)
+	}
+	socket, pane := target[:i], target[i+1:]
+	args := []string{}
+	if socket != "" {
+		args = append(args, "-S", socket)
+	}
+	return t.Run(ctx, "tmux", append(args, "capture-pane", "-p", "-t", pane, "-S", fmt.Sprintf("-%d", lines))...)
 }
 
 func (t *Tmux) Nudge(ctx context.Context, target, line string) error {

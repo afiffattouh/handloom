@@ -507,6 +507,11 @@ type WhoAmI struct {
 	Agent  *Agent `json:"agent,omitempty"`
 }
 
+// TailReq is a device posting the end of an agent's terminal.
+type TailReq struct {
+	Text string `json:"text"`
+}
+
 // PendingCollect is one gathering of an agent's proposed notes a device has been asked to do.
 type PendingCollect struct {
 	ID    int64  `json:"id"`

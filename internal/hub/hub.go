@@ -57,6 +57,7 @@ type Hub struct {
 	notify chan struct{} // closed and replaced whenever events are written
 	rate   map[string]*bucket
 	pages  map[string]*template.Template
+	tails  tailStore       // screens wanted from and read off agents' terminals; memory only
 	dyn    notify.Notifier // ntfy from Settings, plus the configured notifier; nil when Settings has none
 }
 
@@ -225,6 +226,8 @@ func (h *Hub) Handler() http.Handler {
 	v1("POST /device/scope-refused", scopeRefused)
 	v1("POST /tasks/{id}/verify", taskVerify)
 	v1("GET /metrics", metricsGet)
+	v1("GET /device/tails", deviceTails)
+	v1("POST /device/tails/{name}", tailPut)
 	v1("GET /device/kcollects", deviceCollects)
 	v1("POST /kcollects/{id}/report", collectReport)
 	v1("GET /device/merges", deviceMerges)

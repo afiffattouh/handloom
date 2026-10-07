@@ -1,1 +1,85 @@
-{{define "content"}}<div class="card"><div class="empty">Command center is coming.</div></div>{{end}}
+{{define "content"}}
+{{with .Extra}}
+<div class="page-head">
+  <div><h1>Command center</h1><p class="desc">Everything that is running, and what needs a person.</p></div>
+  <div class="acts">
+    <div class="tabs" role="group" aria-label="Range">{{range .Ranges}}<a href="{{.Href}}"{{if .Current}} aria-current="page"{{end}}>{{.Key}}</a>{{end}}</div>
+    {{if .CanStart}}<a class="button" href="/jobs/new">New job</a>{{end}}
+  </div>
+</div>
+<div id="live" data-live="/command/fragment?range={{.Range}}{{if .Machine}}&machine={{.Machine}}{{end}}" class="live-box">{{template "commandbody" $}}</div>
+<p id="stale" class="notice" hidden>New activity. <button type="button" id="refresh" class="link">Refresh</button></p>
+<script src="/static/app.js" defer></script>
+{{end}}
+{{end}}
+
+{{define "commandbody"}}
+{{with .Extra}}
+<div class="card"><div class="kpis">
+  {{range .KPIs}}
+  <div class="kpi">
+    <span class="desc">{{if .Href}}<a class="plain-link" href="{{.Href}}">{{.Label}}</a>{{else}}{{.Label}}{{end}}</span>
+    <span class="v num">{{.Value}}{{if .Unit}} <small>{{.Unit}}</small>{{end}}</span>
+    <span class="delta{{if eq .Trend "up"}}{{if .TrendGood}} sev-ok{{else}} sev-warn{{end}}{{else if eq .Trend "down"}}{{if .TrendGood}} sev-ok{{else}} sev-warn{{end}}{{end}}">{{if eq .Trend "up"}}<svg class="icon"><use href="#i-trending-up"/></svg>{{else if eq .Trend "down"}}<svg class="icon"><use href="#i-trending-down"/></svg>{{end}}{{.Note}}</span>
+  </div>
+  {{end}}
+</div></div>
+
+<div class="grid2">
+  <section class="card" aria-labelledby="fleet">
+    <div class="ch"><div><h2 id="fleet">Fleet</h2><p class="desc">Every agent on every machine. Select one to look inside.</p></div>
+      <div class="tabs" role="group" aria-label="Machine">{{range .Machines}}<a href="{{.Href}}"{{if .Current}} aria-current="page"{{end}}>{{.Name}}</a>{{end}}</div></div>
+    <div class="cc flush tw"><table>
+      <thead><tr><th>Agent</th><th>Working on</th><th>Lease</th><th>For</th></tr></thead>
+      <tbody>
+      {{range .Fleet}}
+      <tr class="link">
+        <td class="nw"><a class="rowlink inline-flex" href="/agents/{{.Name}}"><span class="badge {{.Badge}}"><i class="dot{{.Dot}}"></i>{{.State}}</span> <strong>{{.Name}}</strong>{{if eq .Role "lead"}} <span class="badge outline">lead</span>{{end}} <span class="badge outline">{{.Kind}}</span></a></td>
+        <td class="desc fleet-task">{{if .Task}}{{if .Job}}<a class="plain-link" href="/jobs/{{.Job}}">{{.Task}}</a>{{else}}{{.Task}}{{end}}{{else}}–{{end}}<div class="desc">{{.Device}}</div></td>
+        <td class="lease-col"><div class="progress{{if .LeaseLow}} low{{end}}" role="img" aria-label="lease {{.LeasePct}} percent"><span class="w{{.LeasePct}}"></span></div></td>
+        <td class="nw desc num">{{.Seen}}</td>
+      </tr>
+      {{else}}
+      <tr><td colspan="4" class="empty">{{if $.Extra.Quiet}}No agents yet. Join a machine, make a profile and start a job.{{else}}No agents on this machine.{{end}}</td></tr>
+      {{end}}
+      </tbody></table></div>
+  </section>
+
+  <section class="card" aria-labelledby="ins">
+    <div class="ch"><div><h2 id="ins">Insights</h2><p class="desc">Worked out from the record. Each says what it is based on.</p></div></div>
+    <div class="cc flush"><div class="rows">
+      {{range .Insights}}
+      <div class="row">
+        <svg class="icon {{if eq .Sev "bad"}}sev-bad{{else if eq .Sev "warn"}}sev-warn{{else}}sev-info{{end}}"><use href="#i-{{if eq .Sev "bad"}}circle-alert{{else if eq .Sev "warn"}}triangle-alert{{else}}clock{{end}}"/></svg>
+        <div class="grow"><span class="title">{{.Title}}</span>{{if .Detail}}<span class="desc">{{.Detail}}</span>{{end}}<span class="desc mono">based on: {{.Basis}}</span>
+          {{if .Actions}}<div class="acts">{{range .Actions}}<a class="button outline sm" href="{{.Href}}">{{.Label}}</a>{{end}}</div>{{end}}</div>
+      </div>
+      {{else}}
+      <div class="empty">Nothing to point out.</div>
+      {{end}}
+    </div></div>
+  </section>
+</div>
+
+<div class="grid3">
+  <section class="card" aria-labelledby="c1"><div class="ch"><div><h2 id="c1">Work accepted</h2><p class="desc">Tasks accepted and sent back</p></div></div><div class="cc">{{.ChartAcc}}</div><div class="legend"><span><i class="c-primary"></i>accepted</span><span><i class="c-bad"></i>sent back</span></div></section>
+  <section class="card" aria-labelledby="c2"><div class="ch"><div><h2 id="c2">Device checks</h2><p class="desc">Results on submitted work</p></div></div><div class="cc">{{.ChartChk}}</div><div class="legend"><span><i class="c-primary"></i>passed</span><span><i class="c-bad"></i>failed</span><span><i class="c-warn"></i>timed out</span></div></section>
+  <section class="card" aria-labelledby="c3"><div class="ch"><div><h2 id="c3">Where the time goes</h2><p class="desc">Share of the range, per agent</p></div></div>
+    <div class="cc"><div class="util">
+      {{range .Util}}<div class="u"><span>{{.Agent}}</span><span class="bar" role="img" aria-label="{{.Working}} percent working, {{.Idle}} idle, {{.Blocked}} blocked"><i class="c-primary w{{.Working}}"></i><i class="c-idle w{{.Idle}}"></i><i class="c-warn w{{.Blocked}}"></i></span><span class="pct">{{.Working}}%</span></div>
+      {{else}}<p class="desc">No state changes recorded yet.</p>{{end}}
+    </div></div>
+    <div class="legend"><span><i class="c-primary"></i>working</span><span><i class="c-idle"></i>idle</span><span><i class="c-warn"></i>blocked</span></div></section>
+</div>
+
+<div class="grid2 even">
+  <section class="card" aria-labelledby="act"><div class="ch"><div><h2 id="act">Activity</h2><p class="desc">Newest first</p></div></div>
+    <div class="cc flush"><div class="rows">{{range .Activity}}<div class="row line"><span>{{.Text}}</span><span class="desc nw">{{.Ago}}</span></div>{{else}}<div class="empty">Nothing yet.</div>{{end}}</div></div></section>
+  <section class="card" aria-labelledby="prof"><div class="ch"><div><h2 id="prof">Profiles compared</h2><p class="desc">Which kinds of agent deliver, in this range</p></div></div>
+    <div class="cc flush tw"><table><thead><tr><th>Profile</th><th>Accepted</th><th>First time</th><th>Checks</th><th>Median</th></tr></thead><tbody>
+      {{range .Profiles}}<tr><td><span class="mono">{{.Name}}</span></td><td class="num">{{.Tasks}}</td><td class="num">{{.FirstTime}}</td><td class="num">{{.Checks}}</td><td class="num">{{.Median}}</td></tr>{{else}}<tr><td colspan="5" class="empty">No finished work in this range.</td></tr>{{end}}
+    </tbody></table></div>
+    <div class="cf"><span class="desc">Tokens and cost are not shown until usage is collected from the agents' own logs.</span></div></section>
+</div>
+{{end}}
+{{end}}

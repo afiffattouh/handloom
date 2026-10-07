@@ -1,6 +1,6 @@
 {{define "content"}}
 <div class="page-head"><div><h1>Inbox</h1><p class="desc">What needs a person: questions from agents, work to review, jobs ready to close.</p></div></div>
-<div id="inbox" data-seq="{{.Extra.Seq}}">{{template "inboxbody" .}}</div>
+<div id="inbox" data-live="/inbox/fragment" data-seq="{{.Extra.Seq}}">{{template "inboxbody" .}}</div>
 <p id="stale" class="notice" hidden>New activity. <button type="button" id="refresh" class="link">Refresh</button></p>
 <script src="/static/app.js" defer></script>
 {{end}}

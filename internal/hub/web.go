@@ -219,6 +219,8 @@ func (h *Hub) webRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /devices", web(h.authed(h.webDevices)))
 	mux.HandleFunc("POST /devices", web(h.authed(h.webDeviceAdd)))
 	mux.HandleFunc("POST /devices/{name}/revoke", web(h.authed(h.webDeviceRevoke)))
+	mux.HandleFunc("GET /command", web(h.authed(h.webCommand)))
+	mux.HandleFunc("GET /command/fragment", web(h.authed(h.webCommandFragment)))
 	mux.HandleFunc("GET /jobs", web(h.authed(h.webJobs)))
 	mux.HandleFunc("GET /jobs/new", web(h.authed(h.webJobNewForm)))
 	mux.HandleFunc("POST /jobs", web(h.authed(h.webJobCreate)))
@@ -425,7 +427,7 @@ func (h *Hub) webSetupPost(w http.ResponseWriter, r *http.Request) {
 		fail(500, "Something went wrong.")
 		return
 	}
-	http.Redirect(w, r, "/inbox", http.StatusSeeOther)
+	http.Redirect(w, r, "/command", http.StatusSeeOther)
 }
 
 // auditAnon records an action by nobody in particular (a failed login).
@@ -594,7 +596,7 @@ func (h *Hub) webRoot(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/setup", http.StatusSeeOther)
 		return
 	}
-	http.Redirect(w, r, "/inbox", http.StatusSeeOther)
+	http.Redirect(w, r, "/command", http.StatusSeeOther)
 }
 
 func (h *Hub) webLoginGet(w http.ResponseWriter, r *http.Request) {
@@ -664,7 +666,7 @@ func (h *Hub) webLoginPost(w http.ResponseWriter, r *http.Request) {
 		h.render(w, 500, "message", pageData{Title: "Error", Error: "Something went wrong."})
 		return
 	}
-	http.Redirect(w, r, "/inbox", http.StatusSeeOther)
+	http.Redirect(w, r, "/command", http.StatusSeeOther)
 }
 
 func (h *Hub) webLogout(q *webReq) error {

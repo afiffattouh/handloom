@@ -1,11 +1,13 @@
-// Live updates for the inbox. The page works without this file: every action
-// is a plain form post. The stream only says "something changed"; the
-// content is fetched from the server again, so a missed event heals itself.
+// Live updates for pages that show a running picture (the inbox, the command
+// center). The page works without this file: every action is a plain form
+// post and a plain link. The stream only says "something changed"; the content
+// is fetched from the server again, so a missed event heals itself.
 (function () {
-  var box = document.getElementById('inbox');
+  var box = document.querySelector('[data-live]');
   if (!box || !window.EventSource) return;
+  var url = box.getAttribute('data-live');
   var stale = document.getElementById('stale');
-  var busy = false;
+  var busy = false, timer = null;
 
   function editing() {
     var fields = box.querySelectorAll('textarea, input[type=text], input:not([type])');
@@ -18,24 +20,28 @@
   function refresh() {
     if (busy) return;
     busy = true;
-    fetch('/inbox/fragment', { credentials: 'same-origin', headers: { Accept: 'text/html' } })
+    fetch(url, { credentials: 'same-origin', headers: { Accept: 'text/html' } })
       .then(function (r) {
         if (r.redirected || r.status === 401) { location.reload(); return null; }
         return r.text();
       })
       .then(function (html) {
-        if (html !== null) { box.innerHTML = html; stale.hidden = true; }
+        if (html !== null) { box.innerHTML = html; if (stale) stale.hidden = true; }
       })
       .catch(function () {})
       .then(function () { busy = false; });
   }
 
   function changed() {
-    if (editing()) { stale.hidden = false; } else { refresh(); }
+    if (editing()) { if (stale) stale.hidden = false; return; }
+    // Several events often arrive together: one refresh is enough.
+    clearTimeout(timer);
+    timer = setTimeout(refresh, 400);
   }
 
   var es = new EventSource('/ui/stream');
   es.addEventListener('inbox-changed', changed);
   es.addEventListener('resync', changed);
-  document.getElementById('refresh').addEventListener('click', refresh);
+  var again = document.getElementById('refresh');
+  if (again) again.addEventListener('click', refresh);
 })();

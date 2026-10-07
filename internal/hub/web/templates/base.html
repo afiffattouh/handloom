@@ -17,7 +17,7 @@
   <aside class="sidebar" aria-label="Main">
     <a class="brand" href="/"><img src="/static/favicon.svg" alt="" width="22" height="22">Handloom</a>
     <nav class="menu">
-      <a href="/"{{if eq .Active "command"}} aria-current="page"{{end}}><svg class="icon"><use href="#i-layout-dashboard"/></svg>Command center</a>
+      <a href="/command"{{if eq .Active "command"}} aria-current="page"{{end}}><svg class="icon"><use href="#i-layout-dashboard"/></svg>Command center</a>
       <a href="/inbox"{{if eq .Active "inbox"}} aria-current="page"{{end}}><svg class="icon"><use href="#i-inbox"/></svg>Inbox{{if .Nav.Needs}} <span class="count hot">{{.Nav.Needs}}</span>{{end}}</a>
       <a href="/jobs"{{if eq .Active "jobs"}} aria-current="page"{{end}}><svg class="icon"><use href="#i-briefcase"/></svg>Jobs{{if .Nav.Jobs}} <span class="count">{{.Nav.Jobs}}</span>{{end}}</a>
       <a href="/agents"{{if eq .Active "agents"}} aria-current="page"{{end}}><svg class="icon"><use href="#i-bot"/></svg>Agents{{if .Nav.Agents}} <span class="count">{{.Nav.Agents}}</span>{{end}}</a>

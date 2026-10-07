@@ -285,6 +285,10 @@ CREATE TABLE kcollect (
 );
 CREATE INDEX kcollect_pending ON kcollect(device_id, status);
 CREATE INDEX kcollect_job ON kcollect(job_id);
+`, `
+-- The command center asks the audit log "what happened to this kind of thing since then".
+CREATE INDEX audit_action_time ON audit(action, created_at);
+CREATE INDEX audit_target_time ON audit(target, created_at);
 `}
 
 // Open opens (and migrates) the database at path. Use ":memory:" in tests.

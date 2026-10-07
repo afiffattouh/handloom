@@ -483,7 +483,7 @@ func (h *Hub) webInvitePost(w http.ResponseWriter, r *http.Request) {
 		fail(500, "Something went wrong.")
 		return
 	}
-	http.Redirect(w, r, "/inbox", http.StatusSeeOther)
+	http.Redirect(w, r, "/command", http.StatusSeeOther)
 }
 
 var _ = url.PathEscape

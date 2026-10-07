@@ -192,7 +192,7 @@ func TestSetupWizard(t *testing.T) {
 	// The code is accepted with lower case and without dashes.
 	loose := strings.ToLower(strings.ReplaceAll(e.code, "-", ""))
 	ok := e.req("POST", "/setup", url.Values{"code": {loose}, "name": {"afif"}, "password": {goodPassword}, "password2": {goodPassword}}, nil, nil)
-	if ok.status != 303 || ok.header.Get("Location") != "/inbox" || ok.cookie == nil {
+	if ok.status != 303 || ok.header.Get("Location") != "/command" || ok.cookie == nil {
 		t.Fatalf("setup: %d %s", ok.status, ok.body)
 	}
 	c := ok.cookie

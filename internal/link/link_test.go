@@ -1520,3 +1520,26 @@ func TestASpawnedAgentIsNotNudgedWhileItsTerminalStarts(t *testing.T) {
 		t.Fatalf("after the terminal has had time to start the agent is woken: %d", f.driver.count())
 	}
 }
+
+func TestIsolationIsASeamNotAFeatureYet(t *testing.T) {
+	if err := ValidIsolation(""); err != nil {
+		t.Fatal(err)
+	}
+	if err := ValidIsolation("none"); err != nil {
+		t.Fatal(err)
+	}
+	err := ValidIsolation("container")
+	if err == nil || !strings.Contains(err.Error(), "docs/isolation.md") || !strings.Contains(err.Error(), "none") {
+		t.Fatalf("container should be refused with a pointer to the design: %v", err)
+	}
+	if err := ValidIsolation("podman"); err == nil || !strings.Contains(err.Error(), "unknown isolation") {
+		t.Fatalf("unknown: %v", err)
+	}
+	// The one isolator that exists runs the spawn-exec line as it is.
+	f := newFixture(t)
+	p := f.link.plan(api.Spawn{ID: 7, Name: "w"}, "/work/w")
+	cmd, err := f.link.isolator().Command(context.Background(), p)
+	if err != nil || cmd != p.ExecLine || !strings.Contains(cmd, "spawn-exec 7") || !strings.Contains(cmd, "HANDLOOM_SPAWN=7") {
+		t.Fatalf("native command: %q %v", cmd, err)
+	}
+}

@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"handloom/internal/api"
-	"handloom/internal/client"
 	"handloom/internal/profile"
 )
 
@@ -125,9 +124,10 @@ func (l *Link) launch(ctx context.Context, s api.Spawn) error {
 	}
 	l.fresh[s.Name] = l.opt.Now()
 	l.mu.Unlock()
-	home := client.Home()
-	cmd := fmt.Sprintf("env HANDLOOM_HOME=%s PATH=%s HANDLOOM_SPAWN=%d %s spawn-exec %d",
-		shellQuote(home), shellQuote(filepath.Dir(l.opt.Binary)+":"+os.Getenv("PATH")), s.ID, shellQuote(l.opt.Binary), s.ID)
+	cmd, err := l.isolator().Command(ctx, l.plan(s, dir))
+	if err != nil {
+		return fmt.Errorf("could not prepare %s's environment: %w", s.Name, err)
+	}
 	tmux := func(args ...string) (string, error) {
 		return l.opt.Tmux(ctx, "tmux", append([]string{"-L", l.opt.TmuxSocket}, args...)...)
 	}
@@ -140,7 +140,7 @@ func (l *Link) launch(ctx context.Context, s api.Spawn) error {
 		tmux("set-option", "-g", "remain-on-exit", "failed")
 		return nil
 	}
-	_, err := tmux("new-window", "-d", "-t", "handloom:", "-n", s.Name, "-c", dir, cmd)
+	_, err = tmux("new-window", "-d", "-t", "handloom:", "-n", s.Name, "-c", dir, cmd)
 	return err
 }
 

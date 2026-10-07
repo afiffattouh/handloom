@@ -275,7 +275,11 @@ func (e *env) link(args []string) error {
 		tmuxSocket := fs.String("tmux-socket", "", "tmux server (-L name) for spawned agents (default $HANDLOOM_TMUX_SOCKET or handloom)")
 		tick := fs.Duration("tick", 0, "run the wake ladder at least this often (default 10s); keep it well under the hub's --agent-lease")
 		liveEvery := fs.Duration("live-every", 0, "tell the hub this often that an agent's terminal still exists (default 20s)")
+		isolation := fs.String("isolation", "", "how spawned agents are run: "+strings.Join(link.IsolationNames(), ", ")+" (default none: on this machine, as this user)")
 		if _, err := fs.need(args, 0, 0, "link run"); err != nil {
+			return err
+		}
+		if err := link.ValidIsolation(*isolation); err != nil {
 			return err
 		}
 		cfg, err := client.LoadLinkConfig()
@@ -283,7 +287,8 @@ func (e *env) link(args []string) error {
 			return err
 		}
 		l := link.New(link.Options{
-			Hub: cfg.Hub, Device: cfg.Device, Credential: cfg.Credential, Socket: client.SocketPath(),
+			Isolation: *isolation,
+			Hub:       cfg.Hub, Device: cfg.Device, Credential: cfg.Credential, Socket: client.SocketPath(),
 			NudgeEvery: *nudge, Renudge: *renudge, UnknownAfter: *unknown, Heartbeat: *heartbeat, LiveEvery: *liveEvery, Tick: *tick, TmuxSocket: firstNonEmpty(*tmuxSocket, setting.Get("TMUX_SOCKET")),
 			Log: log.New(e.err, "link ", log.LstdFlags),
 		})

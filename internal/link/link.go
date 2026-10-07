@@ -34,6 +34,7 @@ type Options struct {
 	Renudge       time.Duration // nudge again when delivered mail stays unread this long; default 5m
 	UnknownAfter  time.Duration // two unanswered nudges for this long mark the agent unknown; default 10m
 	Heartbeat     time.Duration // extend leases of an active agent this often; default 2m
+	Isolation     string        // how spawned agents are run: "none" (on this machine, as this user); see isolation.go
 	SpawnSettle   time.Duration // a spawned agent is not typed into for this long after its window opens (its TUI is still starting); default 20s, negative: none
 	BlockedGrace  time.Duration // an agent must be blocked this long before the lead is told; default 30s
 	Tick          time.Duration // how often the ladder runs without events; default 10s

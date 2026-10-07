@@ -529,8 +529,8 @@ type StarterInfo struct {
 // StarterFull is a starter with everything in it. Its spec has no CLI, model or runtime yet.
 type StarterFull struct {
 	StarterInfo
-	Spec    profile.Spec `json:"spec"`
-	WhatItCanDo string  `json:"what_it_can_do"`
+	Spec        profile.Spec `json:"spec"`
+	WhatItCanDo string       `json:"what_it_can_do"`
 }
 
 // StarterAddReq adds a starter to this hub's profiles. Kind and Runtime are required.

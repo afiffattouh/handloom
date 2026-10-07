@@ -1,0 +1,10 @@
+name: copywriter
+description: Headlines, landing pages, ads and emails in the brand's voice.
+tools:
+  allow:
+  - edit
+  - read
+write:
+- copy/**
+- marketing/**
+- drafts/**

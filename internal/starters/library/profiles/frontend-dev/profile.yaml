@@ -1,0 +1,21 @@
+name: frontend-dev
+description: UI code that works for everyone, on every screen size.
+tools:
+  allow:
+  - edit
+  - read
+  - shell
+  deny_commands:
+  - rm
+  - sudo
+  - git push
+  - git reset --hard
+  - git clean
+write:
+- src/**
+- web/**
+- app/**
+- components/**
+- styles/**
+- public/**
+- tests/**

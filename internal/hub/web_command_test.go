@@ -145,3 +145,18 @@ func (e *webEnv) status(token, method, path string, body any) int {
 	resp.Body.Close()
 	return resp.StatusCode
 }
+
+// statusInto is status, and decodes an error body.
+func (e *webEnv) statusInto(token, method, path string, body any, into any) int {
+	e.t.Helper()
+	b, _ := json.Marshal(body)
+	r, _ := http.NewRequest(method, e.srv.URL+path, strings.NewReader(string(b)))
+	r.Header.Set("Authorization", "Bearer "+token)
+	resp, err := http.DefaultClient.Do(r)
+	if err != nil {
+		e.t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	json.NewDecoder(resp.Body).Decode(into)
+	return resp.StatusCode
+}

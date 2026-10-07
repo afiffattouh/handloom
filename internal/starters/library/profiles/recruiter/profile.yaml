@@ -1,0 +1,9 @@
+name: recruiter
+description: Job descriptions, screening criteria and candidate summaries against written criteria.
+tools:
+  allow:
+  - edit
+  - read
+write:
+- hr/**
+- hiring/**

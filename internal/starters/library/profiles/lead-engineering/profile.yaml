@@ -1,0 +1,5 @@
+name: lead-engineering
+description: 'Leads software jobs: splits work by file ownership, reads device checks, handles merge conflicts.'
+tools:
+  allow:
+  - read

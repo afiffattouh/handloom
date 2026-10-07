@@ -1,0 +1,427 @@
+# The starter library: what the Profiles page offers to add. Each entry's files are in profiles/<name>/; skills are shared, in skills/<name>/.
+starters:
+- name: lead
+  title: Lead
+  group: Leads
+  summary: 'Runs any job: plans tasks, starts workers, reviews and accepts their work.'
+  core: true
+  skills:
+  - plan-a-job
+  - review-a-submission
+  - use-client-knowledge
+  - decision-memo
+- name: lead-engineering
+  title: Engineering lead
+  group: Leads
+  summary: 'Leads software jobs: splits work by file ownership, reads device checks, handles merge conflicts.'
+  core: true
+  skills:
+  - plan-a-job
+  - review-a-submission
+  - use-client-knowledge
+  - code-review-checklist
+- name: lead-consulting
+  title: Consulting lead
+  group: Leads
+  summary: 'Leads client engagements: frames the question, assigns analysis, assembles an answer.'
+  core: false
+  skills:
+  - plan-a-job
+  - structure-the-problem
+  - review-a-submission
+  - use-client-knowledge
+  - decision-memo
+- name: backend-dev
+  title: Backend developer
+  group: Engineering
+  summary: Server code, APIs, data models and migrations.
+  core: true
+  skills:
+  - api-design
+  - safe-migrations
+  - security-checklist
+  - test-first
+  - small-commits
+  - write-a-handoff
+- name: code-reviewer
+  title: Code reviewer
+  group: Engineering
+  summary: Reviews a change against a checklist and writes findings. Changes nothing.
+  core: true
+  skills:
+  - code-review-checklist
+  - security-checklist
+  - write-a-handoff
+- name: coder
+  title: Coder
+  group: Engineering
+  summary: 'General implementer: small, tested changes with clear commits.'
+  core: true
+  skills:
+  - test-first
+  - small-commits
+  - debug-systematically
+  - write-a-handoff
+- name: frontend-dev
+  title: Frontend developer
+  group: Engineering
+  summary: UI code that works for everyone, on every screen size.
+  core: true
+  skills:
+  - accessibility-check
+  - ui-review
+  - design-tokens
+  - test-first
+  - small-commits
+  - write-a-handoff
+- name: qa-tester
+  title: QA tester
+  group: Engineering
+  summary: Writes and runs tests, finds and reports bugs. Never edits product code.
+  core: true
+  skills:
+  - test-first
+  - debug-systematically
+  - write-a-handoff
+- name: devops
+  title: DevOps engineer
+  group: Engineering
+  summary: Build, deploy and infrastructure files, with destructive commands blocked.
+  core: false
+  skills:
+  - ci-hygiene
+  - small-commits
+  - write-a-handoff
+- name: security-reviewer
+  title: Security reviewer
+  group: Engineering
+  summary: Looks for vulnerabilities and unsafe patterns, ranks them, suggests fixes.
+  core: false
+  skills:
+  - security-checklist
+  - code-review-checklist
+  - write-a-handoff
+- name: tech-writer
+  title: Technical writer
+  group: Engineering
+  summary: READMEs, guides, API reference and changelogs that people use.
+  core: false
+  skills:
+  - plain-writing
+  - release-notes
+  - edit-for-clarity
+  - write-a-handoff
+- name: frontend-designer
+  title: Frontend designer
+  group: Design and product
+  summary: 'UI and UX direction: layout, hierarchy, tokens and the words on screen.'
+  core: false
+  skills:
+  - design-tokens
+  - ui-review
+  - accessibility-check
+  - plain-writing
+  - write-a-handoff
+- name: product-manager
+  title: Product manager
+  group: Design and product
+  summary: Turns a goal into a spec with acceptance criteria and open questions.
+  core: false
+  skills:
+  - write-a-spec
+  - decision-memo
+  - plain-writing
+  - write-a-handoff
+- name: researcher
+  title: Researcher
+  group: Research and writing
+  summary: Finds, reads and cites sources; writes findings with confidence stated.
+  core: true
+  skills:
+  - research-protocol
+  - cite-sources
+  - write-a-handoff
+  - use-client-knowledge
+- name: strategist
+  title: Strategist
+  group: Research and writing
+  summary: Options, trade-offs and a clear recommendation.
+  core: true
+  skills:
+  - decision-memo
+  - competitive-analysis
+  - research-protocol
+  - cite-sources
+  - write-a-handoff
+- name: writer
+  title: Writer
+  group: Research and writing
+  summary: 'Long-form drafts: articles, proposals, reports, in a voice you specify.'
+  core: true
+  skills:
+  - plain-writing
+  - brand-voice
+  - cite-sources
+  - write-a-handoff
+- name: analyst
+  title: Analyst
+  group: Research and writing
+  summary: Answers data questions with a method, numbers and caveats.
+  core: false
+  skills:
+  - data-analysis-hygiene
+  - show-the-working
+  - plain-writing
+  - write-a-handoff
+- name: editor
+  title: Editor
+  group: Research and writing
+  summary: Tightens and fact-checks a draft without changing its meaning.
+  core: false
+  skills:
+  - edit-for-clarity
+  - fact-check
+  - plain-writing
+  - write-a-handoff
+- name: knowledge-curator
+  title: Knowledge curator
+  group: Research and writing
+  summary: 'Keeps a client''s notes accurate: merges duplicates, flags contradictions and stale facts.'
+  core: false
+  skills:
+  - use-client-knowledge
+  - edit-for-clarity
+  - fact-check
+  - write-a-handoff
+  recommend_runtime: local
+  note: Reads the client's confidential notes. Use a local model when the knowledge repository has a confidential folder.
+- name: business-analyst
+  title: Business analyst
+  group: Consulting
+  summary: Structures a problem, analyses it and drafts findings a client can act on.
+  core: false
+  skills:
+  - structure-the-problem
+  - data-analysis-hygiene
+  - show-the-working
+  - decision-memo
+  - write-a-handoff
+  - process-mapping
+- name: deck-builder
+  title: Deck builder
+  group: Consulting
+  summary: Writes the storyline and slide-by-slide content of a presentation.
+  core: false
+  skills:
+  - storyline-first
+  - plain-writing
+  - show-the-working
+  - write-a-handoff
+- name: proposal-writer
+  title: Proposal writer
+  group: Consulting
+  summary: Drafts proposals and statements of work from the brief and past work.
+  core: false
+  skills:
+  - proposal-structure
+  - plain-writing
+  - brand-voice
+  - use-client-knowledge
+  - write-a-handoff
+- name: stakeholder-interviewer
+  title: Stakeholder interviewer
+  group: Consulting
+  summary: Prepares interview guides and turns notes into findings.
+  core: false
+  skills:
+  - interview-guide
+  - synthesise-interviews
+  - plain-writing
+  - write-a-handoff
+  recommend_runtime: local
+  note: Interview notes often hold personal or sensitive remarks. Prefer a local model.
+- name: content-marketer
+  title: Content marketer
+  group: Marketing
+  summary: Articles, newsletters and social posts planned around reader questions.
+  core: false
+  skills:
+  - seo-brief
+  - brand-voice
+  - cite-sources
+  - plain-writing
+  - write-a-handoff
+- name: copywriter
+  title: Copywriter
+  group: Marketing
+  summary: Headlines, landing pages, ads and emails in the brand's voice.
+  core: false
+  skills:
+  - brand-voice
+  - plain-writing
+  - positioning-statement
+  - write-a-handoff
+- name: marketing-analyst
+  title: Marketing analyst
+  group: Marketing
+  summary: Reports campaign results honestly, with denominators and caveats.
+  core: false
+  skills:
+  - marketing-metrics
+  - data-analysis-hygiene
+  - show-the-working
+  - write-a-handoff
+- name: marketing-strategist
+  title: Marketing strategist
+  group: Marketing
+  summary: Positioning, audience and campaign plans with measurable goals.
+  core: false
+  skills:
+  - positioning-statement
+  - campaign-plan
+  - competitive-analysis
+  - cite-sources
+  - write-a-handoff
+- name: seo-specialist
+  title: SEO specialist
+  group: Marketing
+  summary: Search briefs, page structure and content gaps, without keyword stuffing.
+  core: false
+  skills:
+  - seo-brief
+  - competitive-analysis
+  - cite-sources
+  - write-a-handoff
+- name: account-researcher
+  title: Account researcher
+  group: Sales
+  summary: Researches a prospect from public sources and prepares a call.
+  core: false
+  skills:
+  - account-research
+  - cite-sources
+  - write-a-handoff
+- name: rfp-responder
+  title: RFP responder
+  group: Sales
+  summary: Answers tenders and questionnaires completely and accurately.
+  core: false
+  skills:
+  - rfp-response
+  - proposal-structure
+  - use-client-knowledge
+  - write-a-handoff
+- name: sales-enablement
+  title: Sales enablement
+  group: Sales
+  summary: Battlecards, comparisons and answers sellers can use in the room.
+  core: false
+  skills:
+  - battlecard
+  - competitive-analysis
+  - cite-sources
+  - write-a-handoff
+- name: sales-writer
+  title: Sales writer
+  group: Sales
+  summary: Prospecting messages, follow-ups and one-pagers a seller can send.
+  core: false
+  skills:
+  - outbound-message
+  - brand-voice
+  - plain-writing
+  - write-a-handoff
+- name: budget-reviewer
+  title: Budget reviewer
+  group: Finance
+  summary: Reviews a budget or forecast for errors and weak assumptions. Changes nothing.
+  core: false
+  skills:
+  - budget-review
+  - show-the-working
+  - write-a-handoff
+  recommend_runtime: local
+- name: finance-reporter
+  title: Finance reporter
+  group: Finance
+  summary: Writes management reports leaders can act on, from the figures provided.
+  core: false
+  skills:
+  - management-report
+  - variance-analysis
+  - plain-writing
+  - show-the-working
+  - write-a-handoff
+  recommend_runtime: local
+- name: financial-analyst
+  title: Financial analyst
+  group: Finance
+  summary: Analyses financial data and models with every figure traceable.
+  core: false
+  skills:
+  - show-the-working
+  - variance-analysis
+  - data-analysis-hygiene
+  - write-a-handoff
+  recommend_runtime: local
+  note: Works with financial data. Prefer a local model for anything confidential.
+- name: invoice-analyst
+  title: Invoice and ledger analyst
+  group: Finance
+  summary: Matches invoices, payments and ledgers and explains the differences.
+  core: false
+  skills:
+  - reconciliation
+  - show-the-working
+  - write-a-handoff
+  recommend_runtime: local
+- name: interview-designer
+  title: Interview designer
+  group: HR
+  summary: Structured interviews and scorecards that compare candidates fairly.
+  core: false
+  skills:
+  - structured-interview
+  - fair-hiring
+  - write-a-handoff
+- name: onboarding-planner
+  title: Onboarding planner
+  group: HR
+  summary: Plans a new person's first 90 days with owners and check-ins.
+  core: false
+  skills:
+  - onboarding-plan
+  - plain-writing
+  - write-a-handoff
+- name: people-analyst
+  title: People analyst
+  group: HR
+  summary: Headcount, attrition and engagement analysis, reported in groups.
+  core: false
+  skills:
+  - data-analysis-hygiene
+  - people-data-care
+  - show-the-working
+  - write-a-handoff
+  recommend_runtime: local
+- name: policy-writer
+  title: Policy writer
+  group: HR
+  summary: Drafts workplace policies in plain language for review.
+  core: false
+  skills:
+  - policy-drafting
+  - plain-writing
+  - cite-sources
+  - write-a-handoff
+- name: recruiter
+  title: Recruiter
+  group: HR
+  summary: Job descriptions, screening criteria and candidate summaries against written criteria.
+  core: false
+  skills:
+  - job-description
+  - fair-hiring
+  - people-data-care
+  - write-a-handoff
+  recommend_runtime: local

@@ -1,0 +1,13 @@
+name: security-reviewer
+description: Looks for vulnerabilities and unsafe patterns, ranks them, suggests fixes.
+tools:
+  allow:
+  - read
+  - shell
+  deny_commands:
+  - rm
+  - mv
+  - sudo
+  - git push
+  - git commit
+  - git checkout

@@ -1,0 +1,10 @@
+name: strategist
+description: Options, trade-offs and a clear recommendation.
+tools:
+  allow:
+  - edit
+  - read
+  - web
+write:
+- memos/**
+- research/**

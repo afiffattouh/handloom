@@ -1,0 +1,16 @@
+name: people-analyst
+description: Headcount, attrition and engagement analysis, reported in groups.
+tools:
+  allow:
+  - edit
+  - read
+  - shell
+  deny_commands:
+  - rm
+  - sudo
+  - git push
+  - curl
+  - wget
+write:
+- hr/**
+- analysis/**

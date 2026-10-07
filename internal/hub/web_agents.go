@@ -10,6 +10,7 @@ import (
 
 	"handloom/internal/api"
 	"handloom/internal/profile"
+	"handloom/internal/starters"
 	"handloom/internal/store"
 )
 
@@ -30,6 +31,20 @@ type profileView struct {
 	Name      string
 	Fresh     bool
 	KnownKind string
+	// Help while writing a profile.
+	Summary  string
+	Warnings []string
+	Review   *profileReview // set when the person pressed "Check before saving"
+	Starters []api.StarterInfo
+	From     string
+}
+
+// profileReview is what the form shows before anything is saved.
+type profileReview struct {
+	Problems []string
+	Enforce  []string
+	Prompt   string
+	Skills   []string
 }
 
 type skillView struct {
@@ -88,12 +103,22 @@ func (q *webReq) profileForm(status int, errMsg string, v *profileView) error {
 	if !v.IsNew {
 		v.Enforce = profile.Enforcement(&v.Spec)
 	}
+	probe := v.Spec
+	if probe.Kind == "" {
+		probe.Kind = "claude"
+	}
+	v.Summary, v.Warnings = profile.Summary(&probe), profile.Warnings(&probe)
+	if v.IsNew && v.From == "" {
+		if in, err := q.c.starterInfos(); err == nil {
+			v.Starters = in
+		}
+	}
 	title := "New profile"
 	if !v.IsNew {
 		title = v.Name
 	}
 	q.page(status, "profile", pageData{Title: title, Error: errMsg, Extra: v,
-		Notice: map[string]string{"saved": "Saved. New agents started from this profile use this version; running ones keep theirs."}[q.r.URL.Query().Get("done")]})
+		Notice: map[string]string{"saved": "Saved. New agents started from this profile use this version; running ones keep theirs.", "added": "Added from the starter library. It is yours now: change anything you like."}[q.r.URL.Query().Get("done")]})
 	return nil
 }
 
@@ -101,7 +126,16 @@ func (h *Hub) webProfileNewForm(q *webReq) error {
 	if !q.isOwner() {
 		return q.refuse("Only the owner writes profiles.")
 	}
-	return q.profileForm(200, "", &profileView{IsNew: true, Spec: profile.Spec{Kind: "claude", Runtime: profile.Cloud, Tools: profile.Tools{Allow: []string{"read"}}}})
+	v := &profileView{IsNew: true, Spec: profile.Spec{Kind: "claude", Runtime: profile.Cloud, Tools: profile.Tools{Allow: []string{"read"}}}}
+	if from := q.r.URL.Query().Get("from"); from != "" {
+		spec, err := starters.Template(from)
+		if err != nil {
+			return q.profileForm(404, "There is no starter called "+from+".", v)
+		}
+		spec.Kind, spec.Runtime = "claude", profile.Cloud
+		v.Spec, v.Name, v.From = *spec, from, from
+	}
+	return q.profileForm(200, "", v)
 }
 
 func (h *Hub) webProfileShow(q *webReq) error {
@@ -126,7 +160,11 @@ func (h *Hub) webProfileShow(q *webReq) error {
 // other files; a skill whose text is emptied is removed.
 func specFromForm(q *webReq, old *profile.Spec) profile.Spec {
 	f := q.r.PostForm
-	s := profile.Spec{Description: strings.TrimSpace(f.Get("description")), Kind: "claude",
+	kind := f.Get("kind")
+	if kind == "" {
+		kind = "claude"
+	}
+	s := profile.Spec{Description: strings.TrimSpace(f.Get("description")), Kind: kind,
 		Runtime: f.Get("runtime"), Model: strings.TrimSpace(f.Get("model")), Prompt: strings.TrimSpace(strings.ReplaceAll(f.Get("prompt"), "\r\n", "\n"))}
 	s.Tools.Allow = f["tool"]
 	for _, line := range strings.Split(strings.ReplaceAll(f.Get("deny"), "\r\n", "\n"), "\n") {
@@ -164,10 +202,13 @@ func (h *Hub) webProfileSave(q *webReq) error {
 	if !q.isOwner() {
 		return q.refuse("Only the owner writes profiles.")
 	}
+	name := strings.TrimSpace(q.r.PostForm.Get("name"))
+	if q.r.PostForm.Get("check") != "" { // look it over without saving: no password needed
+		return q.profileCheck(name)
+	}
 	if err := q.stepUp(); err != nil {
 		return q.profileError(err, nil)
 	}
-	name := strings.TrimSpace(q.r.PostForm.Get("name"))
 	var old *profile.Spec
 	isNew := q.r.PathValue("name") == ""
 	if !isNew {
@@ -285,3 +326,31 @@ func f1(f map[string][]string) map[string]string {
 }
 
 var _ = fmt.Sprint
+
+// profileCheck shows what saving the form would do, and saves nothing.
+func (q *webReq) profileCheck(name string) error {
+	isNew := q.r.PathValue("name") == ""
+	var old *profile.Spec
+	if !isNew {
+		name = q.r.PathValue("name")
+		if cur, err := q.c.profileVersion(name, 0); err == nil {
+			old = &cur.spec
+		}
+	}
+	spec := specFromForm(q, old)
+	probe := spec
+	rv := &profileReview{Problems: profile.Normalize(&probe), Prompt: probe.Prompt, Skills: profile.SkillNames(&probe)}
+	if len(rv.Problems) == 0 {
+		rv.Enforce = profile.Enforcement(&probe)
+	}
+	if isNew && !profile.ValidName(name) {
+		rv.Problems = append(rv.Problems, "Give it a name: letters, digits, '.', '_' or '-', at most 40 characters.")
+	}
+	v := &profileView{IsNew: isNew, Name: name, Spec: spec, Review: rv}
+	if !isNew {
+		if cur, err := q.c.profileVersion(name, 0); err == nil {
+			v.Info, v.Hash = cur.info(), cur.hash
+		}
+	}
+	return q.profileForm(200, "", v)
+}

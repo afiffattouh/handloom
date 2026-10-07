@@ -1,0 +1,22 @@
+name: backend-dev
+description: Server code, APIs, data models and migrations.
+tools:
+  allow:
+  - edit
+  - read
+  - shell
+  deny_commands:
+  - rm
+  - sudo
+  - git push
+  - git reset --hard
+  - git clean
+write:
+- src/**
+- server/**
+- api/**
+- internal/**
+- cmd/**
+- migrations/**
+- tests/**
+- test/**

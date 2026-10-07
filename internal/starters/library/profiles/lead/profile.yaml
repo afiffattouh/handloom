@@ -1,0 +1,5 @@
+name: lead
+description: 'Runs any job: plans tasks, starts workers, reviews and accepts their work.'
+tools:
+  allow:
+  - read

@@ -1,0 +1,9 @@
+name: rfp-responder
+description: Answers tenders and questionnaires completely and accurately.
+tools:
+  allow:
+  - edit
+  - read
+write:
+- rfp/**
+- proposals/**

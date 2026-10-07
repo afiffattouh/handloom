@@ -1,0 +1,9 @@
+name: sales-writer
+description: Prospecting messages, follow-ups and one-pagers a seller can send.
+tools:
+  allow:
+  - edit
+  - read
+write:
+- sales/**
+- drafts/**

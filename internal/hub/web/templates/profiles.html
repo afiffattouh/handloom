@@ -1,5 +1,5 @@
 {{define "content"}}
-<div class="page-head"><div><h1>Profiles</h1><p class="desc">A profile decides what an agent may do and know: its instructions, the tools it may use, the commands it must not run, and its skills. Changing one makes a new version; agents already running keep the version they started with.</p></div>{{with .Extra}}{{if .CanEdit}}<div class="acts"><a class="button" href="/profiles/new">New profile</a></div>{{end}}{{end}}</div>
+<div class="page-head"><div><h1>Profiles</h1><p class="desc">A profile decides what an agent may do and know: its instructions, the tools it may use, the commands it must not run, and its skills. Changing one makes a new version; agents already running keep the version they started with.</p></div><div class="acts"><div class="tabs" role="group" aria-label="Profiles"><a href="/profiles" aria-current="page">My profiles</a><a href="/profiles/starters">Starter library</a></div>{{with .Extra}}{{if .CanEdit}}<a class="button" href="/profiles/new">New profile</a>{{end}}{{end}}</div></div>
 {{with .Extra}}
 <div class="card"><div class="cc flush tw"><table>
   <thead><tr><th>Profile</th><th>Runs on</th><th>Tools</th><th>Skills</th></tr></thead><tbody>
@@ -9,7 +9,7 @@
     <td class="desc">{{range $i, $t := .Tools}}{{if $i}}, {{end}}{{$t}}{{else}}none{{end}}</td>
     <td class="desc">{{range $i, $s := .Skills}}{{if $i}}, {{end}}{{$s}}{{else}}none{{end}}</td></tr>
   {{else}}
-  <tr><td colspan="4" class="empty">No profiles yet.{{if $.Extra.CanEdit}} Make the first one.{{end}}</td></tr>
+  <tr><td colspan="4" class="empty">No profiles yet.{{if $.Extra.CanEdit}} <a href="/profiles/starters">Add some from the starter library</a>, or make one from scratch.{{end}}</td></tr>
   {{end}}
   </tbody></table></div></div>
 {{end}}

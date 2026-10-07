@@ -1,0 +1,9 @@
+name: editor
+description: Tightens and fact-checks a draft without changing its meaning.
+tools:
+  allow:
+  - edit
+  - read
+write:
+- drafts/**
+- content/**

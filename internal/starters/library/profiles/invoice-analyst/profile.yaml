@@ -1,0 +1,16 @@
+name: invoice-analyst
+description: Matches invoices, payments and ledgers and explains the differences.
+tools:
+  allow:
+  - edit
+  - read
+  - shell
+  deny_commands:
+  - rm
+  - sudo
+  - git push
+  - curl
+  - wget
+write:
+- finance/**
+- analysis/**

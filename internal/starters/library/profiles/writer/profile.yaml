@@ -1,0 +1,9 @@
+name: writer
+description: 'Long-form drafts: articles, proposals, reports, in a voice you specify.'
+tools:
+  allow:
+  - edit
+  - read
+write:
+- drafts/**
+- content/**

@@ -1,0 +1,10 @@
+name: marketing-strategist
+description: Positioning, audience and campaign plans with measurable goals.
+tools:
+  allow:
+  - edit
+  - read
+  - web
+write:
+- marketing/**
+- memos/**

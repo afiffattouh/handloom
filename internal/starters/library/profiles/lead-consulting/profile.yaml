@@ -1,0 +1,6 @@
+name: lead-consulting
+description: 'Leads client engagements: frames the question, assigns analysis, assembles an answer.'
+tools:
+  allow:
+  - read
+  - web

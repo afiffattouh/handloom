@@ -1,0 +1,33 @@
+{{define "content"}}
+{{with .Extra}}
+<div class="page-head"><div><h1>Starter library</h1><p class="desc">{{.Count}} ready-made profiles and the skills they use. Adding one makes an ordinary profile of yours: you choose the agent CLI and where the model runs, and can change anything afterwards.</p></div>
+  <div class="acts"><div class="tabs" role="group" aria-label="Profiles"><a href="/profiles">My profiles</a><a href="/profiles/starters" aria-current="page">Starter library</a></div></div></div>
+
+{{range .Groups}}
+<section class="card" aria-labelledby="g-{{.Name}}">
+  <div class="ch"><div><h2 id="g-{{.Name}}">{{.Name}}</h2></div></div>
+  <div class="cc flush tw"><table>
+    <thead><tr><th>Profile</th><th>Does</th><th>Tools</th><th></th></tr></thead>
+    <tbody>
+    {{range .Items}}
+    <tr class="link">
+      <td class="nw"><a class="rowlink" href="/profiles/starters/{{.Name}}"><strong>{{.Title}}</strong> <span class="mono muted">{{.Name}}</span>{{if .Core}} <span class="badge outline">core</span>{{end}}{{if .RecommendRuntime}} <span class="badge warning">prefer local</span>{{end}}</a></td>
+      <td class="desc">{{.Summary}}</td>
+      <td class="nw desc">{{range $i, $t := .Tools}}{{if $i}}, {{end}}{{$t}}{{end}}</td>
+      <td class="nw">{{if .Added}}<span class="badge success">Added</span>{{else}}<a class="button outline sm" href="/profiles/starters/{{.Name}}">View and add</a>{{end}}</td>
+    </tr>
+    {{end}}
+    </tbody></table></div>
+</section>
+{{end}}
+
+<section class="card" aria-labelledby="skills">
+  <div class="ch"><div><h2 id="skills">Skills</h2><p class="desc">A skill is a short guide an agent applies when the situation fits. Starters carry the ones they need; you can add any of them to your own profiles.</p></div></div>
+  <div class="cc flush"><div class="rows">
+    {{range .Skills}}
+    <div class="row"><div class="grow"><details><summary><span class="mono">{{.Name}}</span> <span class="desc">{{.Description}}</span></summary><div class="inset wrap">{{.Content}}</div></details></div></div>
+    {{end}}
+  </div></div>
+</section>
+{{end}}
+{{end}}

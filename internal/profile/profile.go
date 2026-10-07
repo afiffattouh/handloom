@@ -17,6 +17,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -215,9 +216,18 @@ type yamlFile struct {
 
 // ReadDir reads a profile directory.
 func ReadDir(dir string) (string, *Spec, error) {
-	raw, err := os.ReadFile(filepath.Join(dir, "profile.yaml"))
+	name, s, err := ReadFS(os.DirFS(dir), ".")
 	if err != nil {
 		return "", nil, fmt.Errorf("%s: %w", dir, err)
+	}
+	return name, s, nil
+}
+
+// ReadFS reads a profile from dir inside fsys: profile.yaml, PROMPT.md and skills/.
+func ReadFS(fsys fs.FS, dir string) (string, *Spec, error) {
+	raw, err := fs.ReadFile(fsys, path.Join(dir, "profile.yaml"))
+	if err != nil {
+		return "", nil, err
 	}
 	var y yamlFile
 	dec := yaml.NewDecoder(strings.NewReader(string(raw)))
@@ -226,14 +236,14 @@ func ReadDir(dir string) (string, *Spec, error) {
 		return "", nil, fmt.Errorf("profile.yaml: %w", err)
 	}
 	s := &Spec{Description: y.Description, Kind: y.Kind, Runtime: y.Runtime, Model: y.Model, Tools: y.Tools, Write: y.Write}
-	if b, err := os.ReadFile(filepath.Join(dir, "PROMPT.md")); err == nil {
+	if b, err := fs.ReadFile(fsys, path.Join(dir, "PROMPT.md")); err == nil {
 		s.Prompt = strings.TrimSpace(string(b))
-	} else if !os.IsNotExist(err) {
+	} else if !os.IsNotExist(err) && !errors.Is(err, fs.ErrNotExist) {
 		return "", nil, err
 	}
-	skills := filepath.Join(dir, "skills")
-	if st, err := os.Stat(skills); err == nil && st.IsDir() {
-		err := filepath.WalkDir(skills, func(p string, d fs.DirEntry, err error) error {
+	skills := path.Join(dir, "skills")
+	if st, err := fs.Stat(fsys, skills); err == nil && st.IsDir() {
+		err := fs.WalkDir(fsys, skills, func(p string, d fs.DirEntry, err error) error {
 			if err != nil {
 				return err
 			}
@@ -243,12 +253,12 @@ func ReadDir(dir string) (string, *Spec, error) {
 			if !d.Type().IsRegular() { // no symlinks, devices or sockets in a skill
 				return fmt.Errorf("%s is not a regular file", p)
 			}
-			rel, _ := filepath.Rel(skills, p)
-			b, err := os.ReadFile(p)
+			rel := strings.TrimPrefix(p, skills+"/")
+			b, err := fs.ReadFile(fsys, p)
 			if err != nil {
 				return err
 			}
-			s.Skills = append(s.Skills, File{Path: filepath.ToSlash(rel), Content: string(b)})
+			s.Skills = append(s.Skills, File{Path: rel, Content: string(b)})
 			return nil
 		})
 		if err != nil {
@@ -285,4 +295,92 @@ func WriteDir(dir, name string, s *Spec) error {
 		}
 	}
 	return nil
+}
+
+// Warnings are the soft problems with a spec: it is valid, but probably not
+// what the person meant. Normalize says what is refused; this says what to
+// think about before saving.
+func Warnings(s *Spec) []string {
+	var out []string
+	allow := map[string]bool{}
+	for _, t := range s.Tools.Allow {
+		allow[t] = true
+	}
+	if allow["shell"] && len(s.Tools.DenyCommands) == 0 && s.Kind != "codex" {
+		out = append(out, "It can run any shell command. Consider denying the destructive ones (rm, sudo, git push).")
+	}
+	if allow["edit"] && len(s.Write) == 0 {
+		out = append(out, "It can edit files but no paths are listed, so in a repository job nothing stops it changing any file. List the folders it should be limited to.")
+	}
+	for _, g := range s.Write {
+		if g == "**" || g == "*" || g == "**/*" {
+			out = append(out, fmt.Sprintf("The path %q matches every file, so it limits nothing.", g))
+		}
+	}
+	if !allow["read"] && len(s.Tools.Allow) > 0 {
+		out = append(out, "It cannot read files, so it cannot see the work it is asked to do.")
+	}
+	if len(s.Tools.Allow) == 0 {
+		out = append(out, "No tools are allowed: the agent can only talk.")
+	}
+	if allow["web"] && s.Runtime == Local {
+		out = append(out, "It can fetch web pages while running on a local model: anything it reads leaves your machine as a request.")
+	}
+	if strings.TrimSpace(s.Prompt) == "" {
+		out = append(out, "There are no instructions. The agent will only have its tools and the task.")
+	}
+	return out
+}
+
+// Summary says in one or two sentences what an agent with this profile can do.
+func Summary(s *Spec) string {
+	allow := map[string]bool{}
+	for _, t := range s.Tools.Allow {
+		allow[t] = true
+	}
+	var can []string
+	if allow["read"] {
+		can = append(can, "read files")
+	}
+	if allow["edit"] {
+		e := "edit files"
+		if len(s.Write) > 0 {
+			e += " (in a repository job, only " + strings.Join(s.Write, ", ") + ")"
+		}
+		can = append(can, e)
+	}
+	if allow["shell"] {
+		sh := "run commands"
+		if len(s.Tools.DenyCommands) > 0 {
+			sh += " except " + strings.Join(s.Tools.DenyCommands, ", ")
+		}
+		can = append(can, sh)
+	}
+	if allow["web"] {
+		can = append(can, "use the web")
+	}
+	out := "This agent cannot do anything but talk."
+	if len(can) > 0 {
+		out = "This agent can " + joinWords(can) + "."
+	}
+	var cannot []string
+	for _, t := range []struct{ k, w string }{{"read", "read files"}, {"edit", "edit files"}, {"shell", "run commands"}, {"web", "use the web"}} {
+		if !allow[t.k] {
+			cannot = append(cannot, t.w)
+		}
+	}
+	if len(cannot) > 0 && len(can) > 0 {
+		out += " It cannot " + joinWords(cannot) + "."
+	}
+	return out
+}
+
+func joinWords(w []string) string {
+	switch len(w) {
+	case 0:
+		return ""
+	case 1:
+		return w[0]
+	}
+	return strings.Join(w[:len(w)-1], ", ") + " and " + w[len(w)-1]
 }

@@ -236,6 +236,9 @@ func (h *Hub) Handler() http.Handler {
 	v1("GET /device/spawns/{id}/profile", spawnProfile)
 
 	v1("POST /profiles", profileNew)
+	v1("GET /starters", starterList)
+	v1("GET /starters/{name}", starterGet)
+	v1("POST /starters/{name}/add", starterAdd)
 	v1("GET /profiles", profileList)
 	v1("GET /profiles/{name}", profileGet)
 	v1("GET /profiles/{name}/versions", profileVersions)

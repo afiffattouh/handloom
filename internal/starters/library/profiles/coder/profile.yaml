@@ -1,0 +1,22 @@
+name: coder
+description: 'General implementer: small, tested changes with clear commits.'
+tools:
+  allow:
+  - edit
+  - read
+  - shell
+  deny_commands:
+  - rm
+  - sudo
+  - git push
+  - git reset --hard
+  - git clean
+write:
+- src/**
+- lib/**
+- app/**
+- internal/**
+- cmd/**
+- tests/**
+- test/**
+- '*.md'

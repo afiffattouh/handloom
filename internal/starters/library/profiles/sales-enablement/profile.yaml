@@ -1,0 +1,10 @@
+name: sales-enablement
+description: Battlecards, comparisons and answers sellers can use in the room.
+tools:
+  allow:
+  - edit
+  - read
+  - web
+write:
+- sales/**
+- enablement/**

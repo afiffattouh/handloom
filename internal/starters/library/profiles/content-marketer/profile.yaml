@@ -1,0 +1,11 @@
+name: content-marketer
+description: Articles, newsletters and social posts planned around reader questions.
+tools:
+  allow:
+  - edit
+  - read
+  - web
+write:
+- content/**
+- drafts/**
+- marketing/**

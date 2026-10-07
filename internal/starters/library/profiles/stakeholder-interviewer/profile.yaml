@@ -1,0 +1,9 @@
+name: stakeholder-interviewer
+description: Prepares interview guides and turns notes into findings.
+tools:
+  allow:
+  - edit
+  - read
+write:
+- interviews/**
+- research/**

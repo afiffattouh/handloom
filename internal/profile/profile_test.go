@@ -307,3 +307,24 @@ func TestAdapterFilesAreNotTheAgentsWork(t *testing.T) {
 		}
 	}
 }
+
+func TestSummaryAndWarnings(t *testing.T) {
+	s := &Spec{Kind: "claude", Runtime: Cloud, Prompt: "x", Tools: Tools{Allow: []string{"read", "edit", "shell"}, DenyCommands: []string{"rm", "sudo"}}, Write: []string{"src/**"}}
+	want := "This agent can read files, edit files (in a repository job, only src/**) and run commands except rm, sudo. It cannot use the web."
+	if got := Summary(s); got != want {
+		t.Fatalf("summary: %q", got)
+	}
+	if len(Warnings(s)) != 0 {
+		t.Fatalf("a careful profile has warnings: %v", Warnings(s))
+	}
+	loose := &Spec{Kind: "claude", Runtime: Local, Tools: Tools{Allow: []string{"edit", "shell", "web"}}, Write: []string{"**"}}
+	got := strings.Join(Warnings(loose), "\n")
+	for _, w := range []string{"any shell command", "matches every file", "cannot read files", "local model", "no instructions"} {
+		if !strings.Contains(got, w) {
+			t.Errorf("no warning about %q in:\n%s", w, got)
+		}
+	}
+	if Summary(&Spec{}) != "This agent cannot do anything but talk." {
+		t.Fatal("empty summary")
+	}
+}

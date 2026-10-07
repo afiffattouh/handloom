@@ -512,6 +512,42 @@ type TailReq struct {
 	Text string `json:"text"`
 }
 
+// StarterInfo is one entry of the starter library, and whether this hub already has a profile of that name.
+type StarterInfo struct {
+	Name             string   `json:"name"`
+	Title            string   `json:"title"`
+	Group            string   `json:"group"`
+	Summary          string   `json:"summary"`
+	Core             bool     `json:"core,omitempty"`
+	Skills           []string `json:"skills,omitempty"`
+	Tools            []string `json:"tools"`
+	RecommendRuntime string   `json:"recommend_runtime,omitempty"`
+	Note             string   `json:"note,omitempty"`
+	Added            bool     `json:"added,omitempty"`
+}
+
+// StarterFull is a starter with everything in it. Its spec has no CLI, model or runtime yet.
+type StarterFull struct {
+	StarterInfo
+	Spec    profile.Spec `json:"spec"`
+	WhatItCanDo string  `json:"what_it_can_do"`
+}
+
+// StarterAddReq adds a starter to this hub's profiles. Kind and Runtime are required.
+type StarterAddReq struct {
+	Name    string `json:"name,omitempty"` // default: the starter's own name
+	Kind    string `json:"kind"`
+	Runtime string `json:"runtime"`
+	Model   string `json:"model,omitempty"`
+	Adapt   bool   `json:"adapt,omitempty"` // leave out what the CLI cannot do instead of refusing
+}
+
+type StarterAddResp struct {
+	Profile  ProfileInfo `json:"profile"`
+	Adapted  []string    `json:"adapted,omitempty"`
+	Warnings []string    `json:"warnings,omitempty"`
+}
+
 // UsageReq is a device reporting what an agent has used so far, per model, as running totals.
 type UsageReq struct {
 	Agent  string       `json:"agent"`

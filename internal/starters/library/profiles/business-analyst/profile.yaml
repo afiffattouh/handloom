@@ -1,0 +1,15 @@
+name: business-analyst
+description: Structures a problem, analyses it and drafts findings a client can act on.
+tools:
+  allow:
+  - edit
+  - read
+  - shell
+  - web
+  deny_commands:
+  - rm
+  - sudo
+  - git push
+write:
+- analysis/**
+- memos/**

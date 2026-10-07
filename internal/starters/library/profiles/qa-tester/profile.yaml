@@ -1,0 +1,19 @@
+name: qa-tester
+description: Writes and runs tests, finds and reports bugs. Never edits product code.
+tools:
+  allow:
+  - edit
+  - read
+  - shell
+  deny_commands:
+  - rm
+  - sudo
+  - git push
+  - git reset --hard
+  - git clean
+write:
+- tests/**
+- test/**
+- '**/*_test.*'
+- '**/*.test.*'
+- '**/*.spec.*'

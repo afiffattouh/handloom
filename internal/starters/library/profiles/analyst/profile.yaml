@@ -1,0 +1,15 @@
+name: analyst
+description: Answers data questions with a method, numbers and caveats.
+tools:
+  allow:
+  - edit
+  - read
+  - shell
+  deny_commands:
+  - rm
+  - sudo
+  - git push
+  - curl
+  - wget
+write:
+- analysis/**

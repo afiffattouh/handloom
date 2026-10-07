@@ -1,0 +1,16 @@
+name: financial-analyst
+description: Analyses financial data and models with every figure traceable.
+tools:
+  allow:
+  - edit
+  - read
+  - shell
+  deny_commands:
+  - rm
+  - sudo
+  - git push
+  - curl
+  - wget
+write:
+- finance/**
+- analysis/**

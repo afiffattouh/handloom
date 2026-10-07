@@ -1,0 +1,9 @@
+name: researcher
+description: Finds, reads and cites sources; writes findings with confidence stated.
+tools:
+  allow:
+  - edit
+  - read
+  - web
+write:
+- research/**

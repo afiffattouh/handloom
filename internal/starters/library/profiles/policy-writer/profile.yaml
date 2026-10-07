@@ -1,0 +1,10 @@
+name: policy-writer
+description: Drafts workplace policies in plain language for review.
+tools:
+  allow:
+  - edit
+  - read
+  - web
+write:
+- hr/**
+- policies/**

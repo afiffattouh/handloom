@@ -1,0 +1,11 @@
+name: frontend-designer
+description: 'UI and UX direction: layout, hierarchy, tokens and the words on screen.'
+tools:
+  allow:
+  - edit
+  - read
+  - web
+write:
+- design/**
+- docs/design/**
+- styles/tokens*

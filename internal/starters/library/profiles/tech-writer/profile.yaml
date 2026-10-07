@@ -1,0 +1,9 @@
+name: tech-writer
+description: READMEs, guides, API reference and changelogs that people use.
+tools:
+  allow:
+  - edit
+  - read
+write:
+- docs/**
+- '*.md'

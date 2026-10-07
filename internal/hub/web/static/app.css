@@ -363,3 +363,11 @@ code, .mono, .inset, textarea.mono { font-variant-ligatures: none; font-feature-
 .screen { max-height: 340px; overflow: auto; white-space: pre; background: #0a0f0e; color: #cfe0dc; border: 1px solid var(--border); min-height: 120px; }
 .price-grid { display: grid; grid-template-columns: 2fr repeat(4, 1fr); gap: 12px; }
 @media (max-width: 820px) { .price-grid { grid-template-columns: 1fr 1fr; } }
+
+.w-auto { width: auto; min-width: 16rem; }
+.presets { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.sm-btn { height: 28px; padding: 0 10px; font-size: 12px; border-radius: 7px; }
+.card-inset { background: var(--muted); border-radius: 8px; padding: 10px 12px; font-size: 13px; }
+.review { display: grid; gap: 12px; border: 1px solid var(--border); border-radius: 10px; padding: 14px; }
+.warn-box { display: flex; gap: 10px; align-items: flex-start; border: 1px solid color-mix(in srgb, var(--warning) 45%, var(--border)); border-radius: 8px; padding: 10px 12px; font-size: 13px; }
+.warn-box > div { display: grid; gap: 4px; }

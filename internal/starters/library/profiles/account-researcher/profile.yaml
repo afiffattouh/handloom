@@ -1,0 +1,10 @@
+name: account-researcher
+description: Researches a prospect from public sources and prepares a call.
+tools:
+  allow:
+  - edit
+  - read
+  - web
+write:
+- accounts/**
+- research/**

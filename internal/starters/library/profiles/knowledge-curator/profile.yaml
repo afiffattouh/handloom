@@ -1,0 +1,6 @@
+name: knowledge-curator
+description: 'Keeps a client''s notes accurate: merges duplicates, flags contradictions and stale facts.'
+tools:
+  allow:
+  - edit
+  - read

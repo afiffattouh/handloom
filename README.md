@@ -29,7 +29,7 @@ Open `https://handloom.example.com/setup`, enter the setup code and make your ow
 - On the machine run it (`handloom link join <hub-url> <join-token>`), then `handloom link install` so the link starts at boot.
 - Run `handloom doctor`. It checks the link, git, tmux and the agent CLIs, and says what to fix.
 
-**3. Make profiles (once per kind of agent).** In the web UI, **Profiles, New profile**. A profile says which CLI an agent uses, what it may do, its prompt, and (for workers) which paths it may change. Make one for a lead (usually read-only) and one or more for workers.
+**3. Add profiles (once per kind of agent).** In the web UI, **Profiles, Starter library**: 41 ready-made profiles (leads, engineering, design, research and writing, consulting, marketing, sales, finance, HR) with their skills. Add a lead and one or more workers, choosing the CLI and where the model runs. Or write your own with **New profile**, which checks and explains what you build. From the command line: `handloom starters`, `handloom profile add coder --kind claude --runtime cloud`.
 
 **4. Start a job.** **Jobs, New job**: a title, a brief, the device, optionally the repository path and a check command, and the lead's profile. The lead starts workers by itself. Questions and finished jobs arrive in your inbox. When every task is done, review `job/<id>/integration` in the repository and merge it yourself.
 

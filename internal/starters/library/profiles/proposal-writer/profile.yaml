@@ -1,0 +1,9 @@
+name: proposal-writer
+description: Drafts proposals and statements of work from the brief and past work.
+tools:
+  allow:
+  - edit
+  - read
+write:
+- proposals/**
+- drafts/**

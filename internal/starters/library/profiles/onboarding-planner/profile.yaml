@@ -1,0 +1,9 @@
+name: onboarding-planner
+description: Plans a new person's first 90 days with owners and check-ins.
+tools:
+  allow:
+  - edit
+  - read
+write:
+- hr/**
+- onboarding/**

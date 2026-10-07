@@ -35,7 +35,7 @@ const (
 	maxForm      = 64 << 10
 )
 
-var pageNames = []string{"setup", "login", "inbox", "closed", "message", "devices", "settings", "invite", "agents", "profiles", "profile", "jobs", "jobform", "job", "command", "agent"}
+var pageNames = []string{"setup", "login", "inbox", "closed", "message", "devices", "settings", "invite", "agents", "profiles", "profile", "jobs", "jobform", "job", "command", "agent", "starters", "starter"}
 
 type pageData struct {
 	Title  string
@@ -58,7 +58,7 @@ type navCounts struct{ Needs, Jobs, Agents, Devices int }
 
 // activeMenu says which menu item a page belongs to.
 var activeMenu = map[string]string{"inbox": "inbox", "jobs": "jobs", "jobform": "jobs", "job": "jobs", "agents": "agents", "agent": "agents",
-	"profiles": "profiles", "profile": "profiles", "devices": "devices", "settings": "settings", "command": "command"}
+	"profiles": "profiles", "profile": "profiles", "starters": "profiles", "starter": "profiles", "devices": "devices", "settings": "settings", "command": "command"}
 
 // narrowPages are forms and reading pages.
 var narrowPages = map[string]bool{"jobform": true, "profile": true, "settings": true, "devices": true, "message": true}
@@ -234,6 +234,9 @@ func (h *Hub) webRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /agents/spawn", web(h.authed(h.webSpawn)))
 	mux.HandleFunc("GET /profiles", web(h.authed(h.webProfiles)))
 	mux.HandleFunc("GET /profiles/new", web(h.authed(h.webProfileNewForm)))
+	mux.HandleFunc("GET /profiles/starters", web(h.authed(h.webStarters)))
+	mux.HandleFunc("GET /profiles/starters/{name}", web(h.authed(h.webStarter)))
+	mux.HandleFunc("POST /profiles/starters/{name}/add", web(h.authed(h.webStarterAdd)))
 	mux.HandleFunc("POST /profiles", web(h.authed(h.webProfileSave)))
 	mux.HandleFunc("GET /profiles/{name}", web(h.authed(h.webProfileShow)))
 	mux.HandleFunc("POST /profiles/{name}", web(h.authed(h.webProfileSave)))

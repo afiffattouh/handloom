@@ -45,11 +45,16 @@ func (e *env) profiles(args []string) error {
 // profile: new (from a directory), check, show, export, versions.
 func (e *env) profile(args []string) error {
 	if len(args) == 0 {
-		return usageErr("usage: handloom profile new <dir> | check <dir> | show <name> [--version N] | export <name> <dir> | versions <name>")
+		return usageErr("usage: handloom profile new <dir> | add <starter> --kind K --runtime R [--name N] [--adapt] | check <dir> | show <name> [--version N] | export <name> <dir> | versions <name>")
 	}
 	sub := args[0]
 	fs := e.flags("profile " + sub)
 	version := fs.Int("version", 0, "a version (default: the newest)")
+	kind := fs.String("kind", "", "add: the agent CLI, claude or codex")
+	runtime := fs.String("runtime", "", "add: where the model runs, cloud or local")
+	model := fs.String("model", "", "add: a model name (default: the CLI's own)")
+	asName := fs.String("name", "", "add: a name for the profile (default: the starter's)")
+	adapt := fs.Bool("adapt", false, "add: leave out what the CLI cannot do (Codex has no skills or denied commands) instead of refusing")
 	pos, err := fs.parse(args[1:])
 	if err != nil {
 		return err
@@ -61,6 +66,28 @@ func (e *env) profile(args []string) error {
 		return nil
 	}
 	switch sub {
+	case "add":
+		if err := need(1, "add <starter> --kind claude|codex --runtime cloud|local [--model M] [--name N] [--adapt]"); err != nil {
+			return err
+		}
+		c, err := conn()
+		if err != nil {
+			return err
+		}
+		var resp api.StarterAddResp
+		if err := c.Post("/v1/starters/"+pos[0]+"/add", api.StarterAddReq{Name: *asName, Kind: *kind, Runtime: *runtime, Model: *model, Adapt: *adapt}, &resp); err != nil {
+			return err
+		}
+		e.print(resp, func() {
+			fmt.Fprintln(e.out, "Added "+profileLine(resp.Profile))
+			for _, a := range resp.Adapted {
+				fmt.Fprintln(e.out, "  "+a)
+			}
+			for _, w := range resp.Warnings {
+				fmt.Fprintln(e.out, "  worth a look: "+w)
+			}
+		})
+		return nil
 	case "check":
 		if err := need(1, "check <dir>"); err != nil {
 			return err
@@ -163,4 +190,57 @@ func (e *env) profile(args []string) error {
 		return nil
 	}
 	return usageErr("unknown profile verb %q", sub)
+}
+
+// starters lists the starter library, or shows one starter.
+func (e *env) starters(args []string) error {
+	fs := e.flags("starters")
+	pos, err := fs.parse(args)
+	if err != nil {
+		return err
+	}
+	c, err := conn()
+	if err != nil {
+		return err
+	}
+	if len(pos) == 1 {
+		var s api.StarterFull
+		if err := c.Get("/v1/starters/"+pos[0], &s); err != nil {
+			return err
+		}
+		e.print(s, func() {
+			fmt.Fprintf(e.out, "%s (%s)\n%s\n\n%s\n\ntools: %s\n", s.Title, s.Group, s.Summary, s.WhatItCanDo, strings.Join(s.Tools, ", "))
+			if len(s.Skills) > 0 {
+				fmt.Fprintf(e.out, "skills: %s\n", strings.Join(s.Skills, ", "))
+			}
+			if s.Note != "" {
+				fmt.Fprintf(e.out, "note: %s\n", s.Note)
+			}
+			fmt.Fprintf(e.out, "\nInstructions:\n%s\n\nAdd it: handloom profile add %s --kind claude --runtime cloud\n", s.Spec.Prompt, s.Name)
+		})
+		return nil
+	}
+	if len(pos) > 1 {
+		return usageErr("usage: handloom starters [name]")
+	}
+	var list []api.StarterInfo
+	if err := c.Get("/v1/starters", &list); err != nil {
+		return err
+	}
+	e.print(list, func() {
+		group := ""
+		for _, s := range list {
+			if s.Group != group {
+				group = s.Group
+				fmt.Fprintf(e.out, "\n%s\n", group)
+			}
+			mark := " "
+			if s.Added {
+				mark = "*"
+			}
+			fmt.Fprintf(e.out, " %s %-24s %s\n", mark, s.Name, s.Summary)
+		}
+		fmt.Fprintln(e.out, "\n* already in your profiles. Show one: handloom starters <name>. Add one: handloom profile add <name> --kind claude --runtime cloud")
+	})
+	return nil
 }

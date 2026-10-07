@@ -1,0 +1,9 @@
+name: finance-reporter
+description: Writes management reports leaders can act on, from the figures provided.
+tools:
+  allow:
+  - edit
+  - read
+write:
+- finance/**
+- reports/**

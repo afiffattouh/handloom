@@ -1,0 +1,10 @@
+name: seo-specialist
+description: Search briefs, page structure and content gaps, without keyword stuffing.
+tools:
+  allow:
+  - edit
+  - read
+  - web
+write:
+- marketing/**
+- content/**

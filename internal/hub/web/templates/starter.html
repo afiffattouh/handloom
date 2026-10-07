@@ -1,0 +1,66 @@
+{{define "content"}}
+{{with .Extra}}
+<div class="page-head"><div><h1>{{.Info.Title}}</h1><p class="desc">{{.Info.Summary}}</p></div>
+  <div class="acts"><a class="button outline" href="/profiles/starters">All starters</a></div></div>
+
+{{if .Info.RecommendRuntime}}<div class="warn-box"><svg class="icon sev-warn"><use href="#i-triangle-alert"/></svg><div>{{.Info.Note}}</div></div>{{end}}
+
+<section class="card" aria-labelledby="can">
+  <div class="ch"><div><h2 id="can">What it can do</h2></div></div>
+  <div class="cc">
+    <p>{{.Summary}}</p>
+    <details><summary>Exactly what is enforced</summary><ul class="plain">{{range .Enforce}}<li>{{.}}</li>{{end}}</ul>
+    <p class="desc">This is how it would be enforced with Claude Code. Codex limits files and network instead of commands, and cannot load skills yet; the add form says what changes.</p></details>
+  </div>
+</section>
+
+<section class="card" aria-labelledby="inst">
+  <div class="ch"><div><h2 id="inst">Its instructions</h2><p class="desc">Added to the agent's own, together with Handloom's standing instructions for working in a team.</p></div></div>
+  <div class="cc"><div class="inset wrap">{{.Prompt}}</div></div>
+</section>
+
+{{if .Skills}}
+<section class="card" aria-labelledby="sk">
+  <div class="ch"><div><h2 id="sk">Skills it carries</h2></div></div>
+  <div class="cc flush"><div class="rows">
+    {{range .Skills}}<div class="row"><div class="grow"><details><summary><span class="mono">{{.Name}}</span> <span class="desc">{{.Description}}</span></summary><div class="inset wrap">{{.Content}}</div></details></div></div>{{end}}
+  </div></div>
+</section>
+{{end}}
+
+<section class="card" aria-labelledby="add">
+  <div class="ch"><div><h2 id="add">{{if .Info.Added}}Add another copy{{else}}Add it to your profiles{{end}}</h2><p class="desc">It becomes a normal profile you can edit. Nothing runs until you start an agent from it.</p></div></div>
+  <div class="cc">
+    {{if .Problems}}
+    <div class="error" role="alert"><svg class="icon"><use href="#i-circle-alert"/></svg><div>{{range .Problems}}<div>{{.}}</div>{{end}}</div></div>
+    {{end}}
+    {{if .CanEdit}}
+    <form method="post" action="/profiles/starters/{{.Info.Name}}/add" class="stack">
+      <input type="hidden" name="csrf" value="{{$.CSRF}}">
+      <label>Name <input name="name" required maxlength="40" value="{{index .Form "name"}}" pattern="[A-Za-z0-9][A-Za-z0-9_.\-]*"></label>
+      <div class="grid2 even">
+        <label>Agent CLI
+          <select name="kind" required>
+            <option value=""{{if not (index .Form "kind")}} selected{{end}}>Choose…</option>
+            <option value="claude"{{if eq (index .Form "kind") "claude"}} selected{{end}}>Claude Code (full: skills, denied commands)</option>
+            <option value="codex"{{if eq (index .Form "kind") "codex"}} selected{{end}}>Codex (no skills, no denied commands)</option>
+          </select></label>
+        <label>Where the model runs
+          <select name="runtime" required>
+            <option value=""{{if not (index .Form "runtime")}} selected{{end}}>Choose…</option>
+            <option value="cloud"{{if eq (index .Form "runtime") "cloud"}} selected{{end}}>Cloud</option>
+            <option value="local"{{if eq (index .Form "runtime") "local"}} selected{{end}}>Local (confidential jobs need this){{if index .Form "recommend"}} · recommended{{end}}</option>
+          </select></label>
+      </div>
+      <label>Model (optional) <input name="model" value="{{index .Form "model"}}" placeholder="the CLI's default"></label>
+      <label>Your password, to confirm <input type="password" name="current_password" autocomplete="current-password" required></label>
+      <div class="acts">
+        <button type="submit">Add profile</button>
+        {{if .CanAdapt}}<button type="submit" name="adapt" value="1" class="secondary">Add it without what Codex cannot do</button>{{end}}
+      </div>
+    </form>
+    {{else}}<p class="desc">Only the owner can add profiles.</p>{{end}}
+  </div>
+</section>
+{{end}}
+{{end}}

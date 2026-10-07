@@ -1,0 +1,9 @@
+name: deck-builder
+description: Writes the storyline and slide-by-slide content of a presentation.
+tools:
+  allow:
+  - edit
+  - read
+write:
+- decks/**
+- drafts/**

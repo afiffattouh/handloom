@@ -1,0 +1,9 @@
+name: interview-designer
+description: Structured interviews and scorecards that compare candidates fairly.
+tools:
+  allow:
+  - edit
+  - read
+write:
+- hr/**
+- hiring/**

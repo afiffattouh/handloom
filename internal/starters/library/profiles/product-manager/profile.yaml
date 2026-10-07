@@ -1,0 +1,10 @@
+name: product-manager
+description: Turns a goal into a spec with acceptance criteria and open questions.
+tools:
+  allow:
+  - edit
+  - read
+  - web
+write:
+- docs/specs/**
+- docs/**

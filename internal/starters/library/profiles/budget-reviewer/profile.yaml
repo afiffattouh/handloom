@@ -1,0 +1,15 @@
+name: budget-reviewer
+description: Reviews a budget or forecast for errors and weak assumptions. Changes nothing.
+tools:
+  allow:
+  - read
+  - shell
+  deny_commands:
+  - rm
+  - mv
+  - sudo
+  - git push
+  - git commit
+  - git checkout
+  - curl
+  - wget

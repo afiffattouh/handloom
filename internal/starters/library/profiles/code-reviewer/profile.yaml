@@ -1,0 +1,13 @@
+name: code-reviewer
+description: Reviews a change against a checklist and writes findings. Changes nothing.
+tools:
+  allow:
+  - read
+  - shell
+  deny_commands:
+  - rm
+  - mv
+  - sudo
+  - git push
+  - git commit
+  - git checkout

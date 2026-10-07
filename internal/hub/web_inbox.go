@@ -73,8 +73,8 @@ func (q *webReq) startSteps() ([]startStep, error) {
 		{Title: "The hub is running", Done: true},
 		{Title: "Join a machine", Done: joined > 0, Link: "/devices#add", Action: "Add a device",
 			Hint: "Create a join command, paste it on a machine that has git, tmux and an agent CLI (Claude Code, Codex, ...), then run handloom doctor there."},
-		{Title: "Make a profile", Done: profiles > 0, Link: "/profiles/new", Action: "New profile",
-			Hint: "A profile says which CLI an agent uses and what it may do. Make one for a lead and one for workers."},
+		{Title: "Add profiles", Done: profiles > 0, Link: "/profiles/starters", Action: "Browse the starter library",
+			Hint: "A profile says which CLI an agent uses and what it may do. Add a lead and a worker from the ready-made ones, or write your own."},
 		{Title: "Start your first job", Done: jobs > 0, Link: "/jobs/new", Action: "New job",
 			Hint: "Describe the work. The lead plans it and starts the workers."},
 	}

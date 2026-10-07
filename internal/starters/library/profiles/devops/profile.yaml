@@ -1,0 +1,25 @@
+name: devops
+description: Build, deploy and infrastructure files, with destructive commands blocked.
+tools:
+  allow:
+  - edit
+  - read
+  - shell
+  deny_commands:
+  - rm
+  - sudo
+  - git push
+  - kubectl delete
+  - terraform destroy
+  - terraform apply
+  - docker system prune
+write:
+- .github/**
+- ci/**
+- deploy/**
+- infra/**
+- Dockerfile*
+- docker-compose*
+- scripts/**
+- '*.yml'
+- '*.yaml'

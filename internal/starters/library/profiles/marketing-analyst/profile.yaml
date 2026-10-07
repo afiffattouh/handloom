@@ -1,0 +1,16 @@
+name: marketing-analyst
+description: Reports campaign results honestly, with denominators and caveats.
+tools:
+  allow:
+  - edit
+  - read
+  - shell
+  deny_commands:
+  - rm
+  - sudo
+  - git push
+  - curl
+  - wget
+write:
+- analysis/**
+- marketing/**

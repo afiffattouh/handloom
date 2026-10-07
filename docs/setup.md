@@ -72,12 +72,14 @@ It checks the link and hub connection, git, tmux, and each agent CLI (installed,
 
 ## Stage 3: profiles (in the web UI)
 
-A profile says which CLI an agent uses and what it may do. **Profiles, New profile.** Make at least two:
+A profile says which CLI an agent uses and what it may do. The quickest way is the **starter library** (**Profiles, Starter library**): 41 ready-made profiles for engineering, design, research and writing, consulting, marketing, sales, finance and HR, with the skills they use. Open one, read what it can do and the instructions it carries, choose the CLI (Claude Code or Codex) and where the model runs, and add it. It becomes an ordinary profile of yours that you can edit.
 
-- a **lead**: reads and plans, usually read-only (tools: read);
-- a **worker**: the CLI, the tools it may use (read, edit, shell), commands it may never run (for example `rm`), and the paths it may change (for example `src/**`).
+Add at least two to begin:
 
-Any CLI can fill either role.
+- a **lead**: `lead` (or `lead-engineering`, `lead-consulting`). It reads and plans, and never closes a job or answers for you.
+- a **worker** for the kind of work you do: for example `coder`, `researcher` or `writer`.
+
+Prefer to write your own? **Profiles, New profile** guides you: start from a starter, pick quick settings (reads only, writes files, runs commands), and press **Check before saving** to see warnings, what will be enforced and the exact instructions. From the command line: `handloom starters`, then `handloom profile add coder --kind claude --runtime cloud`. Codex cannot load skills or refuse specific commands yet; adding a starter as Codex says what it would leave out.
 
 ## Stage 4: your first job (in the web UI)
 

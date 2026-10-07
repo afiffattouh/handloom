@@ -8,17 +8,19 @@ See `docs/` for the design, [DECISIONS.md](DECISIONS.md) for choices and evidenc
 
 ## Quick start
 
+New here? Read [docs/setup.md](docs/setup.md): it covers the domain, https, every token and the first job, step by step. The short version:
+
 Four stages. You do each one once.
 
 **1. Run the hub (once, on a VPS or any server).** It is one container with one volume.
 
 ```
-export HANDLOOM_BASE_URL=https://handloom.example.com    # the public https address
-docker compose up -d --build
-docker compose logs handloom | grep -E "Admin token|setup code"
+# DNS: an A record for handloom.example.com pointing at this server; ports 80 and 443 open
+HANDLOOM_DOMAIN=handloom.example.com docker compose -f docker-compose.caddy.yml up -d --build
+docker compose -f docker-compose.caddy.yml logs handloom | grep -E "Admin token|setup code"
 ```
 
-Open `$HANDLOOM_BASE_URL/setup`, enter the setup code and make your owner account. On Dokploy, see [docs/deploy.md](docs/deploy.md). Keep the admin token somewhere safe.
+Open `https://handloom.example.com/setup`, enter the setup code and make your owner account. On Dokploy, see [docs/deploy.md](docs/deploy.md). Keep the admin token somewhere safe.
 
 **2. Join each machine that will run agents (once per machine).** A machine needs `git`, `tmux`, and at least one agent CLI that is logged in (Claude Code, Codex, Pi, OMP or OpenCode).
 

@@ -1,0 +1,39 @@
+# Handloom hub with automatic https, for a plain VPS with a domain name.
+#
+#   1. Point a DNS A record (e.g. handloom.example.com) at the server's IP.
+#   2. Open ports 80 and 443 on the server's firewall.
+#   3. HANDLOOM_DOMAIN=handloom.example.com docker compose -f docker-compose.caddy.yml up -d --build
+#
+# Caddy gets and renews the certificate by itself. Do not use this file on
+# Dokploy (it has its own proxy: use docker-compose.yml there).
+services:
+  handloom:
+    build: .
+    image: handloom-hub:${HANDLOOM_TAG:-local}
+    restart: unless-stopped
+    environment:
+      HANDLOOM_BASE_URL: https://${HANDLOOM_DOMAIN:?set HANDLOOM_DOMAIN to your domain name}
+      HANDLOOM_TRUST_PROXY: "1"
+      HANDLOOM_NTFY_URL: ${HANDLOOM_NTFY_URL:-}
+      HANDLOOM_NTFY_TOPIC: ${HANDLOOM_NTFY_TOPIC:-}
+      HANDLOOM_NTFY_TOKEN: ${HANDLOOM_NTFY_TOKEN:-}
+    volumes:
+      - handloom-data:/data
+    expose:
+      - "7420"
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    command: caddy reverse-proxy --from ${HANDLOOM_DOMAIN:?set HANDLOOM_DOMAIN to your domain name} --to handloom:7420
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - caddy-data:/data
+    depends_on:
+      - handloom
+
+volumes:
+  handloom-data:
+  caddy-data:

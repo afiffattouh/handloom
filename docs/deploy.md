@@ -4,6 +4,8 @@ The hub is one container: `handloom hub serve`. Data lives in one volume at `/da
 
 ## Plain Docker (any VPS)
 
+New to this? [setup.md](setup.md) is the step-by-step version, with a ready-made file that adds https (`docker-compose.caddy.yml`). What follows is the reference.
+
 ```
 git clone <repo> && cd <repo>
 export HANDLOOM_BASE_URL=https://handloom.example.com      # the public URL, used in notification links

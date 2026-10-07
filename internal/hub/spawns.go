@@ -20,9 +20,9 @@ import (
 // fixed table by kind.
 
 // spawnKinds are the agent kinds a link knows how to start.
-var spawnKinds = map[string]bool{"claude": true, "codex": true}
+var spawnKinds = map[string]bool{"claude": true, "codex": true, "omp": true, "pi": true, "opencode": true}
 
-var modelRE = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:/-]{0,63}$`)
+var modelRE = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:/?=@+-]{0,99}$`)
 
 type spawnRow struct {
 	id, projectID, deviceID int64

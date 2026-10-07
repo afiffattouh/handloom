@@ -37,6 +37,7 @@ type profileView struct {
 	Review   *profileReview // set when the person pressed "Check before saving"
 	Starters []api.StarterInfo
 	From     string
+	Kinds    []kindOpt
 }
 
 // profileReview is what the form shows before anything is saved.
@@ -103,6 +104,7 @@ func (q *webReq) profileForm(status int, errMsg string, v *profileView) error {
 	if !v.IsNew {
 		v.Enforce = profile.Enforcement(&v.Spec)
 	}
+	v.Kinds = kindOptions()
 	probe := v.Spec
 	if probe.Kind == "" {
 		probe.Kind = "claude"

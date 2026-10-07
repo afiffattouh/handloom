@@ -106,7 +106,7 @@ func (e *env) profile(args []string) error {
 			}
 			return fmt.Errorf("%d problem(s) in %s", len(bad), pos[0])
 		}
-		fmt.Fprintf(e.out, "%s is a valid profile (hash %.12s).\nWhat %s will and will not enforce:\n", name, profile.Hash(spec), map[string]string{"claude": "Claude Code", "codex": "Codex"}[spec.Kind])
+		fmt.Fprintf(e.out, "%s is a valid profile (hash %.12s).\nWhat %s will and will not enforce:\n", name, profile.Hash(spec), profile.KindLabel(spec.Kind))
 		for _, line := range profile.Enforcement(spec) {
 			fmt.Fprintln(e.out, "  "+line)
 		}

@@ -196,8 +196,40 @@ func (e *env) spawnExec(args []string) error {
 		if err := trustCodexDir(dir); err != nil {
 			fmt.Fprintf(e.err, "handloom: could not pre-approve %s for Codex (%v); it may ask\n", dir, err)
 		}
+	case "omp", "pi", "opencode":
+		prof, err := fetchSpawnProfile(c, s)
+		if err != nil {
+			return fail(err)
+		}
+		ps := &profile.Spec{Kind: s.Kind, Tools: profile.Tools{Allow: []string{"edit", "read", "shell"}}}
+		if prof != nil {
+			ps = &prof.Spec
+			if ps.Prompt != "" {
+				extra = fmt.Sprintf("## Your profile: %s (version %d)\n\n%s", prof.Name, prof.Version, ps.Prompt)
+			}
+		}
+		switch s.Kind {
+		case "omp":
+			argv = profile.OmpArgv(ps, s.Model, s.Role, filepath.Join(dir, ".handloom", "omp-extension.ts"))
+		case "pi":
+			argv = profile.PiArgv(ps, s.Model)
+		case "opencode":
+			argv = profile.OpenCodeArgv(ps, s.Model)
+			cfg, err := profile.OpenCodeConfig(ps, s.Model)
+			if err != nil {
+				return fail(err)
+			}
+			if err := os.WriteFile(filepath.Join(dir, "opencode.json"), append(cfg, '\n'), 0o644); err != nil {
+				return fail(err)
+			}
+		}
 	default:
 		return fail(fmt.Errorf("cannot start %q agents yet", s.Kind))
+	}
+	if s.Kind != "claude" {
+		if sk := inlineSkillsOf(c, s); sk != "" {
+			extra += "\n\n## Skills\n\nApply these when the situation they describe comes up.\n\n" + sk
+		}
 	}
 	if err := e.installAdapter(s.Kind, spec, dir, s.Name, s.Project, true, extra); err != nil {
 		return fail(err)
@@ -361,4 +393,13 @@ func trustCodexDir(dir string) error {
 		return err
 	}
 	return os.Rename(tmp, path)
+}
+
+// inlineSkillsOf is the text of the spawn's profile skills, for CLIs that do not load SKILL.md folders.
+func inlineSkillsOf(c *client.Client, s *api.Spawn) string {
+	prof, err := fetchSpawnProfile(c, s)
+	if err != nil || prof == nil {
+		return ""
+	}
+	return profile.InlineSkills(&prof.Spec)
 }

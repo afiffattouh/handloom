@@ -39,6 +39,7 @@ type starterView struct {
 	Problems []string
 	CanAdapt bool
 	Adapted  []string
+	Kinds    []kindOpt
 }
 
 func (q *webReq) starterPage(status int, name string, form map[string]string, problems []string, canAdapt bool) error {
@@ -61,7 +62,7 @@ func (q *webReq) starterPage(status int, name string, form map[string]string, pr
 		return err
 	}
 	v := &starterView{Info: *info, Summary: profile.Summary(spec), Prompt: spec.Prompt, Write: spec.Write, Deny: spec.Tools.DenyCommands,
-		CanEdit: q.isOwner(), Form: form, Problems: problems, CanAdapt: canAdapt}
+		CanEdit: q.isOwner(), Form: form, Problems: problems, CanAdapt: canAdapt, Kinds: kindOptions()}
 	for _, sk := range info.Skills {
 		if s, ok := starters.GetSkill(sk); ok {
 			v.Skills = append(v.Skills, s)
@@ -99,7 +100,7 @@ func (h *Hub) webStarterAdd(q *webReq) error {
 	}
 	if len(problems) > 0 {
 		// Codex cannot do some things a starter asks for: say which, and offer to leave them out.
-		adaptable := req.Kind == "codex" && !req.Adapt
+		adaptable := req.Kind != "" && !req.Adapt
 		return q.starterPage(400, starter, form, problems, adaptable)
 	}
 	_ = resp
@@ -126,4 +127,22 @@ func (q *webReq) starterError(name string, err error, form map[string]string) er
 		form = map[string]string{"name": name}
 	}
 	return q.starterPage(status, name, form, []string{msg}, false)
+}
+
+// kindOpt is one agent CLI in a select, with what makes it different.
+type kindOpt struct{ Value, Label string }
+
+func kindOptions() []kindOpt {
+	desc := map[string]string{
+		"claude":   "Claude Code: cloud models, refuses the shell commands you name, loads skills",
+		"codex":    "Codex: cloud models, sandboxed files and network, cannot refuse commands",
+		"omp":      "OMP: any model, including your local one; cannot refuse commands",
+		"pi":       "Pi: any model, including your local one; no web tool",
+		"opencode": "OpenCode: any model; refuses the shell commands you name",
+	}
+	var out []kindOpt
+	for _, k := range profile.Kinds {
+		out = append(out, kindOpt{k, desc[k]})
+	}
+	return out
 }

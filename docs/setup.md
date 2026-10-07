@@ -72,14 +72,14 @@ It checks the link and hub connection, git, tmux, and each agent CLI (installed,
 
 ## Stage 3: profiles (in the web UI)
 
-A profile says which CLI an agent uses and what it may do. The quickest way is the **starter library** (**Profiles, Starter library**): 41 ready-made profiles for engineering, design, research and writing, consulting, marketing, sales, finance and HR, with the skills they use. Open one, read what it can do and the instructions it carries, choose the CLI (Claude Code or Codex) and where the model runs, and add it. It becomes an ordinary profile of yours that you can edit.
+A profile says which CLI an agent uses and what it may do. The quickest way is the **starter library** (**Profiles, Starter library**): 41 ready-made profiles for engineering, design, research and writing, consulting, marketing, sales, finance and HR, with the skills they use. Open one, read what it can do and the instructions it carries, choose the CLI (Claude Code, Codex, OMP, Pi or OpenCode) and where the model runs, and add it. It becomes an ordinary profile of yours that you can edit.
 
 Add at least two to begin:
 
 - a **lead**: `lead` (or `lead-engineering`, `lead-consulting`). It reads and plans, and never closes a job or answers for you.
 - a **worker** for the kind of work you do: for example `coder`, `researcher` or `writer`.
 
-Prefer to write your own? **Profiles, New profile** guides you: start from a starter, pick quick settings (reads only, writes files, runs commands), and press **Check before saving** to see warnings, what will be enforced and the exact instructions. From the command line: `handloom starters`, then `handloom profile add coder --kind claude --runtime cloud`. Codex cannot load skills or refuse specific commands yet; adding a starter as Codex says what it would leave out.
+Prefer to write your own? **Profiles, New profile** guides you: start from a starter, pick quick settings (reads only, writes files, runs commands), and press **Check before saving** to see warnings, what will be enforced and the exact instructions. From the command line: `handloom starters`, then `handloom profile add coder --kind claude --runtime cloud`. Each CLI enforces different things (only Claude Code and OpenCode can refuse specific shell commands; Codex, OMP and Pi always keep a shell; Pi has no web tool). Adding a starter as another CLI says what it would leave out. For a model on your own machine, use OMP, Pi or OpenCode and name the model.
 
 ## Stage 4: your first job (in the web UI)
 

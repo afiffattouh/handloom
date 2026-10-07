@@ -27,13 +27,13 @@
   <label>What it is for <input name="description" maxlength="200" value="{{.Spec.Description}}"></label>
   <div class="grid2 even">
   <label>Agent CLI
-    <select name="kind"><option value="claude"{{if ne .Spec.Kind "codex"}} selected{{end}}>Claude Code (skills and denied commands)</option><option value="codex"{{if eq .Spec.Kind "codex"}} selected{{end}}>Codex (no skills, no denied commands, always has a shell)</option></select>
+    <select name="kind">{{range .Kinds}}<option value="{{.Value}}"{{if eq .Value $.Extra.Spec.Kind}} selected{{end}}>{{.Label}}</option>{{end}}</select>
   </label>
   <label>Where its model runs
     <select name="runtime"><option value="cloud"{{if eq .Spec.Runtime "cloud"}} selected{{end}}>cloud</option><option value="local"{{if eq .Spec.Runtime "local"}} selected{{end}}>local (confidential jobs need this)</option></select>
   </label>
   </div>
-  <label>Model (optional) <input name="model" value="{{.Spec.Model}}" placeholder="sonnet"></label>
+  <label><span>Model <span class="desc">(optional for cloud CLIs; <strong>name it for a local model</strong>, such as gb10/qwen3.8-27b, or the CLI may use a cloud model)</span></span><input name="model" value="{{.Spec.Model}}" placeholder="sonnet" class="mono-input"></label>
   <div class="presets" id="presets" hidden>
     <span class="desc">Quick settings:</span>
     <button type="button" class="secondary sm-btn" data-preset="read">Reads only</button>

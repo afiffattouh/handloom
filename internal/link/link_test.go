@@ -1501,3 +1501,22 @@ func TestAnAgentCannotReportUsage(t *testing.T) {
 		t.Fatalf("usage from an agent: %v", err)
 	}
 }
+
+func TestASpawnedAgentIsNotNudgedWhileItsTerminalStarts(t *testing.T) {
+	f := newFixture(t)
+	f.link.opt.SpawnSettle = 20 * time.Second
+	f.link.mu.Lock()
+	f.link.fresh = map[string]time.Time{"worker": f.clock()}
+	f.link.mu.Unlock()
+	f.state(f.worker, "idle")
+	f.mail("worker")
+	f.ladder()
+	if f.driver.count() != 0 {
+		t.Fatalf("typed into a terminal that is still starting: %v", f.driver.nudges)
+	}
+	f.advance(25 * time.Second)
+	f.ladder()
+	if f.driver.count() != 1 {
+		t.Fatalf("after the terminal has had time to start the agent is woken: %d", f.driver.count())
+	}
+}

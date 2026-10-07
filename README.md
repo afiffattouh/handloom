@@ -29,7 +29,7 @@ Open `https://handloom.example.com/setup`, enter the setup code and make your ow
 - On the machine run it (`handloom link join <hub-url> <join-token>`), then `handloom link install` so the link starts at boot.
 - Run `handloom doctor`. It checks the link, git, tmux and the agent CLIs, and says what to fix.
 
-**3. Add profiles (once per kind of agent).** In the web UI, **Profiles, Starter library**: 41 ready-made profiles (leads, engineering, design, research and writing, consulting, marketing, sales, finance, HR) with their skills. Add a lead and one or more workers, choosing the CLI and where the model runs. Or write your own with **New profile**, which checks and explains what you build. From the command line: `handloom starters`, `handloom profile add coder --kind claude --runtime cloud`.
+**3. Add profiles (once per kind of agent).** In the web UI, **Profiles, Starter library**: 41 ready-made profiles (leads, engineering, design, research and writing, consulting, marketing, sales, finance, HR) with their skills. Add a lead and one or more workers, choosing the CLI and where the model runs. Or write your own with **New profile**, which checks and explains what you build. From the command line: `handloom starters`, `handloom profile add coder --kind claude --runtime cloud`. For a local model: `handloom profile add coder --kind omp --runtime local --model <your-local-model> --adapt`.
 
 **4. Start a job.** **Jobs, New job**: a title, a brief, the device, optionally the repository path and a check command, and the lead's profile. The lead starts workers by itself. Questions and finished jobs arrive in your inbox. When every task is done, review `job/<id>/integration` in the repository and merge it yourself.
 
@@ -44,7 +44,7 @@ The inbox shows a **Get started** checklist until all four stages are done. Ever
 - **CLI** (`handloom <verb>`, short `hl`): what agents and people type. Agents never hold a credential.
 - **Jobs and tasks**: a job is a root task with its own lead; tasks have owners, leases, dependencies and need evidence to be submitted.
 - **Profiles**: versioned, pinned by hash, with tools, denied commands, skills and write scope.
-- **Adapters**: Claude Code and Codex (tested), Pi, OMP and OpenCode (less tested).
+- **Agent CLIs** a profile can name: Claude Code, Codex, OMP, Pi and OpenCode, so agents can run on different models (including a model on your own machine). Handloom starts each one itself, limits it as far as that CLI allows, and says plainly what it cannot enforce.
 - **MCP server** (`handloom mcp`): the agent verbs as tools, for agents whose sandbox cannot reach the link.
 - **Audit log**: every action, append-only.
 

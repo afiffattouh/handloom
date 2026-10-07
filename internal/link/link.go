@@ -34,6 +34,7 @@ type Options struct {
 	Renudge       time.Duration // nudge again when delivered mail stays unread this long; default 5m
 	UnknownAfter  time.Duration // two unanswered nudges for this long mark the agent unknown; default 10m
 	Heartbeat     time.Duration // extend leases of an active agent this often; default 2m
+	SpawnSettle   time.Duration // a spawned agent is not typed into for this long after its window opens (its TUI is still starting); default 20s, negative: none
 	BlockedGrace  time.Duration // an agent must be blocked this long before the lead is told; default 30s
 	Tick          time.Duration // how often the ladder runs without events; default 10s
 	LiveEvery     time.Duration // how often a live terminal is reported to the hub as alive; default 20s
@@ -65,6 +66,7 @@ type Link struct {
 	memo    map[string]*memo
 	tailing bool // the screen-reading loop is running
 	usage   usageReader
+	fresh   map[string]time.Time // spawned agents and when their window opened
 }
 
 func New(opt Options) *Link {
@@ -77,6 +79,9 @@ func New(opt Options) *Link {
 	def(&opt.Renudge, 5*time.Minute)
 	def(&opt.UnknownAfter, 10*time.Minute)
 	def(&opt.Heartbeat, 2*time.Minute)
+	if opt.SpawnSettle == 0 {
+		opt.SpawnSettle = 20 * time.Second
+	}
 	def(&opt.BlockedGrace, 30*time.Second)
 	def(&opt.Tick, 10*time.Second)
 	def(&opt.LiveEvery, 20*time.Second)

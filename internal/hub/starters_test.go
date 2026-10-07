@@ -60,12 +60,12 @@ func TestTheStarterLibraryIsListedAndAddedLikeAnyProfile(t *testing.T) {
 		t.Fatalf("no choice: %d", code)
 	}
 	var out struct{ Error string }
-	if code := e.statusInto(e.admin, "POST", "/v1/starters/writer/add", api.StarterAddReq{Kind: "codex", Runtime: "cloud"}, &out); code != 400 || !strings.Contains(out.Error, "skills") {
+	if code := e.statusInto(e.admin, "POST", "/v1/starters/writer/add", api.StarterAddReq{Kind: "codex", Runtime: "cloud"}, &out); code != 400 || !strings.Contains(out.Error, "always has a shell") {
 		t.Fatalf("codex without adapt: %d %s", code, out.Error)
 	}
 	var adapted api.StarterAddResp
 	e.apiOK(e.admin, "", "POST", "/v1/starters/writer/add", api.StarterAddReq{Kind: "codex", Runtime: "cloud", Adapt: true}, &adapted)
-	if len(adapted.Adapted) == 0 || !strings.Contains(strings.Join(adapted.Adapted, " "), "skills") {
+	if len(adapted.Adapted) == 0 || !strings.Contains(strings.Join(adapted.Adapted, " "), "shell") {
 		t.Fatalf("adapted: %+v", adapted)
 	}
 	// Not the owner: refused.
@@ -100,7 +100,7 @@ func TestTheStarterPagesAndTheAssistedForm(t *testing.T) {
 		return e.req("POST", "/profiles/starters/coder/add", f, c, nil)
 	}
 	r := add(url.Values{"kind": {"codex"}})
-	if r.status != 400 || !strings.Contains(r.body, "skills") || !strings.Contains(r.body, "Add it without what Codex cannot do") {
+	if r.status != 400 || !strings.Contains(r.body, "cannot refuse specific shell commands") || !strings.Contains(r.body, "Add it without what that CLI cannot do") {
 		t.Fatalf("codex: %d", r.status)
 	}
 	if r := add(url.Values{"kind": {""}}); r.status != 400 || !strings.Contains(r.body, "Choose the agent CLI") {

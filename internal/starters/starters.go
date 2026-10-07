@@ -145,8 +145,8 @@ type Choice struct {
 	Kind    string // claude or codex: required
 	Runtime string // cloud or local: required
 	Model   string
-	// Adapt leaves out what the chosen CLI cannot do (skills, denied commands
-	// for Codex) instead of refusing, and says what it left out.
+	// Adapt leaves out what the chosen CLI cannot do (denied commands, a
+	// missing shell or web tool) instead of refusing, and says what it left out.
 	Adapt bool
 }
 
@@ -168,29 +168,39 @@ func Build(name string, c Choice) (*Result, error) {
 	spec.Kind, spec.Runtime, spec.Model = c.Kind, c.Runtime, c.Model
 	switch {
 	case spec.Kind == "":
-		r.Problems = append(r.Problems, "Choose the agent CLI (Claude Code or Codex).")
+		r.Problems = append(r.Problems, "Choose the agent CLI.")
 	case spec.Runtime == "":
 		r.Problems = append(r.Problems, "Choose where the model runs (cloud or local).")
 	}
 	if len(r.Problems) > 0 {
 		return r, nil
 	}
-	if c.Adapt && spec.Kind == "codex" {
-		if len(spec.Skills) > 0 {
-			r.Adapted = append(r.Adapted, fmt.Sprintf("left out %d skills (Codex cannot load them yet): %s", len(profile.SkillNames(spec)), strings.Join(profile.SkillNames(spec), ", ")))
-			spec.Skills = nil
-		}
-		if len(spec.Tools.DenyCommands) > 0 {
-			r.Adapted = append(r.Adapted, "left out the denied commands ("+strings.Join(spec.Tools.DenyCommands, ", ")+"): Codex limits files and network, not commands")
+	if kc, ok := profile.CapsFor(spec.Kind); ok && c.Adapt {
+		label := profile.KindLabel(spec.Kind)
+		if len(spec.Tools.DenyCommands) > 0 && !kc.DenyCommands {
+			r.Adapted = append(r.Adapted, "left out the denied commands ("+strings.Join(spec.Tools.DenyCommands, ", ")+"): "+label+" cannot refuse specific commands")
 			spec.Tools.DenyCommands = nil
 		}
-		hasShell := false
-		for _, t := range spec.Tools.Allow {
-			hasShell = hasShell || t == "shell"
+		if kc.AlwaysShell {
+			hasShell := false
+			for _, t := range spec.Tools.Allow {
+				hasShell = hasShell || t == "shell"
+			}
+			if !hasShell {
+				spec.Tools.Allow = append(spec.Tools.Allow, "shell")
+				r.Adapted = append(r.Adapted, "added the shell tool: "+label+" always has one (handloom's own commands run through it)")
+			}
 		}
-		if !hasShell {
-			spec.Tools.Allow = append(spec.Tools.Allow, "shell")
-			r.Adapted = append(r.Adapted, "added the shell tool: Codex always has one, inside its sandbox")
+		if !kc.Web {
+			var keep []string
+			for _, t := range spec.Tools.Allow {
+				if t == "web" {
+					r.Adapted = append(r.Adapted, "left out the web tool: "+label+" has none")
+					continue
+				}
+				keep = append(keep, t)
+			}
+			spec.Tools.Allow = keep
 		}
 	}
 	r.Problems = profile.Normalize(spec)

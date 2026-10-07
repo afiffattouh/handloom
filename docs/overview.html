@@ -351,7 +351,7 @@ handloom doctor         <i># what is missing?</i></pre>
   <div class="note-row">
     <div class="note"><b>Agents never see the device credential</b><p>They talk to the link over a unix socket and prove who they are with a per-run token that is stored hashed on the hub.</p></div>
     <div class="note"><b>Same CLI for you and for agents</b><p>The terminal, the web page and the MCP tools all call the same API, so every action leaves the same audit row.</p></div>
-    <div class="note"><b>Any agent CLI</b><p>Adapters for Claude Code, Codex, Pi, OMP and OpenCode. The profile says what the agent may do, not which vendor.</p></div>
+    <div class="note"><b>Any agent CLI</b><p>Claude Code, Codex, OMP, Pi and OpenCode. The profile says which one and which model, and what the agent may do.</p></div>
   </div>
 </section>
 
@@ -639,7 +639,7 @@ handloom doctor         <i># what is missing?</i></pre>
     <div class="f"><div class="top"><h3>Merge to integration</h3><span class="pill ok">shipped</span></div><p>Accepted work is merged and re-checked. Conflicts and failures go back to the lead.</p></div>
     <div class="f"><div class="top"><h3>Web inbox</h3><span class="pill ok">shipped</span></div><p>Questions, work to review, jobs done, lost leads. Updates live, works on a phone.</p></div>
     <div class="f"><div class="top"><h3>Supervisor</h3><span class="pill ok">shipped</span></div><p>Leases mark silent agents offline. A lost lead becomes an inbox item with a Resume button.</p></div>
-    <div class="f"><div class="top"><h3>Multiple runtimes</h3><span class="pill part">tested: Claude, Codex</span></div><p>Pi, OMP and OpenCode adapters exist; they have had less real-world running.</p></div>
+    <div class="f"><div class="top"><h3>Multiple runtimes</h3><span class="pill ok">5 CLIs</span></div><p>Claude Code, Codex, OMP, Pi and OpenCode, each started and limited by its profile and each proven with a real agent, including on a local model. What a CLI cannot enforce is said, never dropped.</p></div>
     <div class="f"><div class="top"><h3>Phone push</h3><span class="pill part">built, not tested</span></div><p>Next up: try it against a real ntfy topic.</p></div>
     <div class="f"><div class="top"><h3>Deploy anywhere</h3><span class="pill ok">shipped</span></div><p>Distroless image and a compose file. Runs on Dokploy or any VPS with Docker.</p></div>
     <div class="f"><div class="top"><h3>Starter library</h3><span class="pill ok">shipped</span></div><p>41 ready-made profiles and 51 skills for engineering, design, research, consulting, marketing, sales, finance and HR. Add one in a click; it becomes yours to edit. A guided form checks and explains any profile you write.</p></div>

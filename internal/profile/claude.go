@@ -76,8 +76,11 @@ func InstallSkills(dir string, s *Spec) error {
 // Enforcement says, in words, what the CLI will actually enforce for this
 // profile and what it will not.
 func Enforcement(s *Spec) []string {
-	if s.Kind == "codex" {
+	switch s.Kind {
+	case "codex":
 		return codexEnforcement(s)
+	case "omp", "pi", "opencode":
+		return toolEnforcement(s.Kind, s)
 	}
 	var out []string
 	allowed := map[string]bool{}

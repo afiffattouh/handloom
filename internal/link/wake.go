@@ -74,6 +74,9 @@ func (l *Link) decide(a api.DeviceAgent, m *memo, now time.Time) decision {
 			}
 			return decision{}
 		}
+		if t, ok := l.fresh[a.Name]; ok && l.opt.SpawnSettle > 0 && now.Sub(t) < l.opt.SpawnSettle {
+			return decision{} // its terminal is still starting: a nudge now would be typed into nothing
+		}
 		due := a.Undelivered > 0 || now.Sub(m.lastNudge) >= l.opt.Renudge
 		if !due || now.Sub(m.lastNudge) < l.opt.NudgeEvery {
 			return decision{} // nothing new, or rate limited: pending mail merges into the next nudge

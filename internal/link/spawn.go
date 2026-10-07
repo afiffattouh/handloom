@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	"handloom/internal/api"
 	"handloom/internal/client"
@@ -118,6 +119,12 @@ func (l *Link) launch(ctx context.Context, s api.Spawn) error {
 			return err
 		}
 	}
+	l.mu.Lock()
+	if l.fresh == nil {
+		l.fresh = map[string]time.Time{}
+	}
+	l.fresh[s.Name] = l.opt.Now()
+	l.mu.Unlock()
 	home := client.Home()
 	cmd := fmt.Sprintf("env HANDLOOM_HOME=%s PATH=%s HANDLOOM_SPAWN=%d %s spawn-exec %d",
 		shellQuote(home), shellQuote(filepath.Dir(l.opt.Binary)+":"+os.Getenv("PATH")), s.ID, shellQuote(l.opt.Binary), s.ID)

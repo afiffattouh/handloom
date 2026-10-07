@@ -85,13 +85,13 @@ func TestCodexCannotHaveSkillsOrDeniedCommandsAndSaysSo(t *testing.T) {
 		t.Fatalf("coder as codex should be refused: %v %v", err, r.Problems)
 	}
 	joined := strings.Join(r.Problems, " | ")
-	for _, want := range []string{"skills", "deny_commands"} {
+	for _, want := range []string{"cannot refuse specific shell commands"} {
 		if !strings.Contains(joined, want) {
 			t.Errorf("the problems do not mention %q: %s", want, joined)
 		}
 	}
 	a, err := Build("coder", Choice{Kind: "codex", Runtime: "cloud", Adapt: true})
-	if err != nil || len(a.Problems) != 0 || len(a.Adapted) < 2 || len(a.Spec.Skills) != 0 {
+	if err != nil || len(a.Problems) != 0 || len(a.Adapted) < 1 || len(a.Spec.Skills) == 0 {
 		t.Fatalf("adapted: %+v %v", a, err)
 	}
 	// A read-only starter has no shell: Codex would add one, and says so.
@@ -147,14 +147,35 @@ func TestEveryStarterBecomesValidClaudeAndCodexFlags(t *testing.T) {
 				t.Errorf("%s: the denied command %q is not in the flags: %v", st.Name, c, argv)
 			}
 		}
-		a, err := Build(st.Name, Choice{Kind: "codex", Runtime: "cloud", Adapt: true})
-		if err != nil || len(a.Problems) != 0 {
-			t.Errorf("%s as codex, adapted: %v %v", st.Name, err, a.Problems)
-			continue
-		}
-		cx := strings.Join(profile.CodexArgv(a.Spec, "", "handloom", "/tmp/h", "x"), " ")
-		if !strings.Contains(cx, "-a never") {
-			t.Errorf("%s: codex flags: %s", st.Name, cx)
+		for _, kind := range profile.Kinds {
+			a, err := Build(st.Name, Choice{Kind: kind, Runtime: "cloud", Adapt: true})
+			if err != nil || len(a.Problems) != 0 {
+				t.Errorf("%s as %s, adapted: %v %v", st.Name, kind, err, a.Problems)
+				continue
+			}
+			if len(a.Spec.Skills) == 0 && len(st.Skills) > 0 {
+				t.Errorf("%s as %s lost its skills", st.Name, kind)
+			}
+			var line string
+			switch kind {
+			case "claude":
+				continue
+			case "codex":
+				line = strings.Join(profile.CodexArgv(a.Spec, "", "handloom", "/tmp/h", "x"), " ")
+			case "omp":
+				line = strings.Join(profile.OmpArgv(a.Spec, "", "worker", "/w/e.ts"), " ")
+			case "pi":
+				line = strings.Join(profile.PiArgv(a.Spec, ""), " ")
+			case "opencode":
+				cfg, err := profile.OpenCodeConfig(a.Spec, "")
+				if err != nil || !strings.Contains(string(cfg), `"handloom *": "allow"`) {
+					t.Errorf("%s: opencode config: %v %s", st.Name, err, cfg)
+				}
+				line = strings.Join(profile.OpenCodeArgv(a.Spec, ""), " ")
+			}
+			if line == "" || strings.Contains(line, "  ") {
+				t.Errorf("%s as %s: bad flags %q", st.Name, kind, line)
+			}
 		}
 	}
 }

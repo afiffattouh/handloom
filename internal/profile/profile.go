@@ -65,11 +65,10 @@ const (
 var (
 	nameRE    = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]{0,39}$`)
 	skillRE   = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$`)
-	modelRE   = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:/-]{0,63}$`)
+	modelRE   = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:/?=@+-]{0,99}$`)
 	globRE    = regexp.MustCompile(`^[A-Za-z0-9._/*?-]+$`)
 	commandRE = regexp.MustCompile(`^[A-Za-z0-9._/-]+( [A-Za-z0-9._/=:@-]+){0,3}$`)
 	tools     = map[string]bool{"read": true, "edit": true, "shell": true, "web": true}
-	kinds     = map[string]bool{"claude": true, "codex": true}
 )
 
 // ValidName reports whether name can name a profile.
@@ -84,25 +83,19 @@ func Normalize(s *Spec) []string {
 	if s.Kind == "" {
 		s.Kind = "claude"
 	}
-	if !kinds[s.Kind] {
-		bad = append(bad, fmt.Sprintf("kind %q is not supported yet (supported: claude, codex)", s.Kind))
-	}
-	if s.Kind == "codex" {
-		// Codex limits files and network with its sandbox; it cannot be told which
-		// commands to refuse, cannot have its shell taken away, and loads skills
-		// in a way we have not verified. Say so instead of dropping the wish.
-		if len(s.Tools.DenyCommands) > 0 {
-			bad = append(bad, "codex cannot refuse specific shell commands (its sandbox limits files and network, not commands): use a claude profile for deny_commands")
+	kc, known := CapsFor(s.Kind)
+	if !known {
+		bad = append(bad, fmt.Sprintf("kind %q is not supported (supported: %s)", s.Kind, strings.Join(Kinds, ", ")))
+	} else {
+		// Say what the CLI cannot enforce instead of dropping the wish.
+		if len(s.Tools.DenyCommands) > 0 && !kc.DenyCommands {
+			bad = append(bad, s.Kind+" cannot refuse specific shell commands (deny_commands): use claude or opencode for that")
 		}
-		if len(s.Skills) > 0 {
-			bad = append(bad, "skills are not supported for codex agents yet")
+		if kc.AlwaysShell && !has(s.Tools.Allow, "shell") {
+			bad = append(bad, s.Kind+" always has a shell (handloom's own commands run through it): list shell in tools, or use claude or opencode to take it away")
 		}
-		hasShell := false
-		for _, t := range s.Tools.Allow {
-			hasShell = hasShell || t == "shell"
-		}
-		if !hasShell {
-			bad = append(bad, "codex always has a shell (inside its sandbox): list shell in tools, or use claude to take it away")
+		if has(s.Tools.Allow, "web") && !kc.Web {
+			bad = append(bad, s.Kind+" has no web tool: remove web from tools")
 		}
 	}
 	if s.Runtime != Cloud && s.Runtime != Local {
@@ -322,6 +315,14 @@ func Warnings(s *Spec) []string {
 	}
 	if len(s.Tools.Allow) == 0 {
 		out = append(out, "No tools are allowed: the agent can only talk.")
+	}
+	if c, ok := CapsFor(s.Kind); ok && s.Runtime == Local {
+		switch {
+		case !c.LocalCapable && s.Model == "":
+			out = append(out, KindLabel(s.Kind)+" uses a cloud model unless it is pointed at a local one: name the local model, or this profile's \"local\" is only a promise.")
+		case c.LocalCapable && s.Model == "":
+			out = append(out, "Runtime is local but no model is named, so "+KindLabel(s.Kind)+" will use its own default, which may be a cloud model. Name the local model.")
+		}
 	}
 	if allow["web"] && s.Runtime == Local {
 		out = append(out, "It can fetch web pages while running on a local model: anything it reads leaves your machine as a request.")

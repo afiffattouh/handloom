@@ -1,6 +1,7 @@
 package profile
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -181,7 +182,6 @@ func TestCodexProfilesAreHonestAboutWhatCodexCannotDo(t *testing.T) {
 	}
 	for name, mutate := range map[string]func(*Spec){
 		"deny commands": func(s *Spec) { s.Tools.DenyCommands = []string{"rm"} },
-		"skills":        func(s *Spec) { s.Skills = []File{{Path: "a/SKILL.md", Content: "x"}} },
 		"no shell":      func(s *Spec) { s.Tools.Allow = []string{"read"} },
 	} {
 		s := &Spec{Kind: "codex", Tools: Tools{Allow: []string{"read", "shell"}}}
@@ -326,5 +326,108 @@ func TestSummaryAndWarnings(t *testing.T) {
 	}
 	if Summary(&Spec{}) != "This agent cannot do anything but talk." {
 		t.Fatal("empty summary")
+	}
+}
+
+func TestKindsSayWhatTheyCannotEnforce(t *testing.T) {
+	base := func(kind string) *Spec {
+		return &Spec{Kind: kind, Tools: Tools{Allow: []string{"read", "shell"}}, Prompt: "x"}
+	}
+	for _, k := range Kinds {
+		if bad := Normalize(base(k)); len(bad) != 0 {
+			t.Errorf("%s: a plain profile is refused: %v", k, bad)
+		}
+	}
+	// Per CLI: what is refused, in words that name the CLI.
+	for kind, c := range map[string]struct {
+		mutate func(*Spec)
+		want   string
+	}{
+		"omp":    {func(s *Spec) { s.Tools.DenyCommands = []string{"rm"} }, "omp cannot refuse specific shell commands"},
+		"pi":     {func(s *Spec) { s.Tools.Allow = []string{"read"} }, "pi always has a shell"},
+		"pi ":    {func(s *Spec) { s.Tools.Allow = []string{"read", "shell", "web"} }, "pi has no web tool"},
+		"codex":  {func(s *Spec) { s.Tools.DenyCommands = []string{"rm"} }, "codex cannot refuse"},
+		"claude": {func(s *Spec) { s.Tools.Allow = []string{"web"}; s.Tools.DenyCommands = nil }, ""},
+	} {
+		s := base(strings.TrimSpace(kind))
+		c.mutate(s)
+		bad := strings.Join(Normalize(s), "|")
+		if c.want == "" && bad != "" || c.want != "" && !strings.Contains(bad, c.want) {
+			t.Errorf("%s: %q does not say %q", kind, bad, c.want)
+		}
+	}
+	// OpenCode can refuse commands and can drop the shell: handloom's commands stay allowed.
+	oc := &Spec{Kind: "opencode", Tools: Tools{Allow: []string{"read"}}, Prompt: "x"}
+	if bad := Normalize(oc); len(bad) != 0 {
+		t.Fatalf("opencode: %v", bad)
+	}
+	var cfg struct {
+		Permission map[string]any `json:"permission"`
+		Model      string         `json:"model"`
+	}
+	raw, _ := OpenCodeConfig(oc, "gb10/qwen3.8-27b")
+	if !strings.Contains(string(raw), `"small_model": "gb10/qwen3.8-27b"`) || strings.Count(string(raw), `"model": "gb10/qwen3.8-27b"`) < 4 {
+		t.Fatalf("the model must be pinned for the default agents and small tasks: %s", raw)
+	}
+	if err := json.Unmarshal(raw, &cfg); err != nil || cfg.Model != "gb10/qwen3.8-27b" {
+		t.Fatalf("opencode config: %v %s", err, raw)
+	}
+	bash := cfg.Permission["bash"].(map[string]any)
+	if bash["*"] != "deny" || bash["handloom *"] != "allow" || cfg.Permission["edit"] != "deny" || cfg.Permission["read"] != "allow" {
+		t.Fatalf("opencode permissions: %v", cfg.Permission)
+	}
+	oc.Tools.Allow = []string{"read", "shell"}
+	oc.Tools.DenyCommands = []string{"rm", "git push"}
+	raw, _ = OpenCodeConfig(oc, "")
+	json.Unmarshal(raw, &cfg)
+	bash = cfg.Permission["bash"].(map[string]any)
+	if bash["*"] != "allow" || bash["rm*"] != "deny" || bash["git push*"] != "deny" || bash["handloom *"] != "allow" {
+		t.Fatalf("opencode bash: %v", bash)
+	}
+}
+
+func TestArgvPerKind(t *testing.T) {
+	s := &Spec{Kind: "omp", Model: "gb10/qwen3.8-27b", Tools: Tools{Allow: []string{"read", "edit", "shell", "web"}}}
+	line := strings.Join(OmpArgv(s, "", "worker", "/w/.handloom/omp-extension.ts"), " ")
+	for _, want := range []string{"omp --approval-mode yolo", "--tools read,grep,glob,write,edit,bash,web_search", "--thinking medium", "-e /w/.handloom/omp-extension.ts", "--model gb10/qwen3.8-27b"} {
+		if !strings.Contains(line, want) {
+			t.Errorf("omp: %q lacks %q", line, want)
+		}
+	}
+	if !strings.Contains(strings.Join(OmpArgv(s, "x/y", "lead", "e"), " "), "--thinking high --") && !strings.Contains(strings.Join(OmpArgv(s, "x/y", "lead", "e"), " "), "--thinking high") {
+		t.Error("a lead should think harder")
+	}
+	p := &Spec{Kind: "pi", Tools: Tools{Allow: []string{"read", "shell"}}}
+	if got := strings.Join(PiArgv(p, "provider/model:high"), " "); got != "pi --approve --tools read,bash --model provider/model:high" {
+		t.Errorf("pi: %s", got)
+	}
+	o := &Spec{Kind: "opencode"}
+	if got := strings.Join(OpenCodeArgv(o, "local:qwen3.8-27b?effort=high"), " "); got != "opencode -m local:qwen3.8-27b?effort=high" {
+		t.Errorf("opencode: %s", got)
+	}
+	// The model names people really use are accepted.
+	for _, m := range []string{"gb10/qwen3.8-27b", "local:qwen3.8-27b?effort=high", "anthropic/claude-sonnet-5-5:high", "sonnet"} {
+		if bad := Normalize(&Spec{Kind: "omp", Model: m, Tools: Tools{Allow: []string{"read", "shell"}}}); len(bad) != 0 {
+			t.Errorf("model %q: %v", m, bad)
+		}
+	}
+	if bad := Normalize(&Spec{Kind: "omp", Model: "x; rm -rf /", Tools: Tools{Allow: []string{"read", "shell"}}}); len(bad) == 0 {
+		t.Error("a model name with a shell command was accepted")
+	}
+}
+
+func TestInlineSkillsAndLocalWarnings(t *testing.T) {
+	s := &Spec{Skills: []File{{Path: "plan/SKILL.md", Content: "---\nname: plan\ndescription: d\n---\n\nDo the steps.\n"}, {Path: "plan/extra.txt", Content: "ignored"}}}
+	got := InlineSkills(s)
+	if got != "### Skill: plan\n\nDo the steps." {
+		t.Fatalf("inline: %q", got)
+	}
+	w := strings.Join(Warnings(&Spec{Kind: "omp", Runtime: Local, Prompt: "x", Tools: Tools{Allow: []string{"read", "shell"}}, Write: []string{"src/**"}}), "|")
+	if !strings.Contains(w, "no model is named") {
+		t.Errorf("local OMP without a model: %s", w)
+	}
+	w = strings.Join(Warnings(&Spec{Kind: "claude", Runtime: Local, Prompt: "x", Tools: Tools{Allow: []string{"read"}}}), "|")
+	if !strings.Contains(w, "uses a cloud model") {
+		t.Errorf("local Claude: %s", w)
 	}
 }

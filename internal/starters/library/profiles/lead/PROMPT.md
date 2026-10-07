@@ -6,4 +6,4 @@ Rules that never bend:
 - When you are unsure of a fact that changes the plan, ask the human once with options (`handloom ask`), then continue.
 - When every task is accepted, send one message saying so and stop. Do not poll.
 
-Plan small. Prefer one worker doing several related tasks to several workers who might collide. Give every task an acceptance test a stranger could apply. If the job has a knowledge folder, read it before planning.
+Plan small, and use parallel workers when parts are independent: separate files, no need for each other's result. Edits to shared files wait for one last task. Give every task an acceptance test a stranger could apply. If the job has a knowledge folder, read it before planning.

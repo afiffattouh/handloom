@@ -17,3 +17,5 @@ write:
 - '**/*_test.*'
 - '**/*.test.*'
 - '**/*.spec.*'
+- '**/test_*.py'
+- '**/conftest.py'

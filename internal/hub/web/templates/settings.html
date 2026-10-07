@@ -66,6 +66,29 @@
   </div>
 </section>
 
+<section class="card" aria-labelledby="prices-h" id="prices">
+  <div class="ch"><div><h2 id="prices-h">Model prices</h2><p class="desc">Handloom reads how many tokens each agent used from the agent's own log. To show what that cost, enter what you pay: dollars per million tokens. There are no built-in prices, so a model without one shows tokens only. The name can be the start of a model name.</p></div></div>
+  <div class="cc flush tw"><table><thead><tr><th>Model</th><th>Input</th><th>Output</th><th>Cache read</th><th>Cache write</th><th></th></tr></thead><tbody>
+    {{range .Prices}}<tr><td class="mono">{{.Model}}</td><td class="num">{{.Input}}</td><td class="num">{{.Output}}</td><td class="num">{{.CacheRead}}</td><td class="num">{{.CacheWrite}}</td>
+      <td><form method="post" action="/settings/prices/delete" class="inline"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="model" value="{{.Model}}"><button type="submit" class="link">Remove</button></form></td></tr>
+    {{else}}<tr><td colspan="6" class="empty">No prices yet.</td></tr>{{end}}
+  </tbody></table></div>
+  <div class="cc">
+    <form method="post" action="/settings/prices" class="stack">
+      <input type="hidden" name="csrf" value="{{$.CSRF}}">
+      <div class="price-grid">
+        <label>Model <input name="model" required maxlength="100" placeholder="claude-sonnet" class="mono-input"></label>
+        <label>Input <input name="input" inputmode="decimal" required placeholder="3"></label>
+        <label>Output <input name="output" inputmode="decimal" required placeholder="15"></label>
+        <label>Cache read <input name="cache_read" inputmode="decimal" placeholder="0.30"></label>
+        <label>Cache write <input name="cache_write" inputmode="decimal" placeholder="3.75"></label>
+      </div>
+      <label>Your password, to confirm <input type="password" name="current_password" autocomplete="current-password" required></label>
+      <div class="acts"><button type="submit">Save price</button></div>
+    </form>
+  </div>
+</section>
+
 <section class="card" aria-labelledby="tok">
   <div class="ch"><div><h2 id="tok">Your API token</h2></div></div>
   <div class="cc">

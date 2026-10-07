@@ -46,6 +46,7 @@ type Metrics struct {
 	Util     []UtilRow     `json:"utilization"`
 	Profiles []ProfileStat `json:"profiles"`
 	Insights []Insight     `json:"insights"`
+	Spend    *Spend        `json:"usage"`
 }
 
 type NeedsMetric struct {
@@ -418,6 +419,10 @@ func (c *call) computeMetrics(key string) (*Metrics, error) {
 
 	// ---- where agents spend their time ----
 	m.Util = utilisation(rows, agents, since, now)
+
+	if m.Spend, err = c.spendBetween(since, now); err != nil {
+		return nil, err
+	}
 
 	// ---- insights ----
 	if m.Insights, err = c.insights(m, agents, taskOf); err != nil {

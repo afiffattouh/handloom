@@ -2,6 +2,7 @@ package hub
 
 import (
 	"fmt"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -127,4 +128,61 @@ func TestUtilisationAddsUpAndIgnoresNothing(t *testing.T) {
 		}
 	}
 	t.Fatalf("no row for the worker: %+v", m.Util)
+}
+
+func TestUsageIsCountedFromSamplesAndPricedOnlyWhereThePriceIsKnown(t *testing.T) {
+	e := newWebEnv(t, Options{})
+	ag := e.agents()
+	c, tok := e.owner()
+	post := func(in, out int64, model string) {
+		e.apiOK(ag.device, "", "POST", "/v1/device/usage", api.UsageReq{Agent: "worker", Models: []api.UsageModel{{Model: model, Input: in, Output: out, CacheRead: 1000}}}, nil)
+	}
+	post(1_000_000, 100_000, "model-a-1")
+	post(1_000_000, 100_000, "model-a-1") // unchanged: no new sample
+	var n int
+	e.hub.db.QueryRow(`SELECT count(*) FROM usage_sample`).Scan(&n)
+	if n != 1 {
+		t.Fatalf("an unchanged total made a sample: %d", n)
+	}
+	e.clock.advance(time.Hour)
+	post(3_000_000, 300_000, "model-a-1")
+	post(500_000, 0, "model-b-9")
+
+	var m Metrics
+	e.apiOK(e.admin, "", "GET", "/v1/metrics", nil, &m)
+	if m.Spend.Tokens != 3_000_000+300_000+1000+500_000+1000 || m.Spend.HasPrice || m.Spend.Cost != 0 {
+		t.Fatalf("no prices yet, so no cost: %+v", m.Spend)
+	}
+	if body := e.req("GET", "/command", nil, c, nil).body; !strings.Contains(body, "no prices entered") {
+		t.Fatalf("the page should say there are no prices")
+	}
+
+	// A price for one model only: cost covers its tokens, and the page says how much was covered.
+	r := e.req("POST", "/settings/prices", url.Values{"model": {"model-a"}, "input": {"3"}, "output": {"15"}, "cache_read": {"0.3"}, "current_password": {goodPassword}, "csrf": {tok}}, c, nil)
+	if r.status != 303 {
+		t.Fatalf("set price: %d %s", r.status, r.body)
+	}
+	e.apiOK(e.admin, "", "GET", "/v1/metrics", nil, &m)
+	want := (3_000_000*3.0 + 300_000*15.0 + 1000*0.3) / 1e6
+	if !m.Spend.HasPrice || m.Spend.Priced != 3_301_000 || fmt.Sprintf("%.4f", m.Spend.Cost) != fmt.Sprintf("%.4f", want) {
+		t.Fatalf("priced spend: %+v want cost %.4f", m.Spend, want)
+	}
+	if body := e.req("GET", "/command", nil, c, nil).body; !strings.Contains(body, "about $") {
+		t.Fatalf("the page should show an estimated cost")
+	}
+	// Prices are the owner's, behind the password, and bad numbers are refused.
+	if r := e.req("POST", "/settings/prices", url.Values{"model": {"x"}, "input": {"abc"}, "output": {"1"}, "current_password": {goodPassword}, "csrf": {tok}}, c, nil); r.status != 400 {
+		t.Fatalf("a bad price: %d", r.status)
+	}
+	if r := e.req("POST", "/settings/prices", url.Values{"model": {"x"}, "input": {"1"}, "output": {"1"}, "current_password": {"wrong password!"}, "csrf": {tok}}, c, nil); r.status == 303 {
+		t.Fatal("a price was saved without the password")
+	}
+	// A device cannot report for an agent that is not its own.
+	var tk api.TokenResp
+	e.apiOK(e.admin, "", "POST", "/v1/admin/devices", api.NameReq{Name: "d2"}, &tk)
+	var join api.JoinResp
+	e.apiOK("", "", "POST", "/v1/devices/join", api.JoinReq{JoinToken: tk.Token}, &join)
+	if code := e.status(join.Credential, "POST", "/v1/device/usage", api.UsageReq{Agent: "worker", Models: []api.UsageModel{{Model: "m", Input: 1}}}); code != 403 {
+		t.Fatalf("another device's agent: %d", code)
+	}
 }

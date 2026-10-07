@@ -27,6 +27,7 @@ type Options struct {
 	Hub        string
 	Device     string
 	Credential string
+	UserHome   string // where the agent CLIs keep their logs (default: the home of the user running the link)
 	Socket     string
 
 	NudgeEvery    time.Duration // at most one nudge per agent in this time; default 60s
@@ -63,6 +64,7 @@ type Link struct {
 	mu      sync.Mutex
 	memo    map[string]*memo
 	tailing bool // the screen-reading loop is running
+	usage   usageReader
 }
 
 func New(opt Options) *Link {
@@ -198,6 +200,7 @@ func (l *Link) handler() http.Handler {
 	mux.HandleFunc("/v1/device/merges", linkOnly("the merges to do"))
 	mux.HandleFunc("/v1/device/kcollects", linkOnly("the notes to gather"))
 	mux.HandleFunc("/v1/device/tails", linkOnly("the screens wanted"))
+	mux.HandleFunc("POST /v1/device/usage", linkOnly("usage"))
 	mux.HandleFunc("POST /v1/device/tails/{name}", linkOnly("screens"))
 	mux.HandleFunc("POST /v1/kcollects/{id}/report", linkOnly("note collections"))
 	mux.HandleFunc("POST /v1/merges/{id}/report", linkOnly("merge results"))

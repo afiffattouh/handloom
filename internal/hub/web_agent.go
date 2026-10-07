@@ -22,11 +22,13 @@ type agentPageView struct {
 	TaskID                                   int64
 	Task                                     string
 	LeasePct                                 int
+	HasLease                                 bool
 	LeaseNote                                string
 	Accepted, Rejected                       int
 	Checks                                   string
 	ChecksNote                               string
 	Idle                                     string
+	Usage, UsageNote                         string
 	Timeline                                 template.HTML
 	Recent                                   []agentTask
 	Attach                                   string
@@ -70,6 +72,7 @@ func (h *Hub) webAgent(q *webReq) error {
 		v.Profile = p[a.name]
 	}
 	if a.lease.Valid {
+		v.HasLease = true
 		left := store.Time(a.lease.Int64).Sub(now)
 		if left < 0 {
 			left = 0
@@ -151,6 +154,19 @@ func (h *Hub) webAgent(q *webReq) error {
 	}
 	v.Timeline = timelineSVG(segs, since, now)
 
+	v.Usage, v.UsageNote = "–", "no usage reported yet"
+	if sp, err := q.c.spendBetween(now.Add(-7*24*time.Hour), now); err == nil {
+		for _, as := range sp.PerAgent {
+			if as.Agent == a.name {
+				v.Usage, v.UsageNote = tokensWords(as.Tokens), "tokens, last 7 days"
+				if as.Priced {
+					v.UsageNote = fmt.Sprintf("tokens, last 7 days · about $%.2f", as.Cost)
+				} else if !sp.HasPrice {
+					v.UsageNote = "tokens, last 7 days · no prices entered"
+				}
+			}
+		}
+	}
 	var started int
 	q.c.tx.QueryRow(`SELECT count(*) FROM spawn WHERE name = ? AND status = 'started'`, a.name).Scan(&started)
 	if started > 0 {

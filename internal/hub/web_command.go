@@ -141,7 +141,21 @@ func (q *webReq) commandView() (*commandView, error) {
 	if m.Answer.N > 0 {
 		ans = kpi("Your answer time", dur(m.Answer.Value), "", fmt.Sprintf("median of %d question(s)", m.Answer.N))
 	}
-	v.KPIs = []kpiView{needs, working, flight, checks, tt, ans}
+	use := kpi("Usage", "–", "", "no usage reported yet")
+	if sp := m.Spend; sp != nil && sp.Tokens > 0 {
+		use = kpi("Usage", tokensWords(sp.Tokens), "tokens", "")
+		switch {
+		case !sp.HasPrice:
+			use.Note = "no prices entered, so no cost"
+			use.Href = "/settings#prices"
+		case sp.Priced == 0:
+			use.Note = "no price matches these models"
+			use.Href = "/settings#prices"
+		default:
+			use.Note = fmt.Sprintf("about $%.2f on the %d%% of tokens with a price", sp.Cost, int(sp.Priced*100/sp.Tokens))
+		}
+	}
+	v.KPIs = []kpiView{needs, working, flight, checks, tt, ans, use}
 
 	// ---- fleet ----
 	for _, f := range m.Fleet {

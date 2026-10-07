@@ -512,6 +512,20 @@ type TailReq struct {
 	Text string `json:"text"`
 }
 
+// UsageReq is a device reporting what an agent has used so far, per model, as running totals.
+type UsageReq struct {
+	Agent  string       `json:"agent"`
+	Models []UsageModel `json:"models"`
+}
+
+type UsageModel struct {
+	Model      string `json:"model"`
+	Input      int64  `json:"input"` // tokens not served from a cache
+	Output     int64  `json:"output"`
+	CacheRead  int64  `json:"cache_read"`
+	CacheWrite int64  `json:"cache_write"`
+}
+
 // PendingCollect is one gathering of an agent's proposed notes a device has been asked to do.
 type PendingCollect struct {
 	ID    int64  `json:"id"`

@@ -244,6 +244,8 @@ func (h *Hub) webRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /settings/notifications", web(h.authed(h.webNotifications)))
 	mux.HandleFunc("POST /settings/notifications/test", web(h.authed(h.webNotifyTest)))
 	mux.HandleFunc("POST /settings/token", web(h.authed(h.webToken)))
+	mux.HandleFunc("POST /settings/prices", web(h.authed(h.webPriceSet)))
+	mux.HandleFunc("POST /settings/prices/delete", web(h.authed(h.webPriceDelete)))
 	mux.HandleFunc("GET /invite/{token}", web(h.webInviteGet))
 	mux.HandleFunc("POST /invite/{token}", web(h.webInvitePost))
 	static, _ := fs.Sub(webFS, "web/static")

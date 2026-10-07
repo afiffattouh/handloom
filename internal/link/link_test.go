@@ -1437,3 +1437,67 @@ func TestAnAgentCannotReachTheScreenEndpoints(t *testing.T) {
 		}
 	}
 }
+
+// ---- usage ----
+
+func writeLines(t *testing.T, path string, lines ...string) {
+	t.Helper()
+	os.MkdirAll(filepath.Dir(path), 0o755)
+	if err := os.WriteFile(path, []byte(strings.Join(lines, "\n")+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestClaudeUsageIsCountedOncePerRequest(t *testing.T) {
+	f := newFixture(t)
+	home, dir := t.TempDir(), "/work/job-1/coder.1"
+	log := filepath.Join(home, ".claude", "projects", claudeSlug(dir), "s1.jsonl")
+	writeLines(t, log,
+		`{"type":"user","timestamp":"2026-10-07T10:00:00Z","message":{"content":"private text"}}`,
+		// the same request written three times while it streams: only the last, largest one counts
+		`{"timestamp":"2026-10-07T10:00:01Z","requestId":"r1","message":{"id":"m1","model":"claude-sonnet-x","usage":{"input_tokens":10,"output_tokens":5,"cache_read_input_tokens":100,"cache_creation_input_tokens":1000}}}`,
+		`{"timestamp":"2026-10-07T10:00:02Z","requestId":"r1","message":{"id":"m1","model":"claude-sonnet-x","usage":{"input_tokens":10,"output_tokens":40,"cache_read_input_tokens":100,"cache_creation_input_tokens":1000}}}`,
+		`{"timestamp":"2026-10-07T10:00:03Z","requestId":"r2","message":{"id":"m2","model":"claude-haiku-y","usage":{"input_tokens":1,"output_tokens":2,"cache_read_input_tokens":3,"cache_creation_input_tokens":4}}}`,
+		`{"timestamp":"2026-10-07T10:00:04Z","requestId":"r3","message":{"id":"m3","model":"<synthetic>","usage":{"input_tokens":99,"output_tokens":99}}}`)
+	got := f.link.claudeUsage(home, dir, time.Date(2026, 10, 7, 9, 0, 0, 0, time.UTC))
+	s, h := got["claude-sonnet-x"], got["claude-haiku-y"]
+	if s.Input != 10 || s.Output != 40 || s.CacheRead != 100 || s.CacheWrite != 1000 || h.Output != 2 || len(got) != 2 {
+		t.Fatalf("usage: %+v", got)
+	}
+	// A session from before the agent existed is not the agent's.
+	if got := f.link.claudeUsage(home, dir, time.Date(2026, 10, 7, 11, 0, 0, 0, time.UTC)); len(got) != 0 {
+		t.Fatalf("an older session was counted: %+v", got)
+	}
+	// Another directory has no sessions.
+	if got := f.link.claudeUsage(home, "/work/other", time.Time{}); len(got) != 0 {
+		t.Fatalf("another directory: %+v", got)
+	}
+}
+
+func TestCodexUsageComesFromTheSessionOfItsDirectory(t *testing.T) {
+	f := newFixture(t)
+	home, dir := t.TempDir(), "/work/job-1/coder-a"
+	meta := func(cwd string) string {
+		return `{"timestamp":"2026-10-07T10:00:00Z","type":"session_meta","payload":{"cwd":"` + cwd + `","model_provider":"openai"}}`
+	}
+	count := func(in, cached, out int) string {
+		return fmt.Sprintf(`{"timestamp":"2026-10-07T10:05:00Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":%d,"cached_input_tokens":%d,"cache_write_input_tokens":0,"output_tokens":%d}}}}`, in, cached, out)
+	}
+	writeLines(t, filepath.Join(home, ".codex", "sessions", "2026", "10", "07", "rollout-a.jsonl"),
+		meta(dir), `{"timestamp":"2026-10-07T10:00:01Z","type":"turn_context","payload":{"model":"gpt-x"}}`, count(1000, 900, 50), count(2000, 1500, 120))
+	writeLines(t, filepath.Join(home, ".codex", "sessions", "2026", "10", "07", "rollout-b.jsonl"), meta("/work/somebody-else"), count(5000, 0, 500))
+	got := f.link.codexUsage(home, dir, time.Date(2026, 10, 7, 9, 0, 0, 0, time.UTC))
+	m := got["gpt-x"]
+	if len(got) != 1 || m.Input != 500 || m.CacheRead != 1500 || m.Output != 120 {
+		t.Fatalf("usage (the last running total, cached tokens split out): %+v", got)
+	}
+}
+
+func TestAnAgentCannotReportUsage(t *testing.T) {
+	f := newFixture(t)
+	err := f.worker.Post("/v1/device/usage", api.UsageReq{Agent: "worker", Models: []api.UsageModel{{Model: "m", Input: 1}}}, nil)
+	var ce *client.Error
+	if !errors.As(err, &ce) || ce.Status != 403 {
+		t.Fatalf("usage from an agent: %v", err)
+	}
+}

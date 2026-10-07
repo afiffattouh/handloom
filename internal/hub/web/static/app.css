@@ -361,3 +361,5 @@ code, .mono, .inset, textarea.mono { font-variant-ligatures: none; font-feature-
 .lease-col { width: 90px; }
 @media (max-width: 1020px) { .grid2.even { grid-template-columns: 1fr; } }
 .screen { max-height: 340px; overflow: auto; white-space: pre; background: #0a0f0e; color: #cfe0dc; border: 1px solid var(--border); min-height: 120px; }
+.price-grid { display: grid; grid-template-columns: 2fr repeat(4, 1fr); gap: 12px; }
+@media (max-width: 820px) { .price-grid { grid-template-columns: 1fr 1fr; } }

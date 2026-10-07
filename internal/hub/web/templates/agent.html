@@ -8,9 +8,10 @@
 
 <div class="card"><div class="kpis">
   <div class="kpi"><span class="desc">Working on</span><span class="v sm">{{if .Task}}#{{.TaskID}} {{.Task}}{{else}}nothing claimed{{end}}</span><span class="delta">{{if .Job}}<a class="plain-link" href="/jobs/{{.Job}}">job #{{.Job}}</a>{{end}}</span></div>
-  <div class="kpi"><span class="desc">Lease</span><span class="v num">{{.LeasePct}}<small>%</small></span><span class="delta">{{.LeaseNote}}</span></div>
+  <div class="kpi"><span class="desc">Lease</span><span class="v num">{{if .HasLease}}{{.LeasePct}}<small>%</small>{{else}}–{{end}}</span><span class="delta">{{.LeaseNote}}</span></div>
   <div class="kpi"><span class="desc">Accepted, 7 days</span><span class="v num">{{.Accepted}}</span><span class="delta">{{.Rejected}} sent back</span></div>
   <div class="kpi"><span class="desc">Checks passed</span><span class="v num">{{.Checks}}</span><span class="delta">{{.ChecksNote}}</span></div>
+  <div class="kpi"><span class="desc">Usage</span><span class="v num">{{.Usage}}</span><span class="delta">{{.UsageNote}}</span></div>
   <div class="kpi"><span class="desc">Idle</span><span class="v num">{{.Idle}}</span><span class="delta">of the last 24 hours</span></div>
 </div></div>
 
@@ -30,7 +31,7 @@
 
   <div class="stream-col">
     <section class="card" aria-labelledby="today">
-      <div class="ch"><div><h2 id="today">Last 24 hours</h2><p class="desc">State over time</p></div></div>
+      <div class="ch"><div><h2 id="today">Last 24 hours</h2><p class="desc">State over time, in UTC</p></div></div>
       <div class="cc">{{.Timeline}}</div>
       <div class="legend"><span><i class="c-primary"></i>working</span><span><i class="c-idle"></i>idle</span><span><i class="c-warn"></i>blocked</span></div>
     </section>

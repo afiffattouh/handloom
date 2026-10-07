@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -206,6 +207,7 @@ type settingsView struct {
 	EnvNotify bool
 	Base      string
 	Reveal    reveal
+	Prices    []priceRow
 }
 
 func (q *webReq) settingsPage(status int, errMsg, notice string, rv reveal) error {
@@ -217,6 +219,9 @@ func (q *webReq) settingsPage(status int, errMsg, notice string, rv reveal) erro
 	v := &settingsView{Base: h.publicBase(q.r), Reveal: rv, NtfyToken: h.opt.NtfyToken != "", EnvNotify: h.opt.Notifier != nil}
 	for _, x := range hs {
 		v.Members = append(v.Members, memberView{Name: x.Name, Role: x.Role, WebLogin: x.PasswordHash != "", Self: x.ID == q.human.ID})
+	}
+	if v.Prices, err = q.c.prices(); err != nil {
+		return err
 	}
 	v.NtfyURL, _, _ = store.MetaGet(q.c.tx, "ntfy_url")
 	v.NtfyTopic, _, _ = store.MetaGet(q.c.tx, "ntfy_topic")
@@ -504,4 +509,61 @@ func humanDur(d time.Duration) string {
 		return fmt.Sprintf("1 %s", unit)
 	}
 	return fmt.Sprintf("%d %ss", n, unit)
+}
+
+// ---- model prices ----
+
+// webPriceSet saves the price of a model (or of every model whose name starts with it).
+func (h *Hub) webPriceSet(q *webReq) error {
+	if !q.isOwner() {
+		return q.refuse("Only the owner can set prices.")
+	}
+	if err := q.stepUp(); err != nil {
+		return q.settingsError(err)
+	}
+	f := q.r.PostForm
+	model := strings.TrimSpace(f.Get("model"))
+	if model == "" || len(model) > 100 || strings.ContainsAny(model, "\x00\n\r") {
+		return q.settingsError(badRequest("Name the model, or the start of its name, such as claude-sonnet."))
+	}
+	var p [4]float64
+	for i, k := range []string{"input", "output", "cache_read", "cache_write"} {
+		v := strings.TrimSpace(f.Get(k))
+		if v == "" {
+			if i < 2 {
+				return q.settingsError(badRequest("Enter the input and output price in dollars per million tokens."))
+			}
+			continue
+		}
+		x, err := strconv.ParseFloat(v, 64)
+		if err != nil || x < 0 || x > 100000 {
+			return q.settingsError(badRequest("A price is a number of dollars per million tokens, such as 3 or 0.30."))
+		}
+		p[i] = x
+	}
+	if _, err := q.c.tx.Exec(`INSERT INTO price(model, input, output, cache_read, cache_write) VALUES (?, ?, ?, ?, ?)
+		ON CONFLICT(model) DO UPDATE SET input = excluded.input, output = excluded.output, cache_read = excluded.cache_read, cache_write = excluded.cache_write`,
+		model, p[0], p[1], p[2], p[3]); err != nil {
+		return err
+	}
+	if err := q.c.audit("price.set", "price:"+model, map[string]any{"input": p[0], "output": p[1], "cache_read": p[2], "cache_write": p[3]}); err != nil {
+		return err
+	}
+	http.Redirect(q.w, q.r, "/settings?done=saved", http.StatusSeeOther)
+	return nil
+}
+
+func (h *Hub) webPriceDelete(q *webReq) error {
+	if !q.isOwner() {
+		return q.refuse("Only the owner can set prices.")
+	}
+	model := q.r.PostForm.Get("model")
+	if _, err := q.c.tx.Exec(`DELETE FROM price WHERE model = ?`, model); err != nil {
+		return err
+	}
+	if err := q.c.audit("price.delete", "price:"+model, nil); err != nil {
+		return err
+	}
+	http.Redirect(q.w, q.r, "/settings?done=saved", http.StatusSeeOther)
+	return nil
 }

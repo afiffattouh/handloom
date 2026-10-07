@@ -289,6 +289,27 @@ CREATE INDEX kcollect_job ON kcollect(job_id);
 -- The command center asks the audit log "what happened to this kind of thing since then".
 CREATE INDEX audit_action_time ON audit(action, created_at);
 CREATE INDEX audit_target_time ON audit(target, created_at);
+
+-- What agents have used, read by each device from the agent CLI's own log and reported as running totals. Counts only: no text.
+CREATE TABLE usage_sample (
+  id          INTEGER PRIMARY KEY,
+  agent       TEXT NOT NULL,
+  model       TEXT NOT NULL,
+  input       INTEGER NOT NULL,  -- tokens that were not served from a cache
+  output      INTEGER NOT NULL,
+  cache_read  INTEGER NOT NULL,
+  cache_write INTEGER NOT NULL,
+  at          INTEGER NOT NULL
+);
+CREATE INDEX usage_agent ON usage_sample(agent, model, at);
+-- Prices the owner entered, in US dollars per million tokens. There are no defaults: with no price there is no cost.
+CREATE TABLE price (
+  model       TEXT PRIMARY KEY,  -- a model name or the start of one
+  input       REAL NOT NULL,
+  output      REAL NOT NULL,
+  cache_read  REAL NOT NULL DEFAULT 0,
+  cache_write REAL NOT NULL DEFAULT 0
+);
 `}
 
 // Open opens (and migrates) the database at path. Use ":memory:" in tests.

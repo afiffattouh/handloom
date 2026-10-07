@@ -64,13 +64,13 @@ func TestProfilePagesForTheOwner(t *testing.T) {
 		t.Fatalf("create: %d %s", r.status, r.body)
 	}
 	page := e.req("GET", "/profiles/researcher?done=saved", nil, c, nil)
-	for _, want := range []string{"researcher", "version 1", "Saved.", "allowed: shell", "refused by Claude Code: web", "the shell command rm",
+	for _, want := range []string{"researcher", "v1", "Saved.", "allowed: shell", "refused by Claude Code: web", "the shell command rm",
 		"not enforced: file paths", `name="skill_text"`, "Cite."} {
 		if !strings.Contains(page.body, want) {
 			t.Errorf("profile page lacks %q", want)
 		}
 	}
-	if r := e.req("GET", "/profiles", nil, c, nil); !strings.Contains(r.body, "researcher") || !strings.Contains(r.body, "skills: cite") {
+	if r := e.req("GET", "/profiles", nil, c, nil); !strings.Contains(r.body, "researcher") || !strings.Contains(r.body, "cite") {
 		t.Fatalf("list: %s", r.body)
 	}
 
@@ -93,7 +93,7 @@ func TestProfilePagesForTheOwner(t *testing.T) {
 	if len(vs) != 2 {
 		t.Fatalf("versions after a change: %+v", vs)
 	}
-	if r := e.req("GET", "/profiles/researcher?version=1", nil, c, nil); !strings.Contains(r.body, "version 1") || !strings.Contains(r.body, "Be careful.") {
+	if r := e.req("GET", "/profiles/researcher?version=1", nil, c, nil); !strings.Contains(r.body, "v1") || !strings.Contains(r.body, "Be careful.") {
 		t.Fatalf("an old version: %s", r.body)
 	}
 }

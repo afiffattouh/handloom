@@ -6,29 +6,55 @@
 <title>{{.Title}} · Handloom</title>
 {{if .CSRF}}<meta name="csrf-token" content="{{.CSRF}}">{{end}}
 <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+<link rel="preload" href="/static/fonts/Geist-Variable.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/static/app.css">
+<script src="/static/theme.js"></script>
 </head>
 <body>
-<header class="top">
-  <a class="brand" href="/">Handloom</a>
-  {{if .Human}}<nav>
-    <a href="/inbox">Inbox</a>
-    <a href="/jobs">Jobs</a>
-    <a href="/agents">Agents</a>
-    <a href="/profiles">Profiles</a>
-    <a href="/devices">Devices</a>
-    {{if eq .Human.Role "owner"}}<a href="/settings">Settings</a>{{end}}
-  </nav>
-  <form method="post" action="/logout" class="who">
-    <input type="hidden" name="csrf" value="{{.CSRF}}">
-    <span>{{.Human.Name}} · {{.Human.Role}}</span>
-    <button type="submit" class="link">Sign out</button>
-  </form>{{end}}
-</header>
-<main>
-{{if .Notice}}<p class="notice">{{.Notice}}</p>{{end}}
-{{if .Error}}<p class="error" role="alert">{{.Error}}</p>{{end}}
-{{template "content" .}}
-</main>
+{{template "icons"}}
+{{if .Human}}
+<div class="shell">
+  <aside class="sidebar" aria-label="Main">
+    <a class="brand" href="/"><img src="/static/favicon.svg" alt="" width="22" height="22">Handloom</a>
+    <nav class="menu">
+      <a href="/"{{if eq .Active "command"}} aria-current="page"{{end}}><svg class="icon"><use href="#i-layout-dashboard"/></svg>Command center</a>
+      <a href="/inbox"{{if eq .Active "inbox"}} aria-current="page"{{end}}><svg class="icon"><use href="#i-inbox"/></svg>Inbox{{if .Nav.Needs}} <span class="count hot">{{.Nav.Needs}}</span>{{end}}</a>
+      <a href="/jobs"{{if eq .Active "jobs"}} aria-current="page"{{end}}><svg class="icon"><use href="#i-briefcase"/></svg>Jobs{{if .Nav.Jobs}} <span class="count">{{.Nav.Jobs}}</span>{{end}}</a>
+      <a href="/agents"{{if eq .Active "agents"}} aria-current="page"{{end}}><svg class="icon"><use href="#i-bot"/></svg>Agents{{if .Nav.Agents}} <span class="count">{{.Nav.Agents}}</span>{{end}}</a>
+      <div class="grp">Library</div>
+      <a href="/profiles"{{if eq .Active "profiles"}} aria-current="page"{{end}}><svg class="icon"><use href="#i-file-user"/></svg>Profiles</a>
+      <div class="grp">Admin</div>
+      <a href="/devices"{{if eq .Active "devices"}} aria-current="page"{{end}}><svg class="icon"><use href="#i-server"/></svg>Machines{{if .Nav.Devices}} <span class="count">{{.Nav.Devices}}</span>{{end}}</a>
+      {{if eq .Human.Role "owner"}}<a href="/settings"{{if eq .Active "settings"}} aria-current="page"{{end}}><svg class="icon"><use href="#i-settings"/></svg>Settings</a>{{end}}
+    </nav>
+    <div class="foot">
+      <div class="tabs" role="group" aria-label="Theme"><button type="button" data-theme-set="auto" aria-pressed="true">Auto</button><button type="button" data-theme-set="light" aria-pressed="false">Light</button><button type="button" data-theme-set="dark" aria-pressed="false">Dark</button></div>
+      <form method="post" action="/logout" class="you">
+        <input type="hidden" name="csrf" value="{{.CSRF}}">
+        <span class="av" aria-hidden="true">{{.Initial}}</span>
+        <span>{{.Human.Name}}<br><span class="muted">{{.Human.Role}}</span></span>
+        <button type="submit" class="link">Sign out</button>
+      </form>
+    </div>
+  </aside>
+  <div>
+    <header class="header">
+      <div class="crumb"><span>Handloom</span><span aria-hidden="true">/</span><b>{{.Title}}</b></div>
+    </header>
+    <main class="main{{if .Narrow}} narrow{{end}}">
+      {{if .Notice}}<p class="notice" role="status"><svg class="icon"><use href="#i-circle-check"/></svg>{{.Notice}}</p>{{end}}
+      {{if .Error}}<p class="error" role="alert"><svg class="icon"><use href="#i-circle-alert"/></svg>{{.Error}}</p>{{end}}
+      {{template "content" .}}
+    </main>
+  </div>
+</div>
+{{else}}
+<div class="auth"><div class="box">
+  <a class="brand" href="/"><img src="/static/favicon.svg" alt="" width="22" height="22">Handloom</a>
+  {{if .Notice}}<p class="notice" role="status">{{.Notice}}</p>{{end}}
+  {{if .Error}}<p class="error" role="alert"><svg class="icon"><use href="#i-circle-alert"/></svg>{{.Error}}</p>{{end}}
+  {{template "content" .}}
+</div></div>
+{{end}}
 </body>
 </html>{{end}}

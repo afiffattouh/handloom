@@ -89,7 +89,7 @@ func TestInboxShowsWhatNeedsYou(t *testing.T) {
 	ag := e.agents()
 	c, _ := e.owner()
 
-	if r := e.req("GET", "/inbox", nil, c, nil); !strings.Contains(r.body, "Nothing needs you.") || !strings.Contains(r.body, "0 need you") {
+	if r := e.req("GET", "/inbox", nil, c, nil); !strings.Contains(r.body, "Nothing needs you.") || !strings.Contains(r.body, "Needs you") {
 		t.Fatalf("empty inbox: %s", r.body)
 	}
 
@@ -100,8 +100,8 @@ func TestInboxShowsWhatNeedsYou(t *testing.T) {
 	ag.worker("POST", fmt.Sprintf("/v1/tasks/%d/claim", task.ID), nil, nil)
 
 	body := e.req("GET", "/inbox", nil, c, nil).body
-	for _, want := range []string{"lead asks", "Delete the old migrations?", `name="answer" value="yes"`, `name="answer" value="no"`,
-		"Which name should we use?", "<textarea", "2 need you", "Write docs", "Recent activity", "lead"} {
+	for _, want := range []string{"lead has a question", "Delete the old migrations?", `name="answer" value="yes"`, `name="answer" value="no"`,
+		"Which name should we use?", "<textarea", "Needs you", "Write docs", "lead"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("inbox lacks %q", want)
 		}
@@ -109,7 +109,7 @@ func TestInboxShowsWhatNeedsYou(t *testing.T) {
 
 	ag.worker("POST", fmt.Sprintf("/v1/tasks/%d/submit", task.ID), api.SubmitReq{Evidence: []string{"file:docs/index.md"}, Note: "done"}, nil)
 	body = e.req("GET", "/inbox", nil, c, nil).body
-	if !strings.Contains(body, "file:docs/index.md") || !strings.Contains(body, "Accept") || !strings.Contains(body, "1 to review") {
+	if !strings.Contains(body, "file:docs/index.md") || !strings.Contains(body, "Accept") || !strings.Contains(body, "To review") {
 		t.Fatalf("review section: %s", body)
 	}
 

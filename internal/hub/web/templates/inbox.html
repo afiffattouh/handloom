@@ -1,5 +1,5 @@
 {{define "content"}}
-<h1>Inbox</h1>
+<div class="page-head"><div><h1>Inbox</h1><p class="desc">What needs a person: questions from agents, work to review, jobs ready to close.</p></div></div>
 <div id="inbox" data-seq="{{.Extra.Seq}}">{{template "inboxbody" .}}</div>
 <p id="stale" class="notice" hidden>New activity. <button type="button" id="refresh" class="link">Refresh</button></p>
 <script src="/static/app.js" defer></script>
@@ -8,75 +8,78 @@
 {{define "inboxbody"}}
 {{with .Extra}}
 {{if .Start}}
-<section class="card start" aria-labelledby="start">
-  <h2 id="start">Get started</h2>
-  <ol class="steps">
+<section class="card" aria-labelledby="start">
+  <div class="ch"><div><h2 id="start">Get started</h2><p class="desc">Four steps from an empty hub to your first job.</p></div></div>
+  <div class="cc"><ol class="steps">
   {{range .Start}}
     <li class="{{if .Done}}done{{end}}">
-      <span class="mark" aria-hidden="true">{{if .Done}}✓{{else}}○{{end}}</span>
-      <div><strong>{{.Title}}</strong>{{if .Done}} <span class="muted">done</span>{{else}}<p class="text muted">{{.Hint}}</p><p><a class="button" href="{{.Link}}">{{.Action}}</a></p>{{end}}</div>
+      <span class="mark" aria-hidden="true">{{if .Done}}<svg class="icon"><use href="#i-circle-check"/></svg>{{end}}</span>
+      <div><strong>{{.Title}}</strong>{{if .Done}} <span class="desc">done</span>{{else}}<p class="desc">{{.Hint}}</p><p><a class="button" href="{{.Link}}">{{.Action}}</a></p>{{end}}</div>
     </li>
   {{end}}
-  </ol>
+  </ol></div>
 </section>
 {{end}}
-<p class="summary">{{len .NeedsYou}} need you · {{len .ToReview}} to review · {{len .Running}} running</p>
 
-<section aria-labelledby="needs">
-  <h2 id="needs">Needs you</h2>
+<section class="section" aria-labelledby="needs">
+  <h2 id="needs">Needs you <span class="badge{{if .NeedsYou}} primary{{end}}">{{len .NeedsYou}}</span></h2>
+  <div class="cards">
   {{range .NeedsYou}}
     {{if eq .Kind "escalation"}}
     <article class="card attention">
-      <header><strong>{{.Who}} asks</strong> <span class="muted">{{.Ago}}</span></header>
-      <p class="text">{{.Title}}</p>
-      {{if $.Extra.CanAct}}
-      <form method="post" action="/inbox/escalations/{{.ID}}/answer" class="answer">
-        <input type="hidden" name="csrf" value="{{$.CSRF}}">
-        {{if .Options}}
-          <div class="buttons">{{range .Options}}<button type="submit" name="answer" value="{{.}}">{{.}}</button>{{end}}</div>
-        {{else}}
-          <label>Your answer <textarea name="answer" rows="3" required maxlength="4000"></textarea></label>
-          <button type="submit">Send answer</button>
+      <div class="ch"><div class="lead"><svg class="icon sev-info"><use href="#i-message-square"/></svg><div><h3>{{.Who}} has a question</h3><p class="desc">{{.Ago}}</p></div></div><span class="badge info">Question</span></div>
+      <div class="cc">
+        <p class="text">{{.Title}}</p>
+        {{if $.Extra.CanAct}}
+        <form method="post" action="/inbox/escalations/{{.ID}}/answer" class="stack">
+          <input type="hidden" name="csrf" value="{{$.CSRF}}">
+          {{if .Options}}
+            <div class="acts">{{range $i, $o := .Options}}<button type="submit" name="answer" value="{{$o}}"{{if $i}} class="secondary"{{end}}>{{$o}}</button>{{end}}</div>
+          {{else}}
+            <label>Your answer <textarea name="answer" rows="3" required maxlength="4000"></textarea></label>
+            <div class="acts"><button type="submit">Send answer</button></div>
+          {{end}}
+        </form>
         {{end}}
-      </form>
-      {{end}}
+      </div>
     </article>
     {{else if eq .Kind "blocked"}}
     <article class="card attention">
-      <header><strong>{{.Who}} is blocked</strong> on task #{{.ID}} <span class="muted">{{.Ago}}</span></header>
-      <p class="text">{{.Title}}</p>
-      <p class="text muted">{{.Detail}}</p>
+      <div class="ch"><div class="lead"><svg class="icon sev-warn"><use href="#i-triangle-alert"/></svg><div><h3>{{.Who}} is blocked on task #{{.ID}}</h3><p class="desc">{{.Ago}}</p></div></div><span class="badge warning">Blocked</span></div>
+      <div class="cc"><p class="text">{{.Title}}</p><p class="text desc">{{.Detail}}</p></div>
     </article>
     {{else}}
     <article class="card attention">
-      <header><strong>{{.Title}}</strong> <span class="muted">{{.Ago}}</span></header>
-      {{if .Detail}}<p class="text muted">{{.Detail}}</p>{{end}}
+      <div class="ch"><div class="lead"><svg class="icon sev-bad"><use href="#i-circle-alert"/></svg><div><h3>{{.Title}}</h3><p class="desc">{{.Ago}}</p></div></div></div>
+      {{if .Detail}}<div class="cc"><p class="text desc">{{.Detail}}</p></div>{{end}}
     </article>
     {{end}}
   {{else}}
-    <p class="muted">Nothing needs you.</p>
+    <div class="card"><div class="empty">Nothing needs you.</div></div>
   {{end}}
+  </div>
 </section>
 
-<section aria-labelledby="review">
-  <h2 id="review">To review</h2>
+<section class="section" aria-labelledby="review">
+  <h2 id="review">To review <span class="badge">{{len .ToReview}}</span></h2>
+  <div class="cards">
   {{range .ToReview}}
   {{if eq .Kind "job-done"}}
   <article class="card attention">
-    <header><strong>Job #{{.ID}} {{.Title}}</strong> <span class="muted">{{.Ago}}</span></header>
-    <p class="text muted">{{.Detail}}</p>
-    <p><a class="button" href="/jobs/{{.ID}}">Open the job</a></p>
+    <div class="ch"><div class="lead"><svg class="icon sev-ok"><use href="#i-circle-check"/></svg><div><h3>Job #{{.ID}} {{.Title}}</h3><p class="desc">{{.Ago}}</p></div></div><span class="badge success">Ready to close</span></div>
+    <div class="cc"><p class="desc">{{.Detail}}</p></div>
+    <div class="cf"><a class="button" href="/jobs/{{.ID}}">Open the job</a></div>
   </article>
   {{else}}
   <article class="card">
-    <header><strong>#{{.ID}} {{.Title}}</strong> <span class="muted">by {{.Who}} · {{.Ago}}</span></header>
-    {{if .Detail}}<p class="text muted">{{.Detail}}</p>{{end}}
+    <div class="ch"><div class="lead"><svg class="icon sev-info"><use href="#i-circle-check"/></svg><div><h3>#{{.ID}} {{.Title}}</h3><p class="desc">by {{.Who}} · {{.Ago}}</p></div></div></div>
+    {{if .Detail}}<div class="cc"><p class="text desc">{{.Detail}}</p></div>{{end}}
     {{if $.Extra.CanAct}}
-    <div class="buttons">
-      <form method="post" action="/inbox/tasks/{{.ID}}/accept"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button type="submit">Accept</button></form>
-      <form method="post" action="/inbox/tasks/{{.ID}}/reject" class="reject">
+    <div class="cf">
+      <form method="post" action="/inbox/tasks/{{.ID}}/accept" class="inline"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button type="submit">Accept</button></form>
+      <form method="post" action="/inbox/tasks/{{.ID}}/reject" class="inline">
         <input type="hidden" name="csrf" value="{{$.CSRF}}">
-        <input name="reason" placeholder="What needs changing" required maxlength="500" aria-label="Reason for sending #{{.ID}} back">
+        <input name="reason" placeholder="What needs changing" required maxlength="500" aria-label="Reason for sending #{{.ID}} back" size="26">
         <button type="submit" class="secondary">Send back</button>
       </form>
     </div>
@@ -84,35 +87,20 @@
   </article>
   {{end}}
   {{else}}
-    <p class="muted">Nothing to review.</p>
+    <div class="card"><div class="empty">Nothing to review.</div></div>
   {{end}}
+  </div>
 </section>
 
-<section aria-labelledby="running">
-  <h2 id="running">Running</h2>
+<section class="section" aria-labelledby="running">
+  <h2 id="running">Running <span class="badge">{{len .Running}}</span></h2>
+  <div class="card"><div class="rows">
   {{range .Running}}
-  <p class="row"><span>#{{.ID}} {{.Title}}</span> <span class="muted">{{.Who}} · {{.Ago}}</span></p>
+  <div class="row line"><span>#{{.ID}} {{.Title}}</span> <span class="desc">{{.Who}} · {{.Ago}}</span></div>
   {{else}}
-    <p class="muted">Nothing is running.</p>
+    <div class="empty">Nothing is running.</div>
   {{end}}
-</section>
-
-<section aria-labelledby="agents">
-  <h2 id="agents">Agents</h2>
-  {{range .Agents}}
-  <p class="row"><span><span class="state state-{{.State}}" aria-hidden="true">{{.Glyph}}</span> {{.Name}} <span class="muted">{{.Role}} · {{.Kind}} · {{.Device}}</span></span> <span class="muted">{{.State}} · {{.Ago}}</span></p>
-  {{else}}
-    <p class="muted">No agents registered.</p>
-  {{end}}
-</section>
-
-<section aria-labelledby="activity">
-  <h2 id="activity">Recent activity</h2>
-  {{range .Activity}}
-  <p class="row"><span class="text">{{.Text}}</span> <span class="muted">{{.Ago}}</span></p>
-  {{else}}
-    <p class="muted">Nothing yet.</p>
-  {{end}}
+  </div></div>
 </section>
 {{end}}
 {{end}}

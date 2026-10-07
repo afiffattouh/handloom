@@ -62,12 +62,12 @@ func TestStartAJobFromTheWeb(t *testing.T) {
 		t.Fatalf("spawns: %+v", sp)
 	}
 	page := e.req("GET", "/jobs/1?done=started", nil, c, nil)
-	for _, want := range []string{"#1 Fix the parser", "Job started", "/srv/app on d1", "./check.sh", "app.go is broken", "No tasks yet"} {
+	for _, want := range []string{"Fix the parser", "Job started", "/srv/app", "./check.sh", "app.go is broken", "No tasks yet"} {
 		if !strings.Contains(page.body, want) {
 			t.Errorf("job page lacks %q", want)
 		}
 	}
-	if r := e.req("GET", "/jobs", nil, c, nil); !strings.Contains(r.body, "Fix the parser") || !strings.Contains(r.body, "repo on d1") {
+	if r := e.req("GET", "/jobs", nil, c, nil); !strings.Contains(r.body, "Fix the parser") || !strings.Contains(r.body, "d1") {
 		t.Fatalf("list: %s", r.body)
 	}
 
@@ -114,7 +114,7 @@ func TestTheJobPageShowsTasksChecksAndTheTeam(t *testing.T) {
 	e.apiOK(ag.device, "", "POST", fmt.Sprintf("/v1/tasks/%d/verify", t1.ID), api.TaskCheckReq{Agent: "worker", Command: "./check.sh", ExitCode: 2, Tail: "FAIL " + evil}, nil)
 
 	page := e.req("GET", fmt.Sprintf("/jobs/%d", j.ID), nil, c, nil).body
-	for _, want := range []string{"first", "second", "after #", "checked by d1: failed, exit 2", "check-result bad", "FAIL", "lead", "Recent activity", "created"} {
+	for _, want := range []string{"first", "second", "after #", "failed, exit 2", "badge destructive", "FAIL", "lead", "Recent activity", "created"} {
 		if !strings.Contains(page, want) {
 			t.Errorf("job page lacks %q", want)
 		}

@@ -1,10 +1,30 @@
 {{define "content"}}
-<h1>Agents</h1>
 {{with .Extra}}
+<div class="page-head"><div><h1>Agents</h1><p class="desc">Every agent on every machine, and a way to start one by hand.</p></div></div>
+
+<section class="card" aria-labelledby="all">
+  <div class="ch"><div><h2 id="all">All agents</h2></div></div>
+  <div class="cc flush tw"><table>
+    <thead><tr><th>Agent</th><th>Role</th><th>Runs on</th><th>Job</th><th>Last change</th></tr></thead>
+    <tbody>
+    {{range .Agents}}
+    <tr>
+      <td class="nw"><span class="badge{{if eq .State "working"}} success{{else if eq .State "blocked"}} warning{{else if eq .State "offline"}} destructive{{end}}"><i class="dot{{if eq .State "offline"}} ring{{end}}"></i>{{.State}}</span> <strong>{{.Name}}</strong></td>
+      <td class="nw">{{.Role}} <span class="badge outline">{{.Kind}}</span></td>
+      <td class="nw desc">{{.Device}}</td>
+      <td class="nw desc">{{if .Job}}<a href="/jobs/{{.Job}}">#{{.Job}}</a>{{else}}none{{end}}</td>
+      <td class="nw desc">{{.Ago}}</td>
+    </tr>
+    {{else}}
+    <tr><td colspan="5" class="empty">No agents yet.</td></tr>
+    {{end}}
+    </tbody></table></div>
+</section>
+
 {{if .CanSpawn}}
-<section aria-labelledby="start">
-  <h2 id="start">Start an agent</h2>
-  <p class="muted">A device's link opens a terminal and runs the agent there. Pick a profile to decide what it may do and know.</p>
+<section class="card" aria-labelledby="start">
+  <div class="ch"><div><h2 id="start">Start an agent</h2><p class="desc">A machine's link opens a terminal and runs the agent there. Pick a profile to decide what it may do and know.</p></div></div>
+  <div class="cc">
   <form method="post" action="/agents/spawn" class="stack">
     <input type="hidden" name="csrf" value="{{$.CSRF}}">
     <label>Name <input name="name" required maxlength="64" value="{{index .Form "name"}}" placeholder="researcher-1" pattern="[A-Za-z0-9][A-Za-z0-9_.\-]*"></label>
@@ -14,35 +34,29 @@
         {{range .Profiles}}<option value="{{.Name}}"{{if eq .Name (index $.Extra.Form "profile")}} selected{{end}}>{{.Name}} (v{{.Version}}, {{.Runtime}}; {{range $i, $t := .Tools}}{{if $i}}, {{end}}{{$t}}{{end}})</option>{{end}}
       </select>
     </label>
-    <label>Device
+    <label>Machine
       <select name="device" required>
-        {{range .Devices}}<option value="{{.}}"{{if eq . (index $.Extra.Form "device")}} selected{{end}}>{{.}}</option>{{else}}<option value="">no device has joined yet</option>{{end}}
+        {{range .Devices}}<option value="{{.}}"{{if eq . (index $.Extra.Form "device")}} selected{{end}}>{{.}}</option>{{else}}<option value="">no machine has joined yet</option>{{end}}
       </select>
     </label>
     <label>Job number (optional) <input name="job" inputmode="numeric" value="{{index .Form "job"}}" placeholder="leave empty for no job"></label>
     <label>Model (optional) <input name="model" value="{{index .Form "model"}}" placeholder="the profile's, or the CLI's default"></label>
-    <button type="submit">Start</button>
+    <div class="acts"><button type="submit">Start</button></div>
   </form>
+  </div>
 </section>
 {{end}}
 
-<section aria-labelledby="all">
-  <h2 id="all">Agents</h2>
-  {{range .Agents}}
-  <p class="row"><span><span class="state state-{{.State}}" aria-hidden="true">{{.Glyph}}</span> <strong>{{.Name}}</strong> <span class="muted">{{.Role}} · {{.Kind}} · {{.Device}}{{if .Job}} · job #{{.Job}}{{end}}</span></span> <span class="muted">{{.State}} · {{.Ago}}</span></p>
-  {{else}}
-  <p class="muted">No agents yet.</p>
-  {{end}}
-</section>
-
-<section aria-labelledby="recent">
-  <h2 id="recent">Recent starts</h2>
+<section class="card" aria-labelledby="recent">
+  <div class="ch"><div><h2 id="recent">Recent starts</h2></div></div>
+  <div class="cc flush"><div class="rows">
   {{range .Spawns}}
-  <p class="row"><span><strong>{{.Name}}</strong> <span class="muted">{{.Kind}} on {{.Device}}{{if .Profile}} · {{.Profile}}{{end}}{{if .Job}} · job #{{.Job}}{{end}}</span></span>
-  <span class="muted">{{.Status}}{{if .Error}}: {{.Error}}{{end}}</span></p>
+  <div class="row line"><span><strong>{{.Name}}</strong> <span class="desc">{{.Kind}} on {{.Device}}{{if .Profile}} · {{.Profile}}{{end}}{{if .Job}} · job #{{.Job}}{{end}}</span></span>
+  <span class="desc">{{.Status}}{{if .Error}}: {{.Error}}{{end}}</span></div>
   {{else}}
-  <p class="muted">Nothing started from here yet.</p>
+  <div class="empty">Nothing started from here yet.</div>
   {{end}}
+  </div></div>
 </section>
 {{end}}
 {{end}}

@@ -1,41 +1,43 @@
 {{define "content"}}
-<h1>Devices</h1>
-<p class="muted">A device runs the link, which wakes your agents and carries their messages to this hub. Devices connect out to the hub; nothing connects in.</p>
+<div class="page-head"><div><h1>Machines</h1><p class="desc">A machine runs the link, which starts your agents and carries their messages to this hub. Machines connect out to the hub; nothing connects in.</p></div></div>
 
 {{with .Extra}}
 {{if .JoinCmd}}
 <article class="card attention">
-  <header><strong>Add {{.NewName}}</strong></header>
-  <p>On that machine, run this once. The token works for {{.TTL}} and is not shown again.</p>
-  <pre class="cmd" tabindex="0">{{.JoinCmd}}</pre>
-  <p class="muted">Then start the link: <code>handloom link run</code> (or <code>handloom link install</code> to run it as a service). It needs the <code>handloom</code> program installed on that machine.</p>
+  <div class="ch"><div class="lead"><svg class="icon sev-info"><use href="#i-server"/></svg><div><h3>Add {{.NewName}}</h3><p class="desc">On that machine, run this once. The token works for {{.TTL}} and is not shown again.</p></div></div></div>
+  <div class="cc"><div class="inset wrap sel" tabindex="0">{{.JoinCmd}}</div>
+  <p class="desc">Then start the link: <code>handloom link run</code> (or <code>handloom link install</code> to run it as a service), and run <code>handloom doctor</code> to check the machine. It needs the <code>handloom</code> program installed there.</p></div>
 </article>
 {{end}}
 
-<section aria-labelledby="devs">
-  <h2 id="devs">Devices</h2>
+<section class="card" aria-labelledby="devs">
+  <div class="ch"><div><h2 id="devs">Machines</h2></div></div>
+  <div class="cc flush"><div class="rows">
   {{range .Devices}}
-  <p class="row">
-    <span><strong>{{.Name}}</strong> <span class="muted">{{.Agents}} agent{{if ne .Agents 1}}s{{end}}</span></span>
-    <span class="right"><span class="muted">{{.Status}}{{if .Seen}} · {{.Seen}}{{end}}</span>
+  <div class="row line">
+    <span><strong>{{.Name}}</strong> <span class="desc">{{.Agents}} agent{{if ne .Agents 1}}s{{end}}</span></span>
+    <span class="end"><span class="badge{{if eq .Status "joined"}} success{{end}}">{{.Status}}</span>{{if .Seen}}<span class="desc">{{.Seen}}</span>{{end}}
     {{if and $.Extra.CanAdmin (not .Revoked)}}
     <form method="post" action="/devices/{{.Name}}/revoke" class="inline"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button type="submit" class="link">Revoke</button></form>
     {{end}}</span>
-  </p>
+  </div>
   {{else}}
-  <p class="muted">No devices yet.</p>
+  <div class="empty">No machines yet.</div>
   {{end}}
+  </div></div>
 </section>
 
 {{if .CanAdmin}}
-<section aria-labelledby="add">
-  <h2 id="add">Add a device</h2>
+<section class="card" aria-labelledby="add" id="add">
+  <div class="ch"><div><h2 id="add-h">Add a machine</h2><p class="desc">Creates a one-time join command to run on it.</p></div></div>
+  <div class="cc">
   <form method="post" action="/devices" class="stack">
     <input type="hidden" name="csrf" value="{{$.CSRF}}">
     <label>Name for the device <input name="name" required maxlength="64" placeholder="laptop" pattern="[A-Za-z0-9][A-Za-z0-9_.\-]*"></label>
     <label>Your password, to confirm <input type="password" name="current_password" autocomplete="current-password" required></label>
-    <button type="submit">Create join command</button>
+    <div class="acts"><button type="submit">Create join command</button></div>
   </form>
+</div>
 </section>
 {{end}}
 {{end}}

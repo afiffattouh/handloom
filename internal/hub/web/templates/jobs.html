@@ -1,14 +1,22 @@
 {{define "content"}}
-<h1>Jobs</h1>
 {{with .Extra}}
-{{if .CanStart}}<p><a class="button" href="/jobs/new">New job</a></p>{{end}}
-{{range .Jobs}}
-<article class="card">
-  <header><strong><a href="/jobs/{{.ID}}">#{{.ID}} {{.Title}}</a></strong> <span class="muted">{{.Status}} · {{.Ago}}</span></header>
-  <p class="muted">lead: {{if .Lead}}{{.Lead}}{{else}}none yet{{end}} · tasks: {{.Counts}}{{if .Repo}} · repo on {{.Device}}{{end}}{{if .Confidential}} · confidential{{end}}</p>
-</article>
-{{else}}
-<p class="muted">No jobs yet.{{if .CanStart}} Start the first one.{{end}}</p>
-{{end}}
+<div class="page-head"><div><h1>Jobs</h1><p class="desc">Each job has its own lead, team and tasks.</p></div>
+  {{if .CanStart}}<div class="acts"><a class="button" href="/jobs/new">New job</a></div>{{end}}</div>
+<div class="card"><div class="cc flush tw"><table>
+  <thead><tr><th>Job</th><th>Status</th><th>Lead</th><th>Tasks</th><th>Where</th><th>Started</th></tr></thead>
+  <tbody>
+  {{range .Jobs}}
+  <tr class="link">
+    <td><a class="rowlink" href="/jobs/{{.ID}}"><span class="mono muted">#{{.ID}}</span> <strong>{{.Title}}</strong>{{if .Confidential}} <span class="badge outline">confidential</span>{{end}}</a></td>
+    <td class="nw">{{if eq .Status "open"}}<span class="badge success"><i class="dot"></i>Open</span>{{else if eq .Status "done"}}<span class="badge">Done</span>{{else}}<span class="badge outline">{{.Status}}</span>{{end}}</td>
+    <td class="nw">{{if .Lead}}{{.Lead}}{{else}}<span class="muted">none yet</span>{{end}}</td>
+    <td class="nw desc">{{.Counts}}</td>
+    <td class="nw desc">{{if .Repo}}{{.Device}}{{else}}no repository{{end}}</td>
+    <td class="nw desc">{{.Ago}}</td>
+  </tr>
+  {{else}}
+  <tr><td colspan="6" class="empty">No jobs yet.{{if $.Extra.CanStart}} Start the first one.{{end}}</td></tr>
+  {{end}}
+  </tbody></table></div></div>
 {{end}}
 {{end}}

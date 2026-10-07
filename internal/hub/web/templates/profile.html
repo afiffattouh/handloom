@@ -1,17 +1,15 @@
 {{define "content"}}
 {{with .Extra}}
-{{if .IsNew}}<h1>New profile</h1>{{else}}
-<h1>{{.Name}} <span class="muted">version {{.Info.Version}}</span></h1>
-<p class="muted">hash <code>{{.Hash}}</code>{{if .Versions}} · versions:
-  {{range .Versions}}<a href="/profiles/{{$.Extra.Name}}?version={{.Version}}">v{{.Version}}</a> {{end}}{{end}}</p>
-<section aria-labelledby="enf">
-  <h2 id="enf">What this profile enforces</h2>
-  <ul class="plain">{{range .Enforce}}<li>{{.}}</li>{{end}}</ul>
+{{if .IsNew}}<div class="page-head"><div><h1>New profile</h1><p class="desc">What an agent started from it may do and know.</p></div></div>{{else}}
+<div class="page-head"><div><h1>{{.Name}} <span class="desc">v{{.Info.Version}}</span></h1><p class="desc">hash <code>{{.Hash}}</code>{{if .Versions}} · versions: {{range .Versions}}<a href="/profiles/{{$.Extra.Name}}?version={{.Version}}">v{{.Version}}</a> {{end}}{{end}}</p></div></div>
+<section class="card" aria-labelledby="enf">
+  <div class="ch"><div><h2 id="enf">What this profile enforces</h2></div></div>
+  <div class="cc"><ul class="plain">{{range .Enforce}}<li>{{.}}</li>{{end}}</ul></div>
 </section>
 {{end}}
 
 {{if .CanEdit}}
-<h2>{{if .IsNew}}The profile{{else}}Change it{{end}}</h2>
+<section class="card"><div class="ch"><div><h2>{{if .IsNew}}The profile{{else}}Change it{{end}}</h2></div></div><div class="cc">
 <form method="post" action="{{if .IsNew}}/profiles{{else}}/profiles/{{.Name}}{{end}}" class="stack">
   <input type="hidden" name="csrf" value="{{$.CSRF}}">
   {{if .IsNew}}<label>Name <input name="name" required maxlength="40" value="{{.Name}}" placeholder="researcher" pattern="[A-Za-z0-9][A-Za-z0-9_.\-]*"></label>{{end}}
@@ -34,13 +32,14 @@
   <label>Instructions (added to the agent's own)
     <textarea name="prompt" rows="10" class="mono">{{.Spec.Prompt}}</textarea></label>
 
-  <h2>Skills</h2>
-  <p class="muted">A skill is a folder with a SKILL.md. Clear the text of a skill to remove it. Other files in a skill folder stay as they are; to manage those, use <code>handloom profile new</code> with a directory.</p>
+  <hr>
+  <div><h3>Skills</h3>
+  <p class="desc">A skill is a folder with a SKILL.md. Clear the text of a skill to remove it. Other files in a skill folder stay as they are; to manage those, use <code>handloom profile new</code> with a directory.</p></div>
   {{range .Skills}}
   <div class="skill">
     <label>Skill <input name="skill_name" value="{{.Name}}" readonly></label>
     <label>SKILL.md <textarea name="skill_text" rows="8" class="mono">{{.Text}}</textarea></label>
-    {{if .Others}}<p class="muted">also: {{range .Others}}{{.}} {{end}}</p>{{end}}
+    {{if .Others}}<p class="desc">also: {{range .Others}}{{.}} {{end}}</p>{{end}}
   </div>
   {{end}}
   <div class="skill">
@@ -49,14 +48,15 @@
   </div>
 
   <label>Your password, to confirm <input type="password" name="current_password" autocomplete="current-password" required></label>
-  <button type="submit">{{if .IsNew}}Create profile{{else}}Save as a new version{{end}}</button>
+  <div class="acts"><button type="submit">{{if .IsNew}}Create profile{{else}}Save as a new version{{end}}</button></div>
 </form>
+</div></section>
 {{else}}
-<p class="text">{{.Spec.Description}}</p>
-<p class="muted">tools: {{range $i, $t := .Spec.Tools.Allow}}{{if $i}}, {{end}}{{$t}}{{else}}none{{end}} · runtime: {{.Spec.Runtime}}{{if .Spec.Tools.DenyCommands}} · never runs: {{range $i, $c := .Spec.Tools.DenyCommands}}{{if $i}}, {{end}}{{$c}}{{end}}{{end}}</p>
-{{if .Spec.Prompt}}<h2>Instructions</h2><pre class="cmd">{{.Spec.Prompt}}</pre>{{end}}
-{{range .Skills}}<h2>Skill: {{.Name}}</h2><pre class="cmd">{{.Text}}</pre>{{end}}
-<p class="muted">Only the owner can change profiles.</p>
+<section class="card"><div class="cc"><p class="text">{{.Spec.Description}}</p>
+<p class="desc">tools: {{range $i, $t := .Spec.Tools.Allow}}{{if $i}}, {{end}}{{$t}}{{else}}none{{end}} · runtime: {{.Spec.Runtime}}{{if .Spec.Tools.DenyCommands}} · never runs: {{range $i, $c := .Spec.Tools.DenyCommands}}{{if $i}}, {{end}}{{$c}}{{end}}{{end}}</p>
+{{if .Spec.Prompt}}<div><h3>Instructions</h3><div class="inset wrap">{{.Spec.Prompt}}</div></div>{{end}}
+{{range .Skills}}<div><h3>Skill: {{.Name}}</h3><div class="inset wrap">{{.Text}}</div></div>{{end}}
+<p class="desc">Only the owner can change profiles.</p></div></section>
 {{end}}
 {{end}}
 {{end}}

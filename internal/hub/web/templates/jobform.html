@@ -1,8 +1,7 @@
 {{define "content"}}
-<h1>New job</h1>
-<p class="muted">Describe the work. Handloom starts a lead agent from the profile you pick; the lead plans the tasks and starts workers. You review the result.</p>
+<div class="page-head"><div><h1>New job</h1><p class="desc">Describe the work. Handloom starts a lead agent from the profile you pick; the lead plans the tasks and starts workers. You review the result.</p></div></div>
 {{with .Extra}}
-<form method="post" action="/jobs" class="stack">
+<div class="card"><div class="cc"><form method="post" action="/jobs" class="stack">
   <input type="hidden" name="csrf" value="{{$.CSRF}}">
   <label>What should be done, in one line <input name="title" required maxlength="200" value="{{index .Form "title"}}" placeholder="Fix the failing date parser"></label>
   <label>The brief: context, what done looks like, what to avoid
@@ -31,8 +30,8 @@
     </select>
   </label>
   {{if .AllowConf}}<label class="check"><input type="checkbox" name="confidential" value="1"> This job handles confidential material (only local-model profiles may be used)</label>{{end}}
-  <button type="submit">Start the job</button>
-</form>
-{{if not .Profiles}}<p class="muted">The lead is started from a profile, so you need one first: <a href="/profiles/new">make a profile</a>.</p>{{end}}
+  <div class="acts"><button type="submit">Start the job</button></div>
+</form></div></div>
+{{if not .Profiles}}<p class="desc">The lead is started from a profile, so you need one first: <a href="/profiles/new">make a profile</a>.</p>{{end}}
 {{end}}
 {{end}}

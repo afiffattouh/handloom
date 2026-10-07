@@ -35,7 +35,7 @@ const (
 	maxForm      = 64 << 10
 )
 
-var pageNames = []string{"setup", "login", "inbox", "closed", "message", "devices", "settings", "invite", "agents", "profiles", "profile", "jobs", "jobform", "job"}
+var pageNames = []string{"setup", "login", "inbox", "closed", "message", "devices", "settings", "invite", "agents", "profiles", "profile", "jobs", "jobform", "job", "command", "agent"}
 
 type pageData struct {
 	Title  string
@@ -46,12 +46,27 @@ type pageData struct {
 	Name   string // form value kept after an error
 	Setup  bool
 	Extra  any
+	// The shell around signed-in pages.
+	Active  string // which menu item is current
+	Nav     navCounts
+	Initial string // first letter of the person's name
+	Narrow  bool   // forms and text pages are narrower than dashboards
 }
+
+// navCounts are the small numbers beside the menu items.
+type navCounts struct{ Needs, Jobs, Agents, Devices int }
+
+// activeMenu says which menu item a page belongs to.
+var activeMenu = map[string]string{"inbox": "inbox", "jobs": "jobs", "jobform": "jobs", "job": "jobs", "agents": "agents", "agent": "agents",
+	"profiles": "profiles", "profile": "profiles", "devices": "devices", "settings": "settings", "command": "command"}
+
+// narrowPages are forms and reading pages.
+var narrowPages = map[string]bool{"jobform": true, "profile": true, "settings": true, "devices": true, "message": true}
 
 func (h *Hub) loadTemplates() error {
 	h.pages = map[string]*template.Template{}
 	for _, name := range pageNames {
-		t, err := template.ParseFS(webFS, "web/templates/base.html", "web/templates/"+name+".html")
+		t, err := template.ParseFS(webFS, "web/templates/base.html", "web/templates/icons.html", "web/templates/"+name+".html")
 		if err != nil {
 			return err
 		}
@@ -148,7 +163,7 @@ func sha(s string) string {
 
 func (h *Hub) webHeaders(w http.ResponseWriter) {
 	hd := w.Header()
-	hd.Set("Content-Security-Policy", "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'")
+	hd.Set("Content-Security-Policy", "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'")
 	hd.Set("X-Content-Type-Options", "nosniff")
 	hd.Set("X-Frame-Options", "DENY")
 	hd.Set("Referrer-Policy", "same-origin")
@@ -230,7 +245,11 @@ func (h *Hub) webRoutes(mux *http.ServeMux) {
 	files := http.StripPrefix("/static/", http.FileServerFS(static))
 	mux.HandleFunc("GET /static/", func(w http.ResponseWriter, r *http.Request) {
 		h.webHeaders(w)
-		w.Header().Set("Cache-Control", "no-cache")
+		if strings.HasPrefix(r.URL.Path, "/static/fonts/") {
+			w.Header().Set("Cache-Control", "public, max-age=604800") // fonts never change under the same name
+		} else {
+			w.Header().Set("Cache-Control", "no-cache")
+		}
 		files.ServeHTTP(w, r)
 	})
 }
@@ -450,7 +469,24 @@ type webReq struct {
 
 func (q *webReq) page(status int, page string, d pageData) {
 	d.Human, d.CSRF = q.human, q.sess.CSRF
+	d.Active, d.Narrow = activeMenu[page], narrowPages[page]
+	if q.human != nil {
+		d.Initial = strings.ToUpper(string([]rune(q.human.Name)[:1]))
+		d.Nav = q.navCounts()
+	}
 	q.c.h.render(q.w, status, page, d)
+}
+
+// navCounts is best effort: a page must still render if a count cannot be read.
+func (q *webReq) navCounts() navCounts {
+	var n navCounts
+	if d, err := q.c.digest(); err == nil {
+		n.Needs = len(d.NeedsYou)
+	}
+	q.c.tx.QueryRow(`SELECT count(*) FROM task WHERE kind = 'job' AND status = 'open'`).Scan(&n.Jobs)
+	q.c.tx.QueryRow(`SELECT count(*) FROM agent`).Scan(&n.Agents)
+	q.c.tx.QueryRow(`SELECT count(*) FROM device WHERE credential_hash IS NOT NULL AND revoked_at IS NULL`).Scan(&n.Devices)
+	return n
 }
 
 // lookupSession resolves the session cookie to a session and a human. It

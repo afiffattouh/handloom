@@ -1,11 +1,12 @@
 {{define "content"}}
-<h1>Set up Handloom</h1>
-<p class="muted">Create the owner account. The setup code is printed in the hub's log when it starts: <code>docker compose logs</code>, or the service log.</p>
-<form method="post" action="/setup" class="stack">
-  <label>Setup code <input name="code" autocomplete="off" autocapitalize="characters" required placeholder="XXXX-XXXX-XXXX"></label>
-  <label>Your name <input name="name" value="{{.Name}}" autocomplete="username" required maxlength="64"></label>
-  <label>Password <input type="password" name="password" autocomplete="new-password" required minlength="12"></label>
-  <label>Password again <input type="password" name="password2" autocomplete="new-password" required minlength="12"></label>
-  <button type="submit">Create owner</button>
-</form>
+<div class="card"><div class="cc">
+  <div><h1>Set up Handloom</h1><p class="desc">Create the owner account. The setup code is printed in the hub's log when it starts: <code>docker compose logs</code>, or the service log.</p></div>
+  <form method="post" action="/setup" class="stack">
+    <label>Setup code <input name="code" autocomplete="off" autocapitalize="characters" required placeholder="XXXX-XXXX-XXXX"></label>
+    <label>Your name <input name="name" value="{{.Name}}" autocomplete="username" required maxlength="64"></label>
+    <label>Password <input type="password" name="password" autocomplete="new-password" required minlength="12"></label>
+    <label>Password again <input type="password" name="password2" autocomplete="new-password" required minlength="12"></label>
+    <button type="submit">Create owner</button>
+  </form>
+</div></div>
 {{end}}

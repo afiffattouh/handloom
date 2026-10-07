@@ -13,7 +13,7 @@ A calm, dense, neutral console: hairlines and whitespace do the structure, one a
 3. **At most three surfaces:** the page, a card, and an inset (a muted block inside a card, such as a diff or a terminal). No card inside a card inside a card. Groups inside a card are rows divided by hairlines.
 4. **Cards are for objects** (a job, a question, a chart), not for every heading. A page is mostly tables and rows.
 5. **Colour is rare.** Neutrals with a slight green cast carry 95% of the screen. The primary colour marks the one action per view. Success, warning and destructive colours appear only as small text, icons or badges. No gradients, no glow, no coloured tiles.
-6. **Type.** One sans family for the interface, one mono family for identifiers and numbers in tables. Five sizes: 12, 13, 14, 16, 24. Labels are sentence case and muted. No spaced-out uppercase eyebrow labels. Numbers use tabular figures.
+6. **Type.** One sans family for the interface, one mono family for identifiers and numbers in tables. Both are Geist (SIL OFL), shipped inside the hub in `web/static/fonts`: a self-hosted hub never calls a third-party font service. The page's Content-Security-Policy allows only the hub's own origin, so there are no inline styles or scripts either. Five sizes: 12, 13, 14, 16, 24. Labels are sentence case and muted. No spaced-out uppercase eyebrow labels. Numbers use tabular figures.
 7. **Spacing on a 4px grid.** Gaps of 8, 12, 16, 24. Controls are 28, 32 or 36px high; everything of one kind is the same height.
 8. **A small set of components, used everywhere:**
    - Button: default (primary), outline, ghost, destructive; sizes sm and default.

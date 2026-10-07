@@ -1,76 +1,109 @@
 {{define "content"}}
 {{with .Extra}}
-<h1>#{{.Job.ID}} {{.Job.Title}}</h1>
-<p class="muted">{{.Job.Status}} · lead: {{if .Job.Lead}}{{.Job.Lead}}{{else}}none{{end}}{{if .Job.Repo}} · repository {{.Job.Repo}} on {{.Job.Device}}{{end}}{{if .Job.Confidential}} · confidential{{end}}</p>
-{{if .Body}}<pre class="cmd">{{.Body}}</pre>{{end}}
-{{if .Job.Repo}}<p class="muted">Accepted work is merged into the branch <code>job/{{.Job.ID}}/integration</code> in the repository (checked again after each merge); nothing is merged into your own branches.</p>{{end}}
-{{if .Job.Base}}<p class="muted">Agents start from the branch <code>{{.Job.Base}}</code>.</p>{{end}}
-{{if .Job.Knowledge}}<p class="muted">Client knowledge: <code>{{.Job.Knowledge}}</code> on {{.Job.Device}}. Agents read it. {{if .Job.Notes}}<strong>{{.Job.Notes}} proposed note{{if ne .Job.Notes 1}}s{{end}}</strong> are on the branch <code>job/{{.Job.ID}}</code> of that repository: look at them with <code>git -C {{.Job.Knowledge}} diff HEAD...job/{{.Job.ID}}</code> and merge what you accept with <code>git -C {{.Job.Knowledge}} merge job/{{.Job.ID}}</code>.{{else}}Proposed notes will appear on the branch <code>job/{{.Job.ID}}</code> of it; you merge them yourself.{{end}}{{if .Job.NotesProblem}} <span class="check-result bad">Problem: {{.Job.NotesProblem}}</span>{{end}}</p>{{end}}
-{{if .Job.Verify}}<p class="muted">Checked by the device after each submit: <code>{{.Job.Verify}}</code></p>{{end}}
+<div class="page-head">
+  <div><h1><span class="muted">#{{.Job.ID}}</span> {{.Job.Title}}</h1>
+    <p class="desc">{{if .Job.Repo}}<span class="mono">{{.Job.Repo}}</span> on {{.Job.Device}} · {{end}}lead {{if .Job.Lead}}{{.Job.Lead}}{{else}}none{{end}}{{if .Job.Confidential}} · confidential{{end}}</p></div>
+  <div class="acts">
+    {{if eq .Job.Status "open"}}<span class="badge success"><i class="dot"></i>Open</span>{{else if eq .Job.Status "done"}}<span class="badge">Done</span>{{else}}<span class="badge outline">{{.Job.Status}}</span>{{end}}
+  </div>
+</div>
 
 {{if .Ready}}
 <article class="card attention">
-  <header><strong>Every task is done.</strong></header>
-  <p>Look over the result, then close the job.</p>
-  {{if .CanAct}}<form method="post" action="/jobs/{{.Job.ID}}/close" class="inline"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button type="submit">Close the job as done</button></form>{{end}}
+  <div class="ch"><div class="lead"><svg class="icon sev-ok"><use href="#i-circle-check"/></svg><div><h3>Every task is done</h3><p class="desc">Look over the result, then close the job.</p></div></div></div>
+  {{if .CanAct}}<div class="cf"><form method="post" action="/jobs/{{.Job.ID}}/close" class="inline"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button type="submit">Close the job as done</button></form></div>{{end}}
 </article>
 {{end}}
 
-<section aria-labelledby="tasks">
-  <h2 id="tasks">Tasks</h2>
-  {{range .Tasks}}
-  <article class="card">
-    <header><strong>#{{.ID}} {{.Title}}</strong> <span class="muted">{{.Status}}{{if .Owner}} · {{.Owner}}{{end}} · {{.Ago}}</span></header>
-    {{if .DependsOn}}<p class="muted">after {{range .DependsOn}}#{{.}} {{end}}</p>{{end}}
-    {{if .Evidence}}<p class="text muted">{{range $i, $e := .Evidence}}{{if $i}}; {{end}}{{$e}}{{end}}</p>{{end}}
-    {{if .Check}}<p class="check-result {{if .CheckOK}}ok{{else}}bad{{end}}">checked by {{.Check.Device}}: {{.Words}}</p>
-    {{if and (not .CheckOK) .Check.Tail}}<pre class="cmd">{{.Check.Tail}}</pre>{{end}}{{end}}
-    {{with .Merge}}<p class="check-result {{if eq .Status "merged"}}ok{{else if ne .Status "pending"}}bad{{end}}">{{if eq .Status "merged"}}merged into the integration branch{{else if eq .Status "pending"}}merge waiting for the device{{else}}not merged ({{.Status}}): {{.Detail}}{{end}}</p>{{end}}
-    {{if eq .Status "submitted"}}<p><a href="/inbox">Review it in the inbox</a></p>{{end}}
-  </article>
-  {{else}}
-  <p class="muted">No tasks yet. The lead is planning.</p>
-  {{end}}
-</section>
+<div class="grid2">
+  <div class="stream-col">
+    <section class="card" aria-labelledby="tasks">
+      <div class="ch"><div><h2 id="tasks">Tasks</h2></div></div>
+      <div class="cc flush tw"><table>
+        <thead><tr><th>Task</th><th>Owner</th><th>Status</th><th>Check</th><th>Merge</th></tr></thead>
+        <tbody>
+        {{range .Tasks}}
+        <tr>
+          <td><span class="mono muted">#{{.ID}}</span> {{.Title}}{{if .DependsOn}} <span class="desc">after {{range .DependsOn}}#{{.}} {{end}}</span>{{end}}
+            {{if .Evidence}}<div class="desc text">{{range $i, $e := .Evidence}}{{if $i}}; {{end}}{{$e}}{{end}}</div>{{end}}
+            {{if and .Check (not .CheckOK) .Check.Tail}}<div class="inset wrap">{{.Check.Tail}}</div>{{end}}
+            {{with .Merge}}{{if and (ne .Status "merged") (ne .Status "pending") .Detail}}<div class="desc text sev-bad">{{.Detail}}</div>{{end}}{{end}}</td>
+          <td class="nw">{{if .Owner}}{{.Owner}}{{else}}<span class="muted">unclaimed</span>{{end}}</td>
+          <td class="nw">{{if eq .Status "done"}}<span class="badge success">Accepted</span>{{else if eq .Status "submitted"}}<a class="badge info" href="/inbox">To review</a>{{else if eq .Status "claimed"}}<span class="badge warning"><i class="dot"></i>Working</span>{{else if eq .Status "cancelled"}}<span class="badge outline">Cancelled</span>{{else}}<span class="badge">{{.Status}}</span>{{end}}</td>
+          <td class="nw">{{if .Check}}{{if .CheckOK}}<span class="badge success">Passed</span>{{else}}<span class="badge destructive">{{.Words}}</span>{{end}}{{else}}<span class="muted">…</span>{{end}}</td>
+          <td class="nw">{{with .Merge}}{{if eq .Status "merged"}}<span class="badge success">Merged</span>{{else if eq .Status "pending"}}<span class="muted">waiting</span>{{else}}<span class="badge destructive">{{.Status}}</span>{{end}}{{else}}<span class="muted">…</span>{{end}}</td>
+        </tr>
+        {{else}}
+        <tr><td colspan="5" class="empty">No tasks yet. The lead is planning.</td></tr>
+        {{end}}
+        </tbody></table></div>
+    </section>
 
-<section aria-labelledby="team">
-  <h2 id="team">Team</h2>
-  {{range .Team}}
-  <p class="row"><span><span class="state state-{{.State}}" aria-hidden="true">{{.Glyph}}</span> <strong>{{.Name}}</strong> <span class="muted">{{.Role}} · {{.Kind}} · {{.Device}}</span></span> <span class="muted">{{.State}} · {{.Ago}}</span></p>
-  {{else}}
-  <p class="muted">Nobody yet.</p>
-  {{end}}
-  {{if .Attach}}
-  <details><summary>Look over an agent's shoulder</summary>
-    <p class="muted">Run this on the device that runs it (detach with Ctrl-b d):</p>
-    {{range .Attach}}<pre class="cmd">{{.Cmd}}</pre>{{end}}
-  </details>
-  {{end}}
-</section>
+    <section class="card" aria-labelledby="activity">
+      <div class="ch"><div><h2 id="activity">Recent activity</h2></div></div>
+      <div class="cc flush"><div class="rows">
+        {{range .Activity}}<div class="row line"><span>{{.Text}}</span><span class="desc nw">{{.Ago}}</span></div>{{else}}<div class="empty">Nothing yet.</div>{{end}}
+      </div></div>
+    </section>
+  </div>
 
-<section aria-labelledby="activity">
-  <h2 id="activity">Recent activity</h2>
-  {{range .Activity}}<p class="row"><span class="text">{{.Text}}</span> <span class="muted">{{.Ago}}</span></p>{{else}}<p class="muted">Nothing yet.</p>{{end}}
-</section>
+  <div class="stream-col">
+    {{if .Body}}
+    <section class="card" aria-labelledby="brief">
+      <div class="ch"><div><h2 id="brief">Brief</h2></div></div>
+      <div class="cc"><p class="text">{{.Body}}</p></div>
+    </section>
+    {{end}}
 
-{{if and .CanAct .Open}}
-<section aria-labelledby="manage">
-  <h2 id="manage">Manage</h2>
-  <details><summary>The lead stopped? Hand the job to another agent</summary>
-    <form method="post" action="/jobs/{{.Job.ID}}/resume" class="stack">
-      <input type="hidden" name="csrf" value="{{$.CSRF}}">
-      <label>New lead <select name="lead">{{range .Agents}}<option value="{{.}}">{{.}}</option>{{else}}<option value="">no free agent: start one on the Agents page</option>{{end}}</select></label>
-      <button type="submit" class="secondary">Make it the lead</button>
-    </form>
-  </details>
-  <details><summary>Cancel the job</summary>
-    <form method="post" action="/jobs/{{.Job.ID}}/close" class="stack">
-      <input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="cancel" value="1">
-      <p class="muted">Cancels the job and every task that is not done.</p>
-      <button type="submit" class="secondary">Cancel the job</button>
-    </form>
-  </details>
-</section>
-{{end}}
+    <section class="card" aria-labelledby="team">
+      <div class="ch"><div><h2 id="team">Team</h2></div></div>
+      <div class="cc flush"><div class="rows">
+        {{range .Team}}
+        <div class="row line"><span><span class="badge{{if eq .State "working"}} success{{else if eq .State "blocked"}} warning{{else if eq .State "offline"}} destructive{{end}}"><i class="dot{{if eq .State "offline"}} ring{{end}}"></i>{{.State}}</span> <strong>{{.Name}}</strong> <span class="desc">{{.Role}} · {{.Kind}}</span></span><span class="desc nw">{{.Ago}}</span></div>
+        {{else}}
+        <div class="empty">Nobody yet.</div>
+        {{end}}
+      </div></div>
+      {{if .Attach}}
+      <div class="cf"><details><summary>Look over an agent's shoulder</summary>
+        <p class="desc">Run this on the device that runs it (detach with Ctrl-b d):</p>
+        {{range .Attach}}<div class="inset sel">{{.Cmd}}</div>{{end}}
+      </details></div>
+      {{end}}
+    </section>
+
+    <section class="card" aria-labelledby="setup">
+      <div class="ch"><div><h2 id="setup">How this job runs</h2></div></div>
+      <div class="cc">
+        {{if .Job.Repo}}<p class="desc">Accepted work is merged into <code>job/{{.Job.ID}}/integration</code> and checked again. Nothing is merged into your own branches.</p>{{end}}
+        {{if .Job.Base}}<p class="desc">Agents start from the branch <code>{{.Job.Base}}</code>.</p>{{end}}
+        {{if .Job.Verify}}<p class="desc">The device runs <code>{{.Job.Verify}}</code> after each submit.</p>{{end}}
+        {{if .Job.Knowledge}}<p class="desc">Client knowledge: <code>{{.Job.Knowledge}}</code>. {{if .Job.Notes}}<strong>{{.Job.Notes}} proposed note{{if ne .Job.Notes 1}}s{{end}}</strong> are on the branch <code>job/{{.Job.ID}}</code> of that repository. Review with <code>git -C {{.Job.Knowledge}} diff HEAD...job/{{.Job.ID}}</code> and merge what you accept with <code>git -C {{.Job.Knowledge}} merge job/{{.Job.ID}}</code>.{{else}}Notes the agents propose appear on the branch <code>job/{{.Job.ID}}</code> of it; you merge them yourself.{{end}}{{if .Job.NotesProblem}} <span class="sev-bad">Problem: {{.Job.NotesProblem}}</span>{{end}}</p>{{end}}
+      </div>
+    </section>
+
+    {{if and .CanAct .Open}}
+    <section class="card" aria-labelledby="manage">
+      <div class="ch"><div><h2 id="manage">Manage</h2></div></div>
+      <div class="cc">
+        <details><summary>The lead stopped? Hand the job to another agent</summary>
+          <form method="post" action="/jobs/{{.Job.ID}}/resume" class="stack">
+            <input type="hidden" name="csrf" value="{{$.CSRF}}">
+            <label>New lead <select name="lead">{{range .Agents}}<option value="{{.}}">{{.}}</option>{{else}}<option value="">no free agent: start one on the Agents page</option>{{end}}</select></label>
+            <div class="acts"><button type="submit" class="secondary">Make it the lead</button></div>
+          </form>
+        </details>
+        <details><summary>Cancel the job</summary>
+          <form method="post" action="/jobs/{{.Job.ID}}/close" class="stack">
+            <input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="cancel" value="1">
+            <p class="desc">Cancels the job and every task that is not done.</p>
+            <div class="acts"><button type="submit" class="destructive">Cancel the job</button></div>
+          </form>
+        </details>
+      </div>
+    </section>
+    {{end}}
+  </div>
+</div>
 {{end}}
 {{end}}

@@ -1,37 +1,79 @@
 {{define "content"}}
-<div class="page-head"><div><h1>New job</h1><p class="desc">Describe the work. Handloom starts a lead agent from the profile you pick; the lead plans the tasks and starts workers. You review the result.</p></div></div>
+<div class="page-head"><div><h1>New job</h1><p class="desc">Describe the work in plain words. A lead agent plans it, starts workers on your machine, and brings you the result to review. You only fill in what you know; everything else has a sensible default.</p></div></div>
 {{with .Extra}}
-<div class="card"><div class="cc"><form method="post" action="/jobs" class="stack">
+<form method="post" action="/jobs" class="stack">
   <input type="hidden" name="csrf" value="{{$.CSRF}}">
-  <label>What should be done, in one line <input name="title" required maxlength="200" value="{{index .Form "title"}}" placeholder="Fix the failing date parser"></label>
-  <label>The brief: context, what done looks like, what to avoid
-    <textarea name="body" rows="8" placeholder="The tests in parser_test.go fail for dates before 1970. Fix parser.go. Done when ./check.sh passes. Do not change the public API.">{{index .Form "body"}}</textarea></label>
 
-  <fieldset>
-    <legend>Where the work happens</legend>
-    <label>Device
-      <select name="device" required>
-        {{range .Devices}}<option value="{{.}}"{{if eq . (index $.Extra.Form "device")}} selected{{end}}>{{.}}</option>{{else}}<option value="">no device has joined yet</option>{{end}}
-      </select>
-    </label>
-    <label>Repository on that device (optional; each agent gets its own copy to work in)
-      <input name="repo" value="{{index .Form "repo"}}" placeholder="/home/me/projects/app"></label>
-    <label>Start from this branch (optional; default is the repository's current commit)
-      <input name="base" value="{{index .Form "base"}}" placeholder="main"></label>
-    <label>Knowledge repository on that device (optional; what you know about the client, as markdown in git. Every agent reads it; what they add is proposed on a branch you merge)
-      <input name="knowledge" value="{{index .Form "knowledge"}}" placeholder="/home/me/clients/acme"></label>
-    <label>Check command (optional; the device runs it after an agent submits, in that agent's copy)
-      <input name="verify" value="{{index .Form "verify"}}" placeholder="./check.sh"></label>
-  </fieldset>
+  <section class="card" aria-labelledby="s1">
+    <div class="ch"><div><h2 id="s1">1. What should be done?</h2><p class="desc">The title is what you will see in lists. The brief is what the agents read.</p></div></div>
+    <div class="cc">
+      <label>Title <input name="title" required maxlength="200" value="{{index .Form "title"}}" placeholder="Add a --name option to the greeting script"></label>
+      <label>Brief
+        <textarea name="body" id="brief" rows="9" placeholder="Say what you want, what done looks like, and what to leave alone.">{{index .Form "body"}}</textarea></label>
+      <div class="acts"><button type="button" id="brief-template" class="secondary sm-btn" hidden>Start the brief from a template</button><span class="desc">A good brief: the goal in a sentence; how you will know it is done (a command that passes, a file that exists); what not to touch. Short is fine.</span></div>
+    </div>
+  </section>
 
-  <label>Lead profile: what the lead may do and know
-    <select name="lead_profile" required>
-      {{range .Profiles}}<option value="{{.Name}}"{{if eq .Name (index $.Extra.Form "lead_profile")}} selected{{end}}>{{.Name}} (v{{.Version}}, {{.Runtime}})</option>{{else}}<option value="">make a profile first</option>{{end}}
-    </select>
-  </label>
-  {{if .AllowConf}}<label class="check"><input type="checkbox" name="confidential" value="1"> This job handles confidential material (only local-model profiles may be used)</label>{{end}}
-  <div class="acts"><button type="submit">Start the job</button></div>
-</form></div></div>
-{{if not .Profiles}}<p class="desc">The lead is started from a profile, so you need one first: <a href="/profiles/new">make a profile</a>.</p>{{end}}
+  <section class="card" aria-labelledby="s2">
+    <div class="ch"><div><h2 id="s2">2. Where does the work live?</h2><p class="desc">Pick the machine that holds the files. For work that is not code (research, writing), leave the folder empty.</p></div></div>
+    <div class="cc">
+      <label>Machine
+        <select name="device" required>
+          {{range .Devices}}<option value="{{.}}"{{if eq . (index $.Extra.Form "device")}} selected{{end}}>{{.}}</option>{{else}}<option value="">no machine has joined yet</option>{{end}}
+        </select></label>
+      {{if not .Devices}}<p class="desc">A machine has to join first: <a href="/devices">Machines</a>.</p>{{end}}
+      <label><span>Project folder on that machine <span class="desc">(optional)</span></span>
+        <input name="repo" id="repo" list="repos" value="{{index .Form "repo"}}" placeholder="/home/you/projects/your-project" class="mono-input" autocomplete="off"></label>
+      {{if .Repos}}<datalist id="repos">{{range .Repos}}<option value="{{.}}">{{end}}</datalist>{{end}}
+      <p class="desc">The full path of a git repository (it starts with <code>/</code>). To find it, run <code>pwd</code> in the project folder on that machine. Each agent works in its own copy, so your files are never touched; accepted work is collected on a branch called <code>job/&lt;number&gt;/integration</code> for you to merge.</p>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="s3">
+    <div class="ch"><div><h2 id="s3">3. How will we know it worked?</h2><p class="desc">A command that exits cleanly when the work is right. The machine runs it on every submission, and a lead cannot accept work that fails it.</p></div></div>
+    <div class="cc">
+      <label><span>Check command <span class="desc">(optional, needs a project folder)</span></span>
+        <input name="verify" id="verify" value="{{index .Form "verify"}}" placeholder="npm test" class="mono-input" autocomplete="off"></label>
+      <div class="presets" id="verify-examples" hidden><span class="desc">Examples:</span>
+        <button type="button" class="secondary sm-btn" data-fill="verify" data-value="go test ./...">go test ./...</button>
+        <button type="button" class="secondary sm-btn" data-fill="verify" data-value="npm test">npm test</button>
+        <button type="button" class="secondary sm-btn" data-fill="verify" data-value="pytest">pytest</button>
+        <button type="button" class="secondary sm-btn" data-fill="verify" data-value="make test">make test</button>
+        <button type="button" class="secondary sm-btn" data-fill="verify" data-value="./check.sh">./check.sh</button>
+      </div>
+      <p class="desc">Without one, the lead judges by what the agents show as evidence, and you review the result.</p>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="s4">
+    <div class="ch"><div><h2 id="s4">4. Who leads it?</h2><p class="desc">The lead plans the tasks, starts the workers and reviews their work. It never closes the job: you do.</p></div></div>
+    <div class="cc">
+      <label>Lead profile
+        <select name="lead_profile" required>
+          {{if .Leads}}<optgroup label="Leads">{{range .Leads}}<option value="{{.Name}}"{{if eq .Name (index $.Extra.Form "lead_profile")}} selected{{end}}>{{.Name}}{{if .Description}}: {{.Description}}{{end}} ({{.Kind}}, {{.Runtime}})</option>{{end}}</optgroup>{{end}}
+          {{if .Others}}<optgroup label="Other profiles">{{range .Others}}<option value="{{.Name}}"{{if eq .Name (index $.Extra.Form "lead_profile")}} selected{{end}}>{{.Name}} ({{.Kind}}, {{.Runtime}})</option>{{end}}</optgroup>{{end}}
+          {{if not .Profiles}}<option value="">add a lead profile first</option>{{end}}
+        </select></label>
+      {{if not .Profiles}}<p class="desc">The lead is started from a profile. <a href="/profiles/starters">Add one from the starter library</a> (the Lead or Engineering lead starter).</p>{{end}}
+      <p class="desc">The lead starts its workers from your other profiles, so make sure you have a worker profile too (for code, the Coder starter).</p>
+    </div>
+  </section>
+
+  <details class="card options">
+    <summary>More options</summary>
+    <div class="cc">
+      <label><span>Start every agent from this branch <span class="desc">(optional)</span></span>
+        <input name="base" value="{{index .Form "base"}}" placeholder="main" class="mono-input"></label>
+      <p class="desc">Normally agents start from the project's latest commit. Name a branch to build on unmerged work, such as the integration branch of an earlier job.</p>
+      <label><span>Client knowledge folder <span class="desc">(optional)</span></span>
+        <input name="knowledge" value="{{index .Form "knowledge"}}" placeholder="/home/you/clients/acme" class="mono-input"></label>
+      <p class="desc">A git repository of notes about the client, on the same machine. Every agent reads it first; what they learn is proposed on a branch you review and merge.</p>
+      {{if .AllowConf}}<label class="check"><input type="checkbox" name="confidential" value="1"> This job handles confidential material: only local-model profiles may be used</label>{{end}}
+    </div>
+  </details>
+
+  <div class="acts"><button type="submit">Start the job</button><span class="desc">The lead appears under Team on the job page within a minute. A small job takes about six minutes.</span></div>
+</form>
+<script src="/static/job-form.js" defer></script>
 {{end}}
 {{end}}

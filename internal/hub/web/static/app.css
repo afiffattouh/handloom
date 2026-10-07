@@ -371,3 +371,6 @@ code, .mono, .inset, textarea.mono { font-variant-ligatures: none; font-feature-
 .review { display: grid; gap: 12px; border: 1px solid var(--border); border-radius: 10px; padding: 14px; }
 .warn-box { display: flex; gap: 10px; align-items: flex-start; border: 1px solid color-mix(in srgb, var(--warning) 45%, var(--border)); border-radius: 8px; padding: 10px 12px; font-size: 13px; }
 .warn-box > div { display: grid; gap: 4px; }
+
+details.options > summary { padding: 14px 16px; font-weight: 500; color: var(--foreground); cursor: pointer; }
+details.options[open] > summary { border-bottom: 1px solid var(--border); }

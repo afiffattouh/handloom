@@ -206,7 +206,7 @@ func (q *webReq) commandView() (*commandView, error) {
 		return nil, err
 	}
 	for i, a := range d.Activity {
-		if i == 8 {
+		if i == 10 {
 			break
 		}
 		v.Activity = append(v.Activity, activityView{ago(q.now, a.At), a.Text})

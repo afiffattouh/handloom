@@ -2,6 +2,7 @@ package hub
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -202,16 +203,20 @@ func (c *call) digest() (*api.Digest, error) {
 		c.tx.QueryRow(`SELECT COALESCE(MAX(seq), 0) FROM event`).Scan(&d.Seq)
 		return d, nil
 	}
-	arows, err := c.tx.Query(`SELECT actor, action, target, created_at FROM audit ORDER BY seq DESC LIMIT 200`)
+	arows, err := c.tx.Query(`SELECT actor, action, target, payload, created_at FROM audit ORDER BY seq DESC LIMIT 400`)
 	if err != nil {
 		return nil, err
 	}
 	defer arows.Close()
 	for arows.Next() && len(d.Activity) < 15 {
-		var actor, action, target string
+		var actor, action, target, payload string
 		var at int64
-		if err := arows.Scan(&actor, &action, &target, &at); err != nil {
+		if err := arows.Scan(&actor, &action, &target, &payload, &at); err != nil {
 			return nil, err
+		}
+		if text, ok := activityText(actor, action, target, payload); ok {
+			d.Activity = append(d.Activity, api.Activity{At: store.Time(at), Text: text})
+			continue
 		}
 		verb, ok := activityVerbs[action]
 		if !ok {
@@ -253,4 +258,61 @@ func what(target string) string {
 		return "" // "researcher registered" reads better than "registered agent:researcher"
 	}
 	return target
+}
+
+// activityText words the events that need their details: what a device found,
+// which state an agent entered, what was asked for. It reports false for
+// everything the plain verb table covers.
+func activityText(actor, action, target, payload string) (string, bool) {
+	var p map[string]any
+	json.Unmarshal([]byte(payload), &p)
+	str := func(k string) string { s, _ := p[k].(string); return s }
+	name := strings.TrimPrefix(target, "agent:")
+	taskNo := strings.TrimPrefix(target, "task:")
+	switch action {
+	case "job.new":
+		return fmt.Sprintf("%s started job %s: %s", who(actor), strings.TrimPrefix(target, "job:"), str("title")), true
+	case "job.close":
+		return fmt.Sprintf("job %s was closed (%s)", strings.TrimPrefix(target, "job:"), str("status")), true
+	case "job.lead_lost":
+		return fmt.Sprintf("the lead of job %s stopped responding", strings.TrimPrefix(target, "job:")), true
+	case "spawn.request":
+		return fmt.Sprintf("%s asked for the agent %s on %s", who(actor), str("name"), str("device")), true
+	case "spawn.failed":
+		return fmt.Sprintf("the agent %s could not be started: %s", str("name"), str("error")), true
+	case "agent.state":
+		switch str("state") {
+		case "working":
+			return name + " started working", true
+		case "blocked":
+			return name + " is blocked", true
+		case "offline":
+			return name + " went offline", true
+		case "idle":
+			return name + " finished and is idle", true
+		}
+		return "", false
+	case "task.verified":
+		res := "passed"
+		if n, _ := p["exit_code"].(float64); n != 0 {
+			res = fmt.Sprintf("failed (exit %d)", int(n))
+		}
+		if b, _ := p["timed_out"].(bool); b {
+			res = "timed out"
+		}
+		return fmt.Sprintf("the device checked task #%s: %s", taskNo, res), true
+	case "task.merge_merged":
+		return fmt.Sprintf("task #%s was merged into the integration branch", taskNo), true
+	case "task.merge_conflict":
+		return fmt.Sprintf("task #%s conflicts with the integration branch", taskNo), true
+	case "task.merge_failed":
+		return fmt.Sprintf("task #%s could not be merged", taskNo), true
+	case "task.scope_refused":
+		return fmt.Sprintf("a submit of task #%s was refused: it changed files outside its scope", taskNo), true
+	case "job.notes_done":
+		if n, _ := p["notes"].(float64); n > 0 {
+			return fmt.Sprintf("%s's %d proposed note(s) were gathered for review", str("agent"), int(n)), true
+		}
+	}
+	return "", false
 }

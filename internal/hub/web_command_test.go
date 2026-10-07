@@ -160,3 +160,27 @@ func (e *webEnv) statusInto(token, method, path string, body any, into any) int 
 	json.NewDecoder(resp.Body).Decode(into)
 	return resp.StatusCode
 }
+
+func TestTheActivityTellsWhatTheDeviceAndTheAgentsDid(t *testing.T) {
+	e := newWebEnv(t, Options{})
+	ag := e.agents()
+	c, _ := e.owner()
+	var j api.Job
+	e.apiOK(e.humanAPI(), "", "POST", "/v1/jobs", api.JobNewReq{Title: "Fix the parser", Lead: "lead", Repo: "/srv/app", Verify: "./check.sh", Device: "d1"}, &j)
+	var t1 api.Task
+	ag.lead("POST", "/v1/tasks", api.TaskCreateReq{Title: "one", AssignedTo: "worker"}, &t1)
+	ag.worker("POST", "/v1/agents/worker/state", api.StateReq{State: "working"}, nil)
+	ag.worker("POST", fmt.Sprintf("/v1/tasks/%d/claim", t1.ID), nil, nil)
+	ag.worker("POST", fmt.Sprintf("/v1/tasks/%d/submit", t1.ID), api.SubmitReq{Evidence: []string{"commit:abc"}}, nil)
+	e.apiOK(ag.device, "", "POST", fmt.Sprintf("/v1/tasks/%d/verify", t1.ID), api.TaskCheckReq{Agent: "worker", Command: "./check.sh", ExitCode: 1}, nil)
+	body := e.req("GET", "/command", nil, c, nil).body
+	for _, want := range []string{"started job", "Fix the parser", "worker started working", "the device checked task", "failed (exit 1)"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the activity lacks %q", want)
+		}
+	}
+	// Activity comes before the charts, so it is on screen when the page opens.
+	if strings.Index(body, `id="act"`) > strings.Index(body, `id="c1"`) {
+		t.Error("the activity is below the charts")
+	}
+}

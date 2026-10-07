@@ -45,6 +45,9 @@
       </tbody></table></div>
   </section>
 
+  <div class="stream-col">
+  <section class="card" aria-labelledby="act"><div class="ch"><div><h2 id="act">Activity</h2><p class="desc">Newest first</p></div></div>
+    <div class="cc flush"><div class="rows tall">{{range .Activity}}<div class="row line"><span>{{.Text}}</span><span class="desc nw">{{.Ago}}</span></div>{{else}}<div class="empty">Nothing yet.</div>{{end}}</div></div></section>
   <section class="card" aria-labelledby="ins">
     <div class="ch"><div><h2 id="ins">Insights</h2><p class="desc">Worked out from the record. Each says what it is based on.</p></div></div>
     <div class="cc flush"><div class="rows">
@@ -59,6 +62,7 @@
       {{end}}
     </div></div>
   </section>
+  </div>
 </div>
 
 <div class="grid3">
@@ -72,14 +76,10 @@
     <div class="legend"><span><i class="c-primary"></i>working</span><span><i class="c-idle"></i>idle</span><span><i class="c-warn"></i>blocked</span></div></section>
 </div>
 
-<div class="grid2 even">
-  <section class="card" aria-labelledby="act"><div class="ch"><div><h2 id="act">Activity</h2><p class="desc">Newest first</p></div></div>
-    <div class="cc flush"><div class="rows">{{range .Activity}}<div class="row line"><span>{{.Text}}</span><span class="desc nw">{{.Ago}}</span></div>{{else}}<div class="empty">Nothing yet.</div>{{end}}</div></div></section>
-  <section class="card" aria-labelledby="prof"><div class="ch"><div><h2 id="prof">Profiles compared</h2><p class="desc">Which kinds of agent deliver, in this range</p></div></div>
+<section class="card" aria-labelledby="prof"><div class="ch"><div><h2 id="prof">Profiles compared</h2><p class="desc">Which kinds of agent deliver, in this range</p></div></div>
     <div class="cc flush tw"><table><thead><tr><th>Profile</th><th>Accepted</th><th>First time</th><th>Checks</th><th>Median</th></tr></thead><tbody>
       {{range .Profiles}}<tr><td><span class="mono">{{.Name}}</span></td><td class="num">{{.Tasks}}</td><td class="num">{{.FirstTime}}</td><td class="num">{{.Checks}}</td><td class="num">{{.Median}}</td></tr>{{else}}<tr><td colspan="5" class="empty">No finished work in this range.</td></tr>{{end}}
     </tbody></table></div>
-    <div class="cf"><span class="desc">Tokens and cost are not shown until usage is collected from the agents' own logs.</span></div></section>
-</div>
+    <div class="cf"><span class="desc">Tokens and cost per agent are on the agent's page; the total is the Usage figure above.</span></div></section>
 {{end}}
 {{end}}

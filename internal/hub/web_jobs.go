@@ -46,7 +46,10 @@ func (h *Hub) webJobs(q *webReq) error { return q.jobsPage(200, "") }
 
 type jobFormView struct {
 	Profiles  []api.ProfileInfo
+	Leads     []api.ProfileInfo // profiles that look like leads, first
+	Others    []api.ProfileInfo
 	Devices   []string
+	Repos     []string // folders earlier jobs used, to pick from
 	Form      map[string]string
 	AllowConf bool
 }
@@ -60,6 +63,22 @@ func (q *webReq) jobForm(status int, errMsg string, form map[string]string) erro
 		return err
 	}
 	v := &jobFormView{Profiles: pl.([]api.ProfileInfo), Form: form, AllowConf: q.c.h.opt.AllowConfidential}
+	for _, p := range v.Profiles {
+		if strings.HasPrefix(p.Name, "lead") {
+			v.Leads = append(v.Leads, p)
+		} else {
+			v.Others = append(v.Others, p)
+		}
+	}
+	if rows, err := q.c.tx.Query(`SELECT DISTINCT repo FROM task WHERE kind = 'job' AND repo != '' ORDER BY id DESC LIMIT 8`); err == nil {
+		for rows.Next() {
+			var r string
+			if rows.Scan(&r) == nil {
+				v.Repos = append(v.Repos, r)
+			}
+		}
+		rows.Close()
+	}
 	ds, err := store.ListDevices(q.c.tx)
 	if err != nil {
 		return err
@@ -69,7 +88,24 @@ func (q *webReq) jobForm(status int, errMsg string, form map[string]string) erro
 			v.Devices = append(v.Devices, d.Name)
 		}
 	}
-	q.page(status, "jobform", pageData{Title: "New job", Error: errMsg, Extra: v})
+	// Fill in what can be known: the only machine, the lead profile when there is one obvious choice.
+	if form["device"] == "" && len(v.Devices) == 1 {
+		form["device"] = v.Devices[0]
+	}
+	if form["lead_profile"] == "" {
+		switch {
+		case len(v.Leads) > 0:
+			form["lead_profile"] = v.Leads[0].Name
+			for _, p := range v.Leads {
+				if p.Name == "lead" {
+					form["lead_profile"] = "lead"
+				}
+			}
+		case len(v.Profiles) == 1:
+			form["lead_profile"] = v.Profiles[0].Name
+		}
+	}
+	q.page(status, "jobform", pageData{Title: "New job", Error: errMsg, Extra: v, Narrow: true})
 	return nil
 }
 

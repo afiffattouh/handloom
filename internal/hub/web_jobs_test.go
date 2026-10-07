@@ -236,3 +236,33 @@ func TestOnlyTheDeviceListsAndReportsMerges(t *testing.T) {
 		}
 	}
 }
+
+func TestTheInboxShowsWhatIsLeftToSetUp(t *testing.T) {
+	e := newWebEnv(t, Options{})
+	c, _ := e.owner()
+	body := e.req("GET", "/inbox", nil, c, nil).body
+	for _, want := range []string{"Get started", "Join a machine", "/devices#add", "Make a profile", "Start your first job"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("a new hub's inbox lacks %q", want)
+		}
+	}
+	e.agents() // a device joins
+	body = e.req("GET", "/inbox", nil, c, nil).body
+	if !strings.Contains(body, "Get started") || strings.Contains(body, "Add a device") || !strings.Contains(body, "New profile") {
+		t.Fatalf("after a device joined: %s", body)
+	}
+	e.apiOK(e.admin, "", "POST", "/v1/profiles", api.ProfileReq{Name: "boss", Spec: researcher()}, nil)
+	e.apiOK(e.humanAPI(), "", "POST", "/v1/jobs", api.JobNewReq{Title: "x", Lead: "lead"}, nil)
+	if body = e.req("GET", "/inbox", nil, c, nil).body; strings.Contains(body, "Get started") {
+		t.Fatal("the checklist stays after everything is done")
+	}
+}
+
+func TestAViewerDoesNotSeeTheSetupChecklist(t *testing.T) {
+	e := newWebEnv(t, Options{})
+	e.owner()
+	vc, _ := e.member("vera", "viewer")
+	if body := e.req("GET", "/inbox", nil, vc, nil).body; strings.Contains(body, "Get started") {
+		t.Fatal("a viewer is told to set things up")
+	}
+}

@@ -7,6 +7,19 @@
 
 {{define "inboxbody"}}
 {{with .Extra}}
+{{if .Start}}
+<section class="card start" aria-labelledby="start">
+  <h2 id="start">Get started</h2>
+  <ol class="steps">
+  {{range .Start}}
+    <li class="{{if .Done}}done{{end}}">
+      <span class="mark" aria-hidden="true">{{if .Done}}✓{{else}}○{{end}}</span>
+      <div><strong>{{.Title}}</strong>{{if .Done}} <span class="muted">done</span>{{else}}<p class="text muted">{{.Hint}}</p><p><a class="button" href="{{.Link}}">{{.Action}}</a></p>{{end}}</div>
+    </li>
+  {{end}}
+  </ol>
+</section>
+{{end}}
 <p class="summary">{{len .NeedsYou}} need you · {{len .ToReview}} to review · {{len .Running}} running</p>
 
 <section aria-labelledby="needs">

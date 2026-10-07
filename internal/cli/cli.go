@@ -58,6 +58,7 @@ Device:
   handloom link run                                   run the link daemon in the foreground
   handloom link install | uninstall                   run it as a systemd service, now and at boot
   handloom link status
+  handloom doctor                                     is this machine ready? checks the link, git, tmux and the agent CLIs
   handloom adapter install <kind> --name N [--dir D]  install an agent adapter in a project
                                                   (kinds: claude, codex, pi, omp, opencode)
   handloom run <name> -- <command...>                 start an agent CLI as a registered, wakeable agent
@@ -135,6 +136,8 @@ func Main(args []string, stdout, stderr io.Writer) int {
 		err = e.inbox(rest)
 	case "healthcheck":
 		err = e.healthcheck(rest)
+	case "doctor":
+		err = e.doctor(rest)
 	case "profile":
 		err = e.profile(rest)
 	case "profiles":

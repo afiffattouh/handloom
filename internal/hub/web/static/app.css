@@ -73,3 +73,10 @@ section ul.plain { margin-bottom: .6rem; }
 .check-result { margin: .3rem 0; font-size: .9rem; }
 .check-result.ok { color: var(--ok); }
 .check-result.bad { color: var(--err); font-weight: 600; }
+
+.start { margin-bottom: 1.2rem; }
+.steps { list-style: none; padding: 0; margin: .6rem 0 0; display: flex; flex-direction: column; gap: .8rem; }
+.steps li { display: flex; gap: .7rem; align-items: flex-start; }
+.steps .mark { width: 1.4rem; text-align: center; font-weight: 700; color: var(--muted); }
+.steps li.done .mark { color: var(--ok); }
+.steps li.done strong { font-weight: 500; color: var(--muted); }

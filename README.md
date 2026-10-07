@@ -2,25 +2,49 @@
 
 > Formerly "handloom". The command is `handloom`; `hl` is the short alias. Old names (`handloom`, `HANDLOOM_*`, `Handloom-Agent`, `~/.config/handloom`) are still accepted. The project is not public yet.
 
-**Security, first.** Handloom lets one coding agent send instructions to another, and those agents often run without approval prompts. Anyone who can post to your hub can in effect run code on every connected device. Run the hub on a private network (Tailscale, WireGuard or localhost). Do not expose it to the internet. Only a human can approve things: a message from an agent is a request, never a human decision.
+Handloom runs jobs made of coding agents on your own machines. You describe a job; a lead agent plans it and starts workers; each worker gets its own copy of the repository; the machine that holds the files checks the work; you review and close. One hub keeps the record, and every machine only calls out to it.
 
-Handloom lets coding agents on different machines work together without a human passing messages between them. Agents send each other messages, share one task board, and wake each other up. You set the goal and review the result.
+See `docs/` for the design, [DECISIONS.md](DECISIONS.md) for choices and evidence, and [docs/deploy.md](docs/deploy.md) for deployment details.
 
-Status: milestones M0 and M1 of [DESIGN.md](DESIGN.md), and most of M2. See [REPORT.md](REPORT.md) for what works, and [DECISIONS.md](DECISIONS.md) for choices made along the way.
+## Quick start
+
+Four stages. You do each one once.
+
+**1. Run the hub (once, on a VPS or any server).** It is one container with one volume.
+
+```
+export HANDLOOM_BASE_URL=https://handloom.example.com    # the public https address
+docker compose up -d --build
+docker compose logs handloom | grep -E "Admin token|setup code"
+```
+
+Open `$HANDLOOM_BASE_URL/setup`, enter the setup code and make your owner account. On Dokploy, see [docs/deploy.md](docs/deploy.md). Keep the admin token somewhere safe.
+
+**2. Join each machine that will run agents (once per machine).** A machine needs `git`, `tmux`, and at least one agent CLI that is logged in (Claude Code, Codex, Pi, OMP or OpenCode).
+
+- Put the `handloom` binary on the machine: `scripts/setup.sh device <ssh-name> --hub <hub-url>` from this repository does it over ssh, or build it (`go build -o bin/handloom ./cmd/handloom`) and copy it.
+- In the web UI open **Devices, Add a device**, and copy the join command it shows.
+- On the machine run it (`handloom link join <hub-url> <join-token>`), then `handloom link install` so the link starts at boot.
+- Run `handloom doctor`. It checks the link, git, tmux and the agent CLIs, and says what to fix.
+
+**3. Make profiles (once per kind of agent).** In the web UI, **Profiles, New profile**. A profile says which CLI an agent uses, what it may do, its prompt, and (for workers) which paths it may change. Make one for a lead (usually read-only) and one or more for workers.
+
+**4. Start a job.** **Jobs, New job**: a title, a brief, the device, optionally the repository path and a check command, and the lead's profile. The lead starts workers by itself. Questions and finished jobs arrive in your inbox. When every task is done, review `job/<id>/integration` in the repository and merge it yourself.
+
+The inbox shows a **Get started** checklist until all four stages are done. Everything above also works from the command line: `handloom help`.
+
+**Security.** Anyone who can post to your hub can in effect run code on every connected device, and agents often run without approval prompts. Use https (or a private network), a strong owner password, and revoke devices you no longer use. Only a signed-in human can start or close jobs, answer questions or change profiles.
 
 ## What is here
 
-- **Hub** (`handloom hub`): HTTP API and one SQLite file. Devices, agents, tasks, messages, events, audit log. No AI in it.
-- **Link** (`handloom link`): one per device. Holds the device credential, serves a local unix socket, keeps a long-poll open to the hub, wakes local agents.
-- **CLI** (`handloom <verb>`): what agents and people type. Agents never hold a credential; the CLI talks to the local link.
-- **Task board**: tasks have leases (a dead agent loses its task), dependencies, and need evidence to be submitted. Only the lead or a human accepts work.
-- **Wake ladder**: a working agent gets its mail when its turn ends (a hook); an idle one gets a short fixed line typed into its terminal through tmux or Herdr; if neither is possible the lead is told.
-- **Adapters**: Claude Code and Codex (hooks that report state and deliver mail at the end of a turn), and Pi, OMP and OpenCode (a small extension that does the same; not yet run against a model). Each puts the protocol instructions in `CLAUDE.md` or `AGENTS.md`.
-- **Headless agents**: an agent with no terminal is woken by one headless turn on its saved session.
+- **Hub** (`handloom hub`): HTTP API, web UI and one SQLite file. No AI, no git, no shell in it.
+- **Link** (`handloom link`): one per device. Starts agents in tmux windows with their own git worktrees, wakes them, refuses submits outside the profile's paths, runs the job's check, merges accepted work.
+- **CLI** (`handloom <verb>`, short `hl`): what agents and people type. Agents never hold a credential.
+- **Jobs and tasks**: a job is a root task with its own lead; tasks have owners, leases, dependencies and need evidence to be submitted.
+- **Profiles**: versioned, pinned by hash, with tools, denied commands, skills and write scope.
+- **Adapters**: Claude Code and Codex (tested), Pi, OMP and OpenCode (less tested).
 - **MCP server** (`handloom mcp`): the agent verbs as tools, for agents whose sandbox cannot reach the link.
 - **Audit log**: every action, append-only.
-
-Not here yet: the web board, asking the human (`handloom ask`), release packaging (prebuilt binaries, Docker image, macOS service).
 
 ## Build
 
@@ -31,7 +55,7 @@ go test ./...
 
 One static binary. Cross-compile with `CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build ...`.
 
-## Set up a server
+## Set up a server with a script
 
 `scripts/setup.sh` does it over ssh from this repo: it builds handloom for the server's CPU, copies the binary, and runs the hub or the link as a systemd service that starts at boot. `local` instead of an ssh name sets up this machine.
 

@@ -36,7 +36,54 @@ type inboxView struct {
 	Agents   []agentView
 	Activity []activityView
 	Seq      int64
-	CanAct   bool // owners and members may answer and review; viewers only look
+	CanAct   bool        // owners and members may answer and review; viewers only look
+	Start    []startStep // the first-run checklist, while something on it is not done
+}
+
+// startStep is one line of the "Get started" checklist.
+type startStep struct {
+	Title, Hint, Link, Action string
+	Done                      bool
+}
+
+// startSteps is what a new owner still has to do, in order. It is empty once
+// all of it is done, and for viewers, who cannot do any of it.
+func (q *webReq) startSteps() ([]startStep, error) {
+	if q.human.Role == store.RoleViewer {
+		return nil, nil
+	}
+	ds, err := store.ListDevices(q.c.tx)
+	if err != nil {
+		return nil, err
+	}
+	joined := 0
+	for _, d := range ds {
+		if d.Joined && !d.Revoked.Valid {
+			joined++
+		}
+	}
+	var profiles, jobs int
+	if err := q.c.tx.QueryRow(`SELECT count(DISTINCT name) FROM profile`).Scan(&profiles); err != nil {
+		return nil, err
+	}
+	if err := q.c.tx.QueryRow(`SELECT count(*) FROM task WHERE kind = 'job'`).Scan(&jobs); err != nil {
+		return nil, err
+	}
+	steps := []startStep{
+		{Title: "The hub is running", Done: true},
+		{Title: "Join a machine", Done: joined > 0, Link: "/devices#add", Action: "Add a device",
+			Hint: "Create a join command, paste it on a machine that has git, tmux and an agent CLI (Claude Code, Codex, ...), then run handloom doctor there."},
+		{Title: "Make a profile", Done: profiles > 0, Link: "/profiles/new", Action: "New profile",
+			Hint: "A profile says which CLI an agent uses and what it may do. Make one for a lead and one for workers."},
+		{Title: "Start your first job", Done: jobs > 0, Link: "/jobs/new", Action: "New job",
+			Hint: "Describe the work. The lead plans it and starts the workers."},
+	}
+	for _, s := range steps {
+		if !s.Done {
+			return steps, nil
+		}
+	}
+	return nil, nil
 }
 
 func ago(now, t time.Time) string {
@@ -70,6 +117,9 @@ func (q *webReq) inboxView() (*inboxView, error) {
 		return nil, err
 	}
 	v := &inboxView{Seq: d.Seq, CanAct: q.human.Role != store.RoleViewer}
+	if v.Start, err = q.startSteps(); err != nil {
+		return nil, err
+	}
 	conv := func(in []api.DigestItem) []itemView {
 		out := make([]itemView, 0, len(in))
 		for _, it := range in {

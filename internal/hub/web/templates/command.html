@@ -25,6 +25,26 @@
   {{end}}
 </div></div>
 
+<section class="card" aria-labelledby="jobs">
+  <div class="ch"><div><h2 id="jobs">Jobs</h2><p class="desc">Open jobs and the last few that finished.</p></div><a class="button outline sm" href="/jobs">All jobs</a></div>
+  <div class="cc flush tw"><table>
+    <thead><tr><th>Job</th><th>State</th><th>Lead</th><th>Progress</th><th>Now</th><th>Started</th></tr></thead>
+    <tbody>
+    {{range .Jobs}}
+    <tr class="link">
+      <td><a class="rowlink" href="/jobs/{{.ID}}"><span class="mono muted">#{{.ID}}</span> <strong>{{.Title}}</strong></a></td>
+      <td class="nw"><span class="badge {{.Badge}}">{{.State}}</span></td>
+      <td class="nw desc">{{if .Lead}}{{.Lead}}{{else}}–{{end}}</td>
+      <td class="progress-col">{{if .Total}}<div class="row line prog"><div class="progress" role="img" aria-label="{{.Done}} of {{.Total}} tasks done"><span class="w{{.Pct}}"></span></div><span class="desc num nw">{{.Done}}/{{.Total}}</span></div>{{else}}<span class="desc">no tasks yet</span>{{end}}</td>
+      <td class="desc">{{.Waiting}}</td>
+      <td class="nw desc">{{.Ago}}</td>
+    </tr>
+    {{else}}
+    <tr><td colspan="6" class="empty">No jobs yet.{{if $.Extra.CanStart}} <a href="/jobs/new">Start one</a>.{{end}}</td></tr>
+    {{end}}
+    </tbody></table></div>
+</section>
+
 <div class="grid2">
   <section class="card" aria-labelledby="fleet">
     <div class="ch"><div><h2 id="fleet">Fleet</h2><p class="desc">Every agent on every machine. Select one to look inside.</p></div>

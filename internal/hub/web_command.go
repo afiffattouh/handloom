@@ -30,6 +30,17 @@ type commandView struct {
 	Profiles []profStat
 	CanStart bool
 	Quiet    bool // no agents, no jobs: the page says how to begin
+	Jobs     []jobCard
+}
+
+// jobCard is one job on the command center: where it stands, in one line.
+type jobCard struct {
+	ID                      int64
+	Title, Lead, State, Ago string
+	Badge                   string
+	Done, Total, Pct        int
+	Waiting                 string // what a person has to do, or what it is waiting for
+	Review                  bool
 }
 
 type rangeTab struct {
@@ -205,6 +216,9 @@ func (q *webReq) commandView() (*commandView, error) {
 	if err != nil {
 		return nil, err
 	}
+	if v.Jobs, err = q.jobCards(d); err != nil {
+		return nil, err
+	}
 	for i, a := range d.Activity {
 		if i == 10 {
 			break
@@ -312,4 +326,59 @@ func (h *Hub) webCommandFragment(q *webReq) error {
 	q.w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	q.w.Write(buf.b)
 	return nil
+}
+
+// jobCards lists the jobs people care about: every open job, newest first,
+// then the last few that finished.
+func (q *webReq) jobCards(d *api.Digest) ([]jobCard, error) {
+	list, err := jobList(q.c)
+	if err != nil {
+		return nil, err
+	}
+	jobs := list.([]api.Job)
+	ready := map[int64]bool{}
+	for _, it := range d.ToReview {
+		if it.Kind == "job-done" {
+			ready[it.ID] = true
+		}
+	}
+	var open, closed []jobCard
+	for i := len(jobs) - 1; i >= 0; i-- {
+		j := jobs[i]
+		n := j.Tasks
+		total := n.Open + n.Claimed + n.Submitted + n.Done
+		card := jobCard{ID: j.ID, Title: j.Title, Lead: j.Lead, Ago: ago(q.now, j.CreatedAt), Done: n.Done, Total: total}
+		if total > 0 {
+			card.Pct = n.Done * 100 / total
+		}
+		switch {
+		case j.Status != api.StatusOpen:
+			card.State, card.Badge = j.Status, ""
+			if j.Status == api.StatusCancelled {
+				card.Badge = "outline"
+			}
+		case ready[j.ID]:
+			card.State, card.Badge, card.Waiting, card.Review = "ready to close", "info", "Every task is done: look it over, then close it.", true
+		case total == 0 && j.Lead == "":
+			card.State, card.Badge, card.Waiting = "starting", "outline", "Waiting for its lead to start."
+		case total == 0:
+			card.State, card.Badge, card.Waiting = "planning", "warning", "The lead is planning the tasks."
+		default:
+			card.State, card.Badge = "running", "success"
+			switch {
+			case n.Submitted > 0:
+				card.Waiting = fmt.Sprintf("%d submitted, waiting to be checked or reviewed", n.Submitted)
+			case n.Claimed > 0:
+				card.Waiting = fmt.Sprintf("%d being worked on", n.Claimed)
+			case n.Open > 0:
+				card.Waiting = fmt.Sprintf("%d waiting to start", n.Open)
+			}
+		}
+		if j.Status == api.StatusOpen {
+			open = append(open, card)
+		} else if len(closed) < 3 {
+			closed = append(closed, card)
+		}
+	}
+	return append(open, closed...), nil
 }

@@ -224,6 +224,8 @@ func (h *Hub) Handler() http.Handler {
 	v1("GET /device/spawns", deviceSpawns)
 	v1("POST /device/scope-refused", scopeRefused)
 	v1("POST /tasks/{id}/verify", taskVerify)
+	v1("GET /device/kcollects", deviceCollects)
+	v1("POST /kcollects/{id}/report", collectReport)
 	v1("GET /device/merges", deviceMerges)
 	v1("POST /merges/{id}/report", mergeReport)
 	v1("GET /device/spawns/{id}/profile", spawnProfile)

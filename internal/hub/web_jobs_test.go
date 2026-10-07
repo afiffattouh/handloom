@@ -266,3 +266,30 @@ func TestAViewerDoesNotSeeTheSetupChecklist(t *testing.T) {
 		t.Fatal("a viewer is told to set things up")
 	}
 }
+
+func TestTheJobFormTakesAKnowledgeRepositoryAndABase(t *testing.T) {
+	e := newWebEnv(t, Options{})
+	e.agents()
+	e.apiOK(e.admin, "", "POST", "/v1/profiles", api.ProfileReq{Name: "boss", Spec: researcher()}, nil)
+	c, tok := e.owner()
+	form := e.req("GET", "/jobs/new", nil, c, nil)
+	if !strings.Contains(form.body, `name="knowledge"`) || !strings.Contains(form.body, `name="base"`) {
+		t.Fatal("the form lacks the knowledge and base fields")
+	}
+	post := func(k, b string) webResp {
+		return e.req("POST", "/jobs", url.Values{"title": {"x"}, "device": {"d1"}, "repo": {"/srv/app"}, "knowledge": {k}, "base": {b}, "lead_profile": {"boss"}, "csrf": {tok}}, c, nil)
+	}
+	if r := post("clients/acme", ""); r.status != 400 || !strings.Contains(r.body, "knowledge repository must be an absolute path") {
+		t.Fatalf("relative knowledge path: %d", r.status)
+	}
+	if r := post("", "--upload-pack=x"); r.status != 400 || !strings.Contains(r.body, "base must be a branch name") {
+		t.Fatalf("a base that looks like a git option: %d", r.status)
+	}
+	if r := post("/srv/acme", "main"); r.status != 303 {
+		t.Fatalf("valid: %d %s", r.status, r.body)
+	}
+	page := e.req("GET", "/jobs/1", nil, c, nil).body
+	if !strings.Contains(page, "/srv/acme") || !strings.Contains(page, "branch <code>main</code>") || !strings.Contains(page, "you merge them yourself") {
+		t.Fatalf("job page: %s", page)
+	}
+}

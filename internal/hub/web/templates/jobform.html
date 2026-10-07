@@ -17,6 +17,10 @@
     </label>
     <label>Repository on that device (optional; each agent gets its own copy to work in)
       <input name="repo" value="{{index .Form "repo"}}" placeholder="/home/me/projects/app"></label>
+    <label>Start from this branch (optional; default is the repository's current commit)
+      <input name="base" value="{{index .Form "base"}}" placeholder="main"></label>
+    <label>Knowledge repository on that device (optional; what you know about the client, as markdown in git. Every agent reads it; what they add is proposed on a branch you merge)
+      <input name="knowledge" value="{{index .Form "knowledge"}}" placeholder="/home/me/clients/acme"></label>
     <label>Check command (optional; the device runs it after an agent submits, in that agent's copy)
       <input name="verify" value="{{index .Form "verify"}}" placeholder="./check.sh"></label>
   </fieldset>

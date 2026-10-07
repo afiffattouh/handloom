@@ -1,0 +1,656 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Handloom Map</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@500;600;700&family=Source+Sans+3:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one long page. Topology on top, then the layers, the job flow as a swimlane, the guard rails, the feature list. */
+:root {
+  --bg: #f3f4f1;
+  --panel: #ffffff;
+  --panel-2: #eceee9;
+  --ink: #1b2326;
+  --muted: #5a666a;
+  --line: #c9cfca;
+  --warp: #1f6f6b;      /* hub, structure */
+  --warp-soft: #d6ebe8;
+  --weft: #b4561f;      /* work moving through */
+  --weft-soft: #f6e1d3;
+  --human: #4a4fa3;
+  --human-soft: #e0e1f4;
+  --ok: #2f7d3a;
+  --warn: #9a6a00;
+  --f-display: "Familjen Grotesk", "Helvetica Neue", Arial, sans-serif;
+  --f-body: "Source Sans 3", "Helvetica Neue", Arial, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11181a; --panel: #182225; --panel-2: #1f2c30; --ink: #e6ecea; --muted: #93a3a6; --line: #2c3c40;
+    --warp: #5fc4bc; --warp-soft: #17383a; --weft: #f0955a; --weft-soft: #3b2a1e;
+    --human: #a0a5f0; --human-soft: #24274a; --ok: #6cc77a; --warn: #e0b24a; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11181a; --panel: #182225; --panel-2: #1f2c30; --ink: #e6ecea; --muted: #93a3a6; --line: #2c3c40;
+  --warp: #5fc4bc; --warp-soft: #17383a; --weft: #f0955a; --weft-soft: #3b2a1e;
+  --human: #a0a5f0; --human-soft: #24274a; --ok: #6cc77a; --warn: #e0b24a; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 16px; line-height: 1.5; padding-inline: 16px; padding-block: 28px 64px; }
+.wrap { max-width: 1120px; margin-inline: auto; display: flex; flex-direction: column; gap: 56px; }
+h1, h2, h3 { font-family: var(--f-display); text-wrap: balance; margin: 0; letter-spacing: -0.01em; }
+h1 { font-size: clamp(2rem, 5vw, 3.2rem); line-height: 1.05; }
+h2 { font-size: 1.6rem; }
+h3 { font-size: 1.05rem; }
+p { margin: 0; }
+code, .mono { font-family: var(--f-mono); font-size: 0.85em; }
+.eyebrow { font-family: var(--f-mono); font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+.lede { color: var(--muted); max-width: 62ch; font-size: 1.1rem; }
+header { display: flex; flex-direction: column; gap: 14px; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 0.85rem; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 7px; }
+.sw { width: 14px; height: 14px; border-radius: 3px; display: inline-block; }
+.sec { display: flex; flex-direction: column; gap: 16px; }
+.sec > p.lede { margin-top: -6px; }
+
+
+/* setup */
+.stages { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px; counter-reset: stage; }
+.stage { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.stage .where { align-self: flex-start; font-family: var(--f-mono); font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; padding: 2px 8px; border-radius: 99px; }
+.where.vps { background: var(--warp-soft); color: var(--warp); }
+.where.dev { background: var(--weft-soft); color: var(--weft); }
+.where.web { background: var(--human-soft); color: var(--human); }
+.stage .when { font-size: 0.85rem; color: var(--muted); }
+pre.cmd { margin: 0; background: var(--panel-2); border-radius: 8px; padding: 10px 12px; overflow-x: auto; font-family: var(--f-mono); font-size: 0.78rem; line-height: 1.5; }
+pre.cmd i { color: var(--muted); font-style: normal; }
+.stage ul { margin: 0; padding-left: 18px; font-size: 0.93rem; display: flex; flex-direction: column; gap: 4px; }
+.helpers { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
+
+
+/* teams */
+table.perm { width: 100%; border-collapse: collapse; font-size: 0.92rem; min-width: 560px; }
+table.perm th, table.perm td { padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: center; }
+table.perm th:first-child, table.perm td:first-child { text-align: left; }
+table.perm thead th { font-family: var(--f-display); font-weight: 600; }
+.yes { color: var(--ok); font-weight: 700; } .no { color: var(--muted); }
+.tablewrap { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; overflow-x: auto; }
+.story { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 6px 16px; }
+.story li { padding: 9px 0; border-bottom: 1px dashed var(--line); font-size: 0.95rem; }
+.story li:last-child { border-bottom: 0; }
+.story ol { margin: 0; padding-left: 20px; }
+.who { font-family: var(--f-mono); font-size: 0.78rem; padding: 1px 7px; border-radius: 99px; margin-right: 4px; }
+.who.o { background: var(--warp-soft); color: var(--warp); } .who.m { background: var(--human-soft); color: var(--human); } .who.v { background: var(--panel-2); color: var(--muted); } .who.a { background: var(--weft-soft); color: var(--weft); }
+.limits { border-left: 3px solid var(--warn); padding-left: 14px; }
+.limits h3 { margin-bottom: 4px; }
+.limits ul { margin: 6px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; color: var(--muted); font-size: 0.93rem; }
+
+
+/* knowledge */
+.pipe { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; counter-reset: p; }
+.pipe .p { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; min-width: 0; position: relative; }
+.pipe .p h3 { font-size: 0.98rem; }
+.pipe .p p { color: var(--muted); font-size: 0.9rem; }
+.pipe .p.human { border-color: var(--human); background: var(--human-soft); }
+.pipe .p.link { border-color: var(--weft); }
+.pipe .p.later { border-style: dashed; }
+.pipe .p .by { align-self: flex-start; font-family: var(--f-mono); font-size: 0.66rem; letter-spacing: 0.08em; text-transform: uppercase; padding: 1px 7px; border-radius: 99px; background: var(--panel-2); color: var(--muted); }
+.tree { margin: 0; font-family: var(--f-mono); font-size: 0.8rem; line-height: 1.6; background: var(--panel-2); border-radius: 10px; padding: 12px 14px; overflow-x: auto; }
+.tree b { color: var(--warp); font-weight: 500; } .tree i { color: var(--muted); font-style: normal; }
+
+/* topology */
+.diagram { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px; overflow-x: auto; }
+.diagram svg { display: block; min-width: 860px; width: 100%; height: auto; }
+.t-box { fill: var(--panel-2); stroke: var(--line); stroke-width: 1.2; }
+.t-hub { fill: var(--warp-soft); stroke: var(--warp); stroke-width: 1.6; }
+.t-dev { fill: var(--panel); stroke: var(--line); stroke-width: 1.2; }
+.t-human { fill: var(--human-soft); stroke: var(--human); stroke-width: 1.4; }
+.t-agent { fill: var(--weft-soft); stroke: var(--weft); stroke-width: 1.2; }
+.t-link { fill: var(--warp-soft); stroke: var(--warp); stroke-width: 1.2; }
+.t-title { font: 600 14px var(--f-display); fill: var(--ink); }
+.t-sub { font: 400 11.5px var(--f-body); fill: var(--muted); }
+.t-mono { font: 500 10.5px var(--f-mono); fill: var(--ink); }
+.t-lab { font: 500 10.5px var(--f-mono); fill: var(--muted); }
+.t-lab.warp { fill: var(--warp); } .t-lab.weft { fill: var(--weft); } .t-lab.human { fill: var(--human); }
+.edge { fill: none; stroke: var(--muted); stroke-width: 1.5; }
+.edge.warp { stroke: var(--warp); } .edge.weft { stroke: var(--weft); } .edge.human { stroke: var(--human); }
+.edge.dash { stroke-dasharray: 5 4; }
+.note-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
+.note { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.note b { font-family: var(--f-display); }
+.note p { color: var(--muted); font-size: 0.93rem; }
+
+/* layers */
+.layers { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px; }
+.layer { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.layer.hub { border-color: var(--warp); }
+.layer.link { border-color: var(--weft); }
+.layer .tag { align-self: flex-start; font-family: var(--f-mono); font-size: 0.7rem; letter-spacing: 0.1em; text-transform: uppercase; padding: 2px 8px; border-radius: 99px; background: var(--panel-2); color: var(--muted); }
+.layer.hub .tag { background: var(--warp-soft); color: var(--warp); }
+.layer.link .tag { background: var(--weft-soft); color: var(--weft); }
+.layer ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.layer li { font-size: 0.93rem; padding-left: 14px; position: relative; }
+.layer li::before { content: ""; position: absolute; left: 0; top: 0.62em; width: 6px; height: 2px; background: var(--muted); }
+.layer li code { background: var(--panel-2); padding: 1px 5px; border-radius: 4px; }
+.rule { font-size: 0.9rem; color: var(--muted); border-top: 1px dashed var(--line); padding-top: 8px; }
+
+/* swimlane */
+.lanes-wrap { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; overflow-x: auto; }
+.lanes { min-width: 900px; display: grid; grid-template-columns: 34px repeat(5, minmax(0, 1fr)); }
+.lane-h { padding: 10px 10px; font-family: var(--f-display); font-weight: 600; font-size: 0.92rem; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--panel); }
+.lane-h small { display: block; font-family: var(--f-mono); font-weight: 400; font-size: 0.68rem; color: var(--muted); letter-spacing: 0.04em; }
+.lane-h.human { color: var(--human); } .lane-h.hub { color: var(--warp); } .lane-h.link { color: var(--weft); }
+.n { grid-column: 1; display: flex; justify-content: center; align-items: flex-start; padding-top: 14px; font-family: var(--f-mono); font-size: 0.72rem; color: var(--muted); border-top: 1px solid var(--line); }
+.cell { border-top: 1px solid var(--line); padding: 8px; min-height: 64px; min-width: 0; }
+.cell:nth-child(odd) { }
+.step { border-radius: 8px; padding: 8px 10px; font-size: 0.86rem; line-height: 1.35; border: 1px solid transparent; height: 100%; }
+.step b { display: block; font-family: var(--f-display); font-size: 0.92rem; margin-bottom: 2px; }
+.step.human { background: var(--human-soft); border-color: var(--human); }
+.step.hub { background: var(--warp-soft); border-color: var(--warp); }
+.step.link { background: var(--weft-soft); border-color: var(--weft); }
+.step.agent { background: var(--panel-2); border-color: var(--line); }
+.step.wait { background: transparent; border: 1px dashed var(--line); color: var(--muted); }
+.fine { font-size: 0.88rem; color: var(--muted); max-width: 80ch; }
+
+/* guard rails */
+.rails { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.rail { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.rail h3 { display: flex; gap: 8px; align-items: center; }
+.rail h3::before { content: ""; width: 10px; height: 10px; border-radius: 2px; background: var(--warp); flex: none; }
+.rail p { color: var(--muted); font-size: 0.93rem; }
+
+/* features */
+.feat { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+.f { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.f .top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.f p { color: var(--muted); font-size: 0.92rem; }
+.pill { font-family: var(--f-mono); font-size: 0.68rem; padding: 2px 8px; border-radius: 99px; border: 1px solid; white-space: nowrap; }
+.pill.ok { color: var(--ok); border-color: var(--ok); }
+.pill.part { color: var(--warn); border-color: var(--warn); }
+.pill.next { color: var(--muted); border-color: var(--line); border-style: dashed; }
+footer { color: var(--muted); font-size: 0.85rem; border-top: 1px solid var(--line); padding-top: 14px; }
+@media (prefers-reduced-motion: no-preference) { .step { transition: transform .15s; } .step:hover { transform: translateY(-1px); } }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+<header>
+  <div class="eyebrow">Handloom · hl · open source, self-hosted</div>
+  <h1>One hub. Many devices. Agents that hand work to each other and show their proof.</h1>
+  <p class="lede">You describe a job. A lead agent plans it and starts workers on your machines. Each worker gets its own copy of the repository. The device that holds the files checks the work, and only you decide it is finished.</p>
+  <div class="legend">
+    <span><i class="sw" style="background:var(--warp)"></i>hub: keeps the record, decides nothing</span>
+    <span><i class="sw" style="background:var(--weft)"></i>device: the only place files and commands live</span>
+    <span><i class="sw" style="background:var(--human)"></i>you: the only one who approves</span>
+  </div>
+</header>
+
+<section class="sec" aria-labelledby="setup">
+  <div class="eyebrow">1 · Set up</div>
+  <h2 id="setup">From nothing to your first job</h2>
+  <p class="lede">You need a server with Docker, a domain name, and one or more machines with git, tmux and a logged-in agent CLI. Four stages, each done once. After stage 1 you work in the web UI, and the inbox keeps a "Get started" checklist until all four are done.</p>
+  <div class="note-row">
+    <div class="note"><b>The domain</b><p>Add a DNS <b>A record</b> (for example <code>handloom.example.com</code>) pointing at your server's IP and open ports 80 and 443. The included Caddy file then gets and renews the https certificate by itself.</p></div>
+    <div class="note"><b>The tokens</b><p>You handle almost none. A <b>setup code</b> (from the log, once) makes your owner account. A <b>join command</b> (copied from the Devices page) joins each machine. The <b>admin token</b> is an emergency key: save it, ignore it.</p></div>
+    <div class="note"><b>No domain?</b><p>On a private network (Tailscale, WireGuard, home LAN) skip it: use plain http at the private address with <code>HANDLOOM_INSECURE=1</code>. Never on the open internet.</p></div>
+  </div>
+  <div class="stages">
+    <div class="stage">
+      <span class="where vps">Stage 1 · on a server</span>
+      <h3>Run the hub</h3>
+      <p class="when">Once. Any VPS with Docker (Dokploy works too).</p>
+      <pre class="cmd"><i># DNS A record + ports 80/443 first</i>
+HANDLOOM_DOMAIN=hub.example.com \
+docker compose -f docker-compose.caddy.yml up -d --build
+docker compose -f docker-compose.caddy.yml \
+  logs handloom | grep -E "setup code|Admin token"</pre>
+      <ul><li>Open <code>/setup</code>, enter the code, create your owner account</li><li>Keep the admin token safe</li></ul>
+    </div>
+    <div class="stage">
+      <span class="where dev">Stage 2 · on each machine</span>
+      <h3>Join a machine</h3>
+      <p class="when">Once per machine: git, tmux and one logged-in agent CLI.</p>
+      <ul><li>Put the <code>handloom</code> binary on it</li><li>Web UI: <b>Devices, Add a device</b>, copy the join command</li></ul>
+      <pre class="cmd">handloom link join https://hub.example.com &lt;token&gt;
+handloom link install   <i># starts at boot</i>
+handloom doctor         <i># what is missing?</i></pre>
+    </div>
+    <div class="stage">
+      <span class="where web">Stage 3 · in the web UI</span>
+      <h3>Make profiles</h3>
+      <p class="when">Once per kind of agent.</p>
+      <ul><li><b>Profiles, New profile</b></li><li>One for a lead: usually read-only, plans and reviews</li><li>One or more for workers: the CLI, the tools allowed, the paths they may change</li><li>Any CLI can fill either role</li></ul>
+    </div>
+    <div class="stage">
+      <span class="where web">Stage 4 · in the web UI</span>
+      <h3>Start a job</h3>
+      <p class="when">Every time you have work.</p>
+      <ul><li><b>Jobs, New job</b>: title and brief</li><li>Pick the device, the repository path and a check command</li><li>Pick the lead's profile</li><li>The lead starts workers. You answer questions and review</li></ul>
+    </div>
+  </div>
+  <div class="helpers">
+    <div class="note"><b>Get started checklist</b><p>The inbox lists what is left: join a machine, make a profile, start a job. Each line has a button to the right page, and the card disappears when all of it is done.</p></div>
+    <div class="note"><b>handloom doctor</b><p>Run it on a machine. It checks the link and hub connection, git, tmux, and each agent CLI (installed, logged in), and prints one fix per problem.</p></div>
+    <div class="note"><b>Prefer a script?</b><p><code>scripts/setup.sh device &lt;ssh-name&gt; --hub &lt;url&gt;</code> builds the binary for that machine, copies it, and installs the link as a service.</p></div>
+  </div>
+</section>
+
+<section class="sec" aria-labelledby="topo">
+  <div class="eyebrow">2 · Topology</div>
+  <h2 id="topo">Where everything runs</h2>
+  <p class="lede">The hub is one small container on a VPS. Devices only ever call out to it, so no machine needs an open port.</p>
+  <div class="diagram">
+  <svg viewBox="0 0 1000 560" role="img" aria-label="Topology: you and your phone reach the hub over HTTPS; devices connect to the hub outbound only; each device runs a link daemon, a tmux server and the agents.">
+    <defs>
+      <marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--muted)"/></marker>
+      <marker id="ahw" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--warp)"/></marker>
+      <marker id="ahh" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--human)"/></marker>
+      <marker id="ahx" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--weft)"/></marker>
+    </defs>
+
+    <!-- human zone -->
+    <text class="t-lab human" x="20" y="30">YOU</text>
+    <rect class="t-human" x="20" y="44" width="190" height="96" rx="10"/>
+    <text class="t-title" x="36" y="70">Browser</text>
+    <text class="t-sub" x="36" y="90">Inbox · Jobs · Profiles</text>
+    <text class="t-sub" x="36" y="106">Agents · Devices · Settings</text>
+    <text class="t-lab human" x="36" y="127">password + CSRF</text>
+
+    <rect class="t-human" x="20" y="164" width="190" height="78" rx="10"/>
+    <text class="t-title" x="36" y="190">Phone</text>
+    <text class="t-sub" x="36" y="210">push: "your agent needs you"</text>
+    <text class="t-lab human" x="36" y="230">ntfy topic (untested)</text>
+
+    <rect class="t-human" x="20" y="266" width="190" height="78" rx="10"/>
+    <text class="t-title" x="36" y="292">Terminal</text>
+    <text class="t-sub" x="36" y="312">handloom / hl, with a token</text>
+    <text class="t-lab human" x="36" y="332">same API as the web</text>
+
+    <!-- hub -->
+    <text class="t-lab warp" x="360" y="30">HUB · one container on any VPS or Dokploy</text>
+    <rect class="t-hub" x="360" y="44" width="270" height="446" rx="14"/>
+    <text class="t-title" x="380" y="74">handloom hub</text>
+    <text class="t-sub" x="380" y="92">your-hub.example.com · TLS at the proxy</text>
+    <rect class="t-box" x="380" y="108" width="230" height="64" rx="8"/>
+    <text class="t-title" x="394" y="130" style="font-size:12.5px">HTTP API</text>
+    <text class="t-sub" x="394" y="147">roles · scope table · run tokens</text>
+    <text class="t-sub" x="394" y="162">audit row on every action</text>
+    <rect class="t-box" x="380" y="182" width="230" height="52" rx="8"/>
+    <text class="t-title" x="394" y="204" style="font-size:12.5px">Web UI + live hints</text>
+    <text class="t-sub" x="394" y="221">server-rendered, SSE, no JS framework</text>
+    <rect class="t-box" x="380" y="244" width="230" height="136" rx="8"/>
+    <text class="t-title" x="394" y="266" style="font-size:12.5px">SQLite (one file, WAL)</text>
+    <text class="t-mono" x="394" y="288">jobs · tasks · task_check</text>
+    <text class="t-mono" x="394" y="305">agents · messages · escalations</text>
+    <text class="t-mono" x="394" y="322">spawn · merge · profiles(v, hash)</text>
+    <text class="t-mono" x="394" y="339">humans · sessions · devices</text>
+    <text class="t-mono" x="394" y="356">audit (who, via, what)</text>
+    <text class="t-sub" x="394" y="373">snapshot before each migration</text>
+    <rect class="t-box" x="380" y="390" width="230" height="44" rx="8"/>
+    <text class="t-title" x="394" y="410" style="font-size:12.5px">Notifier</text>
+    <text class="t-sub" x="394" y="426">push when a human is needed</text>
+    <text class="t-lab warp" x="380" y="462">No git. No shell. No model.</text>
+    <text class="t-lab warp" x="380" y="478">It stores and routes; devices act.</text>
+
+    <!-- devices -->
+    <text class="t-lab weft" x="740" y="30">DEVICES · your machines</text>
+    <rect class="t-dev" x="740" y="44" width="250" height="232" rx="14"/>
+    <text class="t-title" x="758" y="72">Device A</text>
+    <text class="t-sub" x="758" y="89">your repo, worktrees, tmux</text>
+    <rect class="t-link" x="758" y="100" width="214" height="52" rx="8"/>
+    <text class="t-title" x="770" y="120" style="font-size:12.5px">link daemon</text>
+    <text class="t-sub" x="770" y="137">wake ladder · spawn · scope gate</text>
+    <text class="t-sub" x="770" y="148" style="font-size:10px">verify · merge · lease</text>
+    <rect class="t-agent" x="758" y="166" width="100" height="40" rx="8"/>
+    <text class="t-mono" x="768" y="183">lead</text>
+    <text class="t-sub" x="768" y="198" style="font-size:10.5px">set by its profile</text>
+    <rect class="t-agent" x="872" y="166" width="100" height="40" rx="8"/>
+    <text class="t-mono" x="882" y="183">worker</text>
+    <text class="t-sub" x="882" y="198" style="font-size:10.5px">Codex · src/**</text>
+    <text class="t-lab weft" x="758" y="228">own tmux server:  tmux -L handloom</text>
+    <text class="t-lab weft" x="758" y="244">own worktree + branch per agent</text>
+    <text class="t-lab weft" x="758" y="260">job/1/boss · job/1/coder-a</text>
+
+    <rect class="t-dev" x="740" y="304" width="250" height="186" rx="14"/>
+    <text class="t-title" x="758" y="332">Device B</text>
+    <text class="t-sub" x="758" y="349">any other machine, same shape</text>
+    <rect class="t-link" x="758" y="360" width="214" height="40" rx="8"/>
+    <text class="t-title" x="770" y="385" style="font-size:12.5px">link daemon</text>
+    <rect class="t-agent" x="758" y="414" width="100" height="40" rx="8"/>
+    <text class="t-mono" x="768" y="431">worker</text>
+    <text class="t-sub" x="768" y="446" style="font-size:10.5px">Claude</text>
+    <rect class="t-agent" x="872" y="414" width="100" height="40" rx="8"/>
+    <text class="t-mono" x="882" y="431">worker</text>
+    <text class="t-sub" x="882" y="446" style="font-size:10.5px">Pi · OMP · other CLI</text>
+    <text class="t-lab weft" x="758" y="474">a job's agents may span devices</text>
+
+    <!-- edges -->
+    <path class="edge human" marker-end="url(#ahh)" marker-start="url(#ahh)" d="M210 92 H360"/>
+    <text class="t-lab human" x="222" y="84">HTTPS</text>
+    <path class="edge human" marker-end="url(#ahh)" marker-start="url(#ahh)" d="M210 305 C290 305 290 140 360 140"/>
+    <text class="t-lab human" x="262" y="322">token</text>
+    <path class="edge human dash" marker-end="url(#ahh)" d="M360 403 C280 403 280 203 210 203"/>
+    <text class="t-lab human" x="258" y="398">push</text>
+
+    <path class="edge warp" marker-end="url(#ahw)" d="M740 120 C690 120 690 128 630 128"/>
+    <path class="edge warp" marker-end="url(#ahw)" d="M630 150 C690 150 690 152 740 152" style="opacity:0"/>
+    <text class="t-lab warp" x="652" y="108">outbound</text>
+    <text class="t-lab warp" x="652" y="120">only</text>
+    <path class="edge warp" marker-end="url(#ahw)" marker-start="url(#ahw)" d="M740 380 C690 380 690 330 630 330"/>
+    <text class="t-lab warp" x="652" y="372">long-poll</text>
+    <text class="t-lab warp" x="652" y="384">+ calls</text>
+
+    <path class="edge weft" marker-end="url(#ahx)" marker-start="url(#ahx)" d="M808 152 V166" />
+    <path class="edge weft" marker-end="url(#ahx)" marker-start="url(#ahx)" d="M922 152 V166" />
+  </svg>
+  </div>
+  <div class="note-row">
+    <div class="note"><b>Agents never see the device credential</b><p>They talk to the link over a unix socket and prove who they are with a per-run token that is stored hashed on the hub.</p></div>
+    <div class="note"><b>Same CLI for you and for agents</b><p>The terminal, the web page and the MCP tools all call the same API, so every action leaves the same audit row.</p></div>
+    <div class="note"><b>Any agent CLI</b><p>Adapters for Claude Code, Codex, Pi, OMP and OpenCode. The profile says what the agent may do, not which vendor.</p></div>
+  </div>
+</section>
+
+<section class="sec" aria-labelledby="arch">
+  <div class="eyebrow">3 · Architecture</div>
+  <h2 id="arch">Who is responsible for what</h2>
+  <p class="lede">The split is deliberate. The hub can be public and small because it never touches a repository. Everything that runs code lives on a device you own.</p>
+  <div class="layers">
+    <div class="layer hub">
+      <span class="tag">Hub</span>
+      <h3>Records, routes, remembers</h3>
+      <ul>
+        <li>Jobs, tasks, dependencies, messages, escalations</li>
+        <li>Profiles stored as immutable versions with a hash</li>
+        <li>Spawn and merge <em>requests</em> as queue rows</li>
+        <li>Leases: an agent that goes quiet is marked offline, and a lost lead becomes an inbox item</li>
+        <li>Web sessions: argon2id, <code>__Host-</code> cookies, CSRF, step-up password for risky actions</li>
+        <li>Roles: owner, member, viewer</li>
+      </ul>
+      <p class="rule">Rule: the hub stays dumb. It never runs git, a shell or a model.</p>
+    </div>
+    <div class="layer link">
+      <span class="tag">Link on each device</span>
+      <h3>Does the real work</h3>
+      <ul>
+        <li><b>Wake ladder</b>: types a nudge into an idle agent's tmux pane</li>
+        <li><b>Spawn</b>: git worktree, trust the folder, open a tmux window, run the agent CLI</li>
+        <li><b>Scope gate</b>: refuses a submit that touched files outside the profile's globs</li>
+        <li><b>Verify</b>: runs the job's check command on each submission</li>
+        <li><b>Merge</b>: merges accepted branches into <code>job/&lt;id&gt;/integration</code> and re-checks</li>
+        <li><b>Vouch</b>: tells the hub a pane still exists</li>
+      </ul>
+      <p class="rule">Rule: the device's word beats the agent's word.</p>
+    </div>
+    <div class="layer">
+      <span class="tag">Agent</span>
+      <h3>Plans or builds, then proves it</h3>
+      <ul>
+        <li>Runs inside one tmux window in its own worktree and branch</li>
+        <li>Sees only what its profile allows: tools, deny-listed commands, skills, prompt</li>
+        <li>Verbs: inbox, send, task create / claim / submit, ask, spawn</li>
+        <li>A lead plans and reviews; workers build</li>
+        <li>Submits with evidence (commit, file, test result)</li>
+      </ul>
+      <p class="rule">Rule: only a human closes a job or answers an escalation.</p>
+    </div>
+  </div>
+</section>
+
+<section class="sec" aria-labelledby="flow">
+  <div class="eyebrow">4 · Flow</div>
+  <h2 id="flow">One job, from your sentence to a branch you can merge</h2>
+  <p class="lede">Read down. Each box sits in the lane of whoever does it. Dashed boxes are waiting, not working.</p>
+  <div class="lanes-wrap">
+  <div class="lanes">
+    <div class="lane-h" style="grid-column:1"></div>
+    <div class="lane-h human">You<small>browser · phone</small></div>
+    <div class="lane-h hub">Hub<small>record only</small></div>
+    <div class="lane-h link">Link<small>on the device</small></div>
+    <div class="lane-h">Lead<small>any CLI, by profile</small></div>
+    <div class="lane-h">Worker<small>Codex or any CLI</small></div>
+
+    <div class="n">1</div>
+    <div class="cell"><div class="step human"><b>New job</b>Title, brief, repo, check command, device, lead profile.</div></div>
+    <div class="cell"><div class="step hub"><b>Job + lead request</b>Stores a root task and a spawn row, pinned to the profile hash.</div></div>
+    <div class="cell"></div><div class="cell"></div><div class="cell"></div>
+
+    <div class="n">2</div>
+    <div class="cell"></div><div class="cell"></div>
+    <div class="cell"><div class="step link"><b>Starts the lead</b>Worktree on <code>job/1/boss</code>, tmux window, the CLI its profile names.</div></div>
+    <div class="cell"><div class="step agent"><b>Reads the brief</b>Finds its job and the profiles it may use.</div></div>
+    <div class="cell"></div>
+
+    <div class="n">3</div>
+    <div class="cell"></div>
+    <div class="cell"><div class="step hub"><b>Worker request</b>Checks the cap on workers, pins the profile.</div></div>
+    <div class="cell"><div class="step link"><b>Starts the worker</b>Its own worktree and branch, scope written to the device.</div></div>
+    <div class="cell"><div class="step agent"><b>Plans tasks</b>Creates them, assigns, sets order.</div></div>
+    <div class="cell"><div class="step wait">Waiting for its task.</div></div>
+
+    <div class="n">4</div>
+    <div class="cell"></div>
+    <div class="cell"><div class="step hub"><b>Message queued</b>The worker has mail.</div></div>
+    <div class="cell"><div class="step link"><b>Wakes it</b>Types the nudge into the pane.</div></div>
+    <div class="cell"></div>
+    <div class="cell"><div class="step agent"><b>Claims and builds</b>Edits only inside its globs.</div></div>
+
+    <div class="n">5</div>
+    <div class="cell"></div><div class="cell"></div>
+    <div class="cell"><div class="step link"><b>Scope gate</b>Compares changed files to the globs. Outside? Refused, and the hub never sees the submit.</div></div>
+    <div class="cell"></div>
+    <div class="cell"><div class="step agent"><b>Submits</b>With evidence.</div></div>
+
+    <div class="n">6</div>
+    <div class="cell"></div>
+    <div class="cell"><div class="step hub"><b>Task submitted</b>Status moves; lead is told.</div></div>
+    <div class="cell"><div class="step link"><b>Runs the check</b>In the worker's worktree. Reports exit code and output tail.</div></div>
+    <div class="cell"><div class="step agent"><b>Reads the result</b>The check is the device's, not the worker's.</div></div>
+    <div class="cell"></div>
+
+    <div class="n">7</div>
+    <div class="cell"></div>
+    <div class="cell"><div class="step hub"><b>Accept rule</b>An agent cannot accept unchecked or failed work. A human still can.</div></div>
+    <div class="cell"></div>
+    <div class="cell"><div class="step agent"><b>Accepts or rejects</b>Reject sends it back with a reason.</div></div>
+    <div class="cell"></div>
+
+    <div class="n">8</div>
+    <div class="cell"></div>
+    <div class="cell"><div class="step hub"><b>Merge request</b>One row per accepted task.</div></div>
+    <div class="cell"><div class="step link"><b>Merges and re-checks</b>Into <code>job/1/integration</code>. A conflict or a failed check is undone, and the lead is told.</div></div>
+    <div class="cell"><div class="step agent"><b>Fixes conflicts</b>Asks the worker to merge the branch and resubmit.</div></div>
+    <div class="cell"></div>
+
+    <div class="n">9</div>
+    <div class="cell"><div class="step human"><b>Inbox: job done</b>Every task done. Look at the result, then close the job.</div></div>
+    <div class="cell"><div class="step hub"><b>Push</b>Tells your phone something needs you.</div></div>
+    <div class="cell"></div><div class="cell"></div><div class="cell"></div>
+  </div>
+  </div>
+  <p class="fine">At any step an agent can ask you a question (an escalation). It lands in the inbox and on your phone, and only you can answer it. If the lead goes quiet, the lease runs out, the job shows "lead lost", and you can hand it to another agent. Nothing is merged into your own branches: you merge <code>job/&lt;id&gt;/integration</code> when you are happy.</p>
+</section>
+
+<section class="sec" aria-labelledby="rails">
+  <div class="eyebrow">5 · Guard rails</div>
+  <h2 id="rails">What keeps it honest</h2>
+  <div class="rails">
+    <div class="rail"><h3>Only humans approve</h3><p>Starting and closing a job, answering a question and changing profiles need a signed-in person. Agents cannot do any of them.</p></div>
+    <div class="rail"><h3>The device checks, not the agent</h3><p>The check command runs on the machine that holds the files. Its exit code and output hash are stored next to the agent's own claim.</p></div>
+    <div class="rail"><h3>Scope is enforced at submit</h3><p>Each profile lists the paths its agent may change. A submit that touches anything else is refused, and the refusal is logged. It fails closed.</p></div>
+    <div class="rail"><h3>Profiles are pinned</h3><p>A spawn runs name@version with a hash. Editing a profile creates a new version; old rows cannot be changed.</p></div>
+    <div class="rail"><h3>Confidential stays local</h3><p>A confidential job is only a flag plus an off switch on a public hub. It works because local-model profiles never leave your machines.</p></div>
+    <div class="rail"><h3>Everything is audited</h3><p>Each action records who did it and how: run token, device-asserted or human session. Recent activity is on every job page.</p></div>
+  </div>
+</section>
+
+<section class="sec" aria-labelledby="teams">
+  <div class="eyebrow">6 · Teams</div>
+  <h2 id="teams">Working with other people</h2>
+  <p class="lede">One hub serves one team. Everyone signs in to the same web UI, and everyone's machines can join it. The owner invites people and decides what each of them can touch.</p>
+  <div class="diagram">
+  <svg viewBox="0 0 1000 440" role="img" aria-label="A team: an owner, members and a viewer sign in to one hub; personal laptops and a shared build machine all join the same hub and run the agents.">
+    <defs>
+      <marker id="tah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--human)"/></marker>
+      <marker id="taw" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--weft)"/></marker>
+    </defs>
+    <text class="t-lab human" x="20" y="28">PEOPLE · each has their own login</text>
+    <rect class="t-human" x="20" y="42" width="220" height="74" rx="10"/>
+    <text class="t-title" x="36" y="68">Owner</text>
+    <text class="t-sub" x="36" y="87">sets up devices, profiles, people</text>
+    <text class="t-sub" x="36" y="102">and can do everything below</text>
+    <rect class="t-human" x="20" y="136" width="220" height="74" rx="10"/>
+    <text class="t-title" x="36" y="162">Members</text>
+    <text class="t-sub" x="36" y="181">start and close jobs, answer</text>
+    <text class="t-sub" x="36" y="196">questions, review and accept work</text>
+    <rect class="t-human" x="20" y="230" width="220" height="74" rx="10"/>
+    <text class="t-title" x="36" y="256">Viewers</text>
+    <text class="t-sub" x="36" y="275">watch jobs and the inbox,</text>
+    <text class="t-sub" x="36" y="290">change nothing (a PM, a client)</text>
+    <text class="t-lab human" x="20" y="334">Invite link, own password,</text>
+    <text class="t-lab human" x="20" y="350">roles changed by the owner</text>
+
+    <rect class="t-hub" x="380" y="42" width="240" height="300" rx="14"/>
+    <text class="t-lab warp" x="380" y="28">ONE HUB</text>
+    <text class="t-title" x="400" y="74">Shared record</text>
+    <text class="t-sub" x="400" y="94">one inbox for the whole team</text>
+    <text class="t-sub" x="400" y="112">one list of jobs and tasks</text>
+    <text class="t-sub" x="400" y="130">one library of profiles</text>
+    <text class="t-sub" x="400" y="148">one audit log: who did what</text>
+    <rect class="t-box" x="400" y="170" width="200" height="60" rx="8"/>
+    <text class="t-title" x="414" y="192" style="font-size:12.5px">A question appears</text>
+    <text class="t-sub" x="414" y="209">first person to answer wins;</text>
+    <text class="t-sub" x="414" y="222">the others see it is answered</text>
+    <rect class="t-box" x="400" y="244" width="200" height="44" rx="8"/>
+    <text class="t-title" x="414" y="264" style="font-size:12.5px">One phone alert topic</text>
+    <text class="t-sub" x="414" y="280">for the hub, set by the owner</text>
+    <text class="t-lab warp" x="400" y="318">Projects separate task boards;</text>
+    <text class="t-lab warp" x="400" y="332">people are not split by project.</text>
+
+    <text class="t-lab weft" x="760" y="28">MACHINES · anyone's, once joined</text>
+    <rect class="t-dev" x="760" y="42" width="220" height="86" rx="10"/>
+    <text class="t-title" x="776" y="68">Personal laptops</text>
+    <text class="t-sub" x="776" y="87">each person joins their own,</text>
+    <text class="t-sub" x="776" y="102">with their own agent logins</text>
+    <rect class="t-dev" x="760" y="148" width="220" height="86" rx="10"/>
+    <text class="t-title" x="776" y="174">Shared build machine</text>
+    <text class="t-sub" x="776" y="193">fast box with the big repo,</text>
+    <text class="t-sub" x="776" y="208">tests and licences</text>
+    <rect class="t-dev" x="760" y="254" width="220" height="88" rx="10"/>
+    <text class="t-title" x="776" y="280">Local-model box</text>
+    <text class="t-sub" x="776" y="299">for confidential jobs that</text>
+    <text class="t-sub" x="776" y="314">must not reach a cloud model</text>
+    <text class="t-lab weft" x="760" y="362">Machines call out to the hub;</text>
+    <text class="t-lab weft" x="760" y="378">no inbound ports.</text>
+
+    <path class="edge human" marker-end="url(#tah)" marker-start="url(#tah)" d="M240 79 C310 79 310 100 380 100"/>
+    <path class="edge human" marker-end="url(#tah)" marker-start="url(#tah)" d="M240 173 H380"/>
+    <path class="edge human" marker-end="url(#tah)" marker-start="url(#tah)" d="M240 267 C310 267 310 240 380 240" style="stroke-dasharray:5 4"/>
+    <path class="edge weft" marker-end="url(#taw)" d="M760 85 C690 85 690 100 620 100"/>
+    <path class="edge weft" marker-end="url(#taw)" d="M760 191 H620"/>
+    <path class="edge weft" marker-end="url(#taw)" d="M760 298 C690 298 690 260 620 260"/>
+  </svg>
+  </div>
+
+  <h3>Who can do what</h3>
+  <div class="tablewrap"><table class="perm">
+    <thead><tr><th>Action</th><th>Owner</th><th>Member</th><th>Viewer</th></tr></thead>
+    <tbody>
+      <tr><td>See jobs, tasks, inbox, activity</td><td class="yes">yes</td><td class="yes">yes</td><td class="yes">yes</td></tr>
+      <tr><td>Start and close jobs</td><td class="yes">yes</td><td class="yes">yes</td><td class="no">no</td></tr>
+      <tr><td>Answer an agent's question</td><td class="yes">yes</td><td class="yes">yes</td><td class="no">no</td></tr>
+      <tr><td>Accept or reject submitted work</td><td class="yes">yes</td><td class="yes">yes</td><td class="no">no</td></tr>
+      <tr><td>Start an agent by hand</td><td class="yes">yes</td><td class="yes">yes</td><td class="no">no</td></tr>
+      <tr><td>Create and edit profiles</td><td class="yes">yes</td><td class="no">no</td><td class="no">no</td></tr>
+      <tr><td>Add or revoke machines</td><td class="yes">yes</td><td class="no">no</td><td class="no">no</td></tr>
+      <tr><td>Invite people, change roles, set alerts</td><td class="yes">yes</td><td class="no">no</td><td class="no">no</td></tr>
+    </tbody>
+  </table></div>
+  <p class="fine">Agents are not people: they can never start or close a job, answer a question or change a profile, whoever started them.</p>
+
+  <h3>A day in a team</h3>
+  <div class="story"><ol>
+    <li><span class="who o">Owner</span> sets up the hub, joins the build machine, writes a "lead" and a "coder" profile, and invites two colleagues and the product manager.</li>
+    <li><span class="who m">Member</span> opens <b>New job</b> late in the afternoon: "Add CSV export to reports", build machine, the repo path, <code>go test ./...</code> as the check, lead profile. Then goes home.</li>
+    <li><span class="who a">Lead</span> plans three tasks and starts two coders. They work in their own copies. The build machine checks every submission.</li>
+    <li><span class="who a">Lead</span> asks "Should exports include archived reports?" It lands in everyone's inbox and the owner's phone.</li>
+    <li><span class="who m">A second member</span> answers it from the train. The first member's inbox now shows it as answered.</li>
+    <li><span class="who v">Viewer</span> opens the job page in the morning: three tasks done, each with its passing check, no questions open.</li>
+    <li><span class="who m">First member</span> reviews the work, closes the job, and merges <code>job/&lt;id&gt;/integration</code> into their own branch.</li>
+  </ol></div>
+
+  <h3>Ways to organise it</h3>
+  <div class="note-row">
+    <div class="note"><b>One team, one hub</b><p>The default. Everyone shares the inbox and the machines. Good for a team that trusts each other with the same repositories.</p></div>
+    <div class="note"><b>A separate hub per trust boundary</b><p>Only when a contract says client data must not share a system. Hubs share nothing, so nothing can leak across, but a machine joins one hub per Handloom home, so shared machines need extra setup. Most teams do not need this: separate clients by job, repository and knowledge repository.</p></div>
+    <div class="note"><b>Just you, several machines</b><p>The same product with one person: laptop, desktop and a server, one inbox on your phone.</p></div>
+  </div>
+
+  <div class="limits">
+    <h3>What a team should know today</h3>
+    <ul>
+      <li>There is no per-person or per-team isolation inside one hub. Every signed-in person sees every job, and every member can start a job on any joined machine. The profile is the limit: it decides what the agent may do, and only the owner can write profiles.</li>
+      <li>A machine belongs to the hub, not to a person. Agents on a personal laptop use that laptop's own CLI logins.</li>
+      <li>There is one alert topic for the whole hub, not one per person.</li>
+      <li>The audit log records which person started, answered or closed things.</li>
+    </ul>
+  </div>
+</section>
+
+<section class="sec" aria-labelledby="know">
+  <div class="eyebrow">8 · Clients and knowledge</div>
+  <h2 id="know">A shared record of each client, kept up to date by review</h2>
+  <p class="lede">Each client gets one knowledge repository: markdown notes in git that link to each other with <code>[[links]]</code>. Agents read it before they work. What they learn comes back as a proposal, and only a person merges it. The hub never holds the notes, only a count.</p>
+  <div class="pipe">
+    <div class="p"><span class="by">you</span><h3>1 · Keep a repository per client</h3><p>Plain markdown in git, on a machine that joined the hub. Edit it by hand, in Obsidian, or both.</p></div>
+    <div class="p"><span class="by">job</span><h3>2 · Name it on the job</h3><p><b>New job</b> takes a knowledge repository path. Every agent in the job gets a checkout of it at <code>.handloom/knowledge/</code>.</p></div>
+    <div class="p link"><span class="by">device</span><h3>3 · Agents read it</h3><p>Lead and workers are told to read it first. Cloud models never get the <code>confidential/</code> folder; local models do.</p></div>
+    <div class="p link"><span class="by">device</span><h3>4 · Notes become proposals</h3><p>Anything an agent adds there is gathered onto a branch <code>job/&lt;id&gt;</code> of the knowledge repository when work is accepted and when the job closes. The main branch is never touched.</p></div>
+    <div class="p human"><span class="by">you</span><h3>5 · You merge what you accept</h3><p>The job page counts the proposed notes and shows the two git commands to review and merge them. Nothing becomes "known" without a person.</p></div>
+    <div class="p later"><span class="by">later</span><h3>6 · A librarian keeps it tidy</h3><p>A scheduled job that finds stale, duplicate or contradicting notes and orphans, and proposes cleanups for review. Needs schedules.</p></div>
+  </div>
+  <pre class="tree"><b>acme-knowledge/</b>                 <i># one repository per client, owned by you</i>
+  clients/acme.md                <i># "Invoice prefix: ACM. Billing contact: Dana. See [[contract-terms]]"</i>
+  decisions/2026-10-invoice-ids.md
+  <b>confidential/</b>                  <i># local-model agents only; never checked out for a cloud model</i>
+    contract-terms.md
+<i>branch</i> <b>job/12</b>                    <i># what job 12's agents proposed; you review it, then merge it</i></pre>
+  <div class="note-row">
+    <div class="note"><b>Continuing a project</b><p>A job points at an existing repository and starts from its latest commit. To build on unmerged work, give the job a <b>base branch</b>, such as <code>job/12/integration</code>. The repo's own <code>CLAUDE.md</code> / <code>AGENTS.md</code> comes along. The client's history lives in the knowledge repository, not in any one job.</p></div>
+    <div class="note"><b>One hub or several?</b><p>Default: one hub for the team, one repository and one knowledge repository per client. Split a client onto its own hub only when a contract demands it.</p></div>
+    <div class="note"><b>What the hub sees</b><p>The path of the knowledge repository and a count of proposed notes. Not the notes, not their file names. Backups of the hub do not contain client knowledge; back up the repositories with git.</p></div>
+  </div>
+</section>
+
+<section class="sec" aria-labelledby="feat">
+  <div class="eyebrow">9 · Features</div>
+  <h2 id="feat">What exists today, and what is next</h2>
+  <div class="feat">
+    <div class="f"><div class="top"><h3>Jobs with a lead</h3><span class="pill ok">shipped</span></div><p>Each job has its own lead and team. Repository, check command and device are set per job.</p></div>
+    <div class="f"><div class="top"><h3>Profiles</h3><span class="pill ok">shipped</span></div><p>Persona, tools, denied commands, skills and write scope in one versioned folder. Edit in the web UI.</p></div>
+    <div class="f"><div class="top"><h3>Spawn agents</h3><span class="pill ok">shipped</span></div><p>Start an agent in a tmux window on any device, from the web or a lead's command.</p></div>
+    <div class="f"><div class="top"><h3>Worktrees</h3><span class="pill ok">shipped</span></div><p>Every agent gets its own copy and branch, so they cannot trip over each other.</p></div>
+    <div class="f"><div class="top"><h3>Scope check</h3><span class="pill ok">shipped</span></div><p>Out-of-scope edits are refused before the hub hears about them.</p></div>
+    <div class="f"><div class="top"><h3>Device verification</h3><span class="pill ok">shipped</span></div><p>The job's check runs after each submit. A lead cannot accept failed work.</p></div>
+    <div class="f"><div class="top"><h3>Merge to integration</h3><span class="pill ok">shipped</span></div><p>Accepted work is merged and re-checked. Conflicts and failures go back to the lead.</p></div>
+    <div class="f"><div class="top"><h3>Web inbox</h3><span class="pill ok">shipped</span></div><p>Questions, work to review, jobs done, lost leads. Updates live, works on a phone.</p></div>
+    <div class="f"><div class="top"><h3>Supervisor</h3><span class="pill ok">shipped</span></div><p>Leases mark silent agents offline. A lost lead becomes an inbox item with a Resume button.</p></div>
+    <div class="f"><div class="top"><h3>Multiple runtimes</h3><span class="pill part">tested: Claude, Codex</span></div><p>Pi, OMP and OpenCode adapters exist; they have had less real-world running.</p></div>
+    <div class="f"><div class="top"><h3>Phone push</h3><span class="pill part">built, not tested</span></div><p>Next up: try it against a real ntfy topic.</p></div>
+    <div class="f"><div class="top"><h3>Deploy anywhere</h3><span class="pill ok">shipped</span></div><p>Distroless image and a compose file. Runs on Dokploy or any VPS with Docker.</p></div>
+    <div class="f"><div class="top"><h3>Client knowledge</h3><span class="pill ok">shipped</span></div><p>A git repository per client, read by every agent; their notes come back as a branch you merge.</p></div>
+    <div class="f"><div class="top"><h3>Base branch</h3><span class="pill ok">shipped</span></div><p>Start a job from any branch, so follow-up work builds on the last job.</p></div>
+    <div class="f"><div class="top"><h3>Librarian</h3><span class="pill next">next</span></div><p>A scheduled job that keeps each client's notes current and consistent, for review.</p></div>
+    <div class="f"><div class="top"><h3>Schedules</h3><span class="pill next">next</span></div><p>Cron-style jobs that start on a timer.</p></div>
+    <div class="f"><div class="top"><h3>Cross-worker visibility</h3><span class="pill next">later</span></div><p>Today a worker sees another's files only by merging the integration branch.</p></div>
+  </div>
+</section>
+
+<footer>This page lives in the repository as <code>docs/overview.html</code>; open it in a browser. The check command is written by a human and trusted from the hub. Per-device approval of profile hashes is not built yet.</footer>
+</div>
+</body>
+</html>

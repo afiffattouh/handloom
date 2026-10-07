@@ -518,6 +518,9 @@ func jobLine(j api.Job) string {
 	if j.Repo != "" {
 		repo = " [repo " + j.Repo + " on " + j.Device + "]"
 	}
+	if j.Knowledge != "" {
+		repo += fmt.Sprintf(" [knowledge %s, %d proposed notes on its branch job/%d]", j.Knowledge, j.Notes, j.ID)
+	}
 	return fmt.Sprintf("job #%-3d %-9s %s%s%s  (lead: %s; tasks: %d open, %d claimed, %d submitted, %d done)",
 		j.ID, j.Status, j.Title, conf, repo, lead, n.Open, n.Claimed, n.Submitted, n.Done)
 }
@@ -532,6 +535,8 @@ func (e *env) job(args []string) error {
 	lead := fs.String("lead", "", "agent that leads the job")
 	conf := fs.Bool("confidential", false, "the job handles confidential material (needs a hub that allows it)")
 	repo := fs.String("repo", "", "new: a git repository on the device; every agent of the job gets its own worktree of it")
+	knowledge := fs.String("knowledge", "", "job new: a git repository on the device with what is known about the client")
+	base := fs.String("base", "", "job new: the branch of the repository the agents start from (default: its current commit)")
 	verify := fs.String("verify", "", "new: a command the device runs in an agent's worktree after it submits (needs --repo)")
 	device := fs.String("device", "", "new: the device the repository is on, and where the lead starts")
 	leadProfile := fs.String("lead-profile", "", "new: start the job's lead from this profile")
@@ -559,11 +564,11 @@ func (e *env) job(args []string) error {
 	switch sub {
 	case "new":
 		if len(pos) == 0 {
-			return usageErr("usage: handloom job new <title> [--body B] [--lead AGENT | --lead-profile P] [--repo PATH --verify CMD --device D] [--confidential]")
+			return usageErr("usage: handloom job new <title> [--body B] [--lead AGENT | --lead-profile P] [--repo PATH [--base BRANCH] --verify CMD --device D] [--knowledge PATH] [--confidential]")
 		}
 		var j api.Job
 		if err := c.Post("/v1/jobs", api.JobNewReq{Title: strings.Join(pos, " "), Body: *body, Lead: *lead, Confidential: *conf, Project: *project,
-			Repo: *repo, Verify: *verify, Device: *device, LeadProfile: *leadProfile, LeadName: *leadName}, &j); err != nil {
+			Repo: *repo, Verify: *verify, Knowledge: *knowledge, Base: *base, Device: *device, LeadProfile: *leadProfile, LeadName: *leadName}, &j); err != nil {
 			return err
 		}
 		e.print(j, func() {

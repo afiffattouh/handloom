@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"path"
+	"regexp"
 	"strings"
 
 	"handloom/internal/api"
@@ -54,9 +55,14 @@ func (c *call) jobView(t *taskRow) (api.Job, error) {
 		return api.Job{}, err
 	}
 	j := api.Job{ID: t.id, Project: t.project, Title: t.title, Body: t.body, Status: t.status,
-		Confidential: t.confidential, Repo: t.repo, Verify: t.verify, CreatedBy: t.createdBy, CreatedAt: store.Time(t.created), Tasks: counts}
+		Confidential: t.confidential, Repo: t.repo, Verify: t.verify, Knowledge: t.knowledge, Base: t.base, CreatedBy: t.createdBy, CreatedAt: store.Time(t.created), Tasks: counts}
 	if t.deviceID.Valid {
 		c.tx.QueryRow(`SELECT name FROM device WHERE id = ?`, t.deviceID.Int64).Scan(&j.Device)
+	}
+	if t.knowledge != "" {
+		c.tx.QueryRow(`SELECT COALESCE(SUM(notes), 0) FROM kcollect WHERE job_id = ? AND status = 'done'`, t.id).Scan(&j.Notes)
+		// The latest problem of an agent whose notes could not be put on the branch.
+		c.tx.QueryRow(`SELECT detail FROM kcollect WHERE job_id = ? AND status IN ('conflict', 'failed') ORDER BY id DESC LIMIT 1`, t.id).Scan(&j.NotesProblem)
 	}
 	if lead != nil {
 		j.Lead = lead.name
@@ -121,8 +127,11 @@ func (c *call) createJob(req api.JobNewReq) (any, error) {
 	if err := checkRepoSpec(req.Repo, req.Verify); err != nil {
 		return nil, err
 	}
+	if err := checkKnowledgeSpec(req.Knowledge, req.Base, req.Repo); err != nil {
+		return nil, err
+	}
 	var deviceID sql.NullInt64
-	if req.Repo != "" || req.LeadProfile != "" {
+	if req.Repo != "" || req.Knowledge != "" || req.LeadProfile != "" {
 		d, err := c.spawnDevice(req.Device)
 		if err != nil {
 			return nil, err
@@ -139,13 +148,13 @@ func (c *call) createJob(req api.JobNewReq) (any, error) {
 		}
 	}
 	ms := store.Millis(c.now)
-	res, err := c.tx.Exec(`INSERT INTO task(project_id, title, body, status, kind, depends_on, created_by, created_at, updated_at, confidential, repo, verify, device_id)
-		VALUES (?, ?, ?, 'open', 'job', '[]', ?, ?, ?, ?, ?, ?, ?)`, projectID, req.Title, req.Body, c.p.actor(), ms, ms, req.Confidential, req.Repo, req.Verify, nullAny(deviceID))
+	res, err := c.tx.Exec(`INSERT INTO task(project_id, title, body, status, kind, depends_on, created_by, created_at, updated_at, confidential, repo, verify, device_id, knowledge, base)
+		VALUES (?, ?, ?, 'open', 'job', '[]', ?, ?, ?, ?, ?, ?, ?, ?, ?)`, projectID, req.Title, req.Body, c.p.actor(), ms, ms, req.Confidential, req.Repo, req.Verify, nullAny(deviceID), req.Knowledge, req.Base)
 	if err != nil {
 		return nil, err
 	}
 	id, _ := res.LastInsertId()
-	if err := c.record(projectID, 0, "job.new", fmt.Sprintf("job:%d", id), map[string]any{"title": req.Title, "lead": req.Lead, "confidential": req.Confidential, "repo": req.Repo, "verify": req.Verify, "lead_profile": req.LeadProfile}); err != nil {
+	if err := c.record(projectID, 0, "job.new", fmt.Sprintf("job:%d", id), map[string]any{"title": req.Title, "lead": req.Lead, "confidential": req.Confidential, "repo": req.Repo, "verify": req.Verify, "knowledge": req.Knowledge, "base": req.Base, "lead_profile": req.LeadProfile}); err != nil {
 		return nil, err
 	}
 	if req.LeadProfile != "" {
@@ -282,6 +291,9 @@ func (c *call) closeJob(id int64, cancel bool) (any, error) {
 	if err := c.record(t.projectID, 0, "job.close", fmt.Sprintf("job:%d", t.id), map[string]any{"status": status}); err != nil {
 		return nil, err
 	}
+	if err := c.queueCollectAll(t.id); err != nil {
+		return nil, err
+	}
 	t, err = c.task(t.id)
 	if err != nil {
 		return nil, err
@@ -349,3 +361,25 @@ func checkRepoSpec(repo, verify string) error {
 	}
 	return nil
 }
+
+// checkKnowledgeSpec validates the knowledge repository path and the base
+// branch of a job. The base is passed to git as a revision, so it is kept to
+// plain branch-name characters.
+func checkKnowledgeSpec(knowledge, base, repo string) error {
+	if knowledge != "" {
+		if len(knowledge) > 400 || !strings.HasPrefix(knowledge, "/") || path.Clean(knowledge) != knowledge || strings.ContainsAny(knowledge, "\x00\n\r") {
+			return badRequest("the knowledge repository must be an absolute path on the device, like /home/me/clients/acme (no .. or trailing slash)")
+		}
+	}
+	if base != "" {
+		if repo == "" {
+			return badRequest("a base branch needs a repository")
+		}
+		if len(base) > 200 || strings.HasPrefix(base, "-") || strings.HasPrefix(base, "/") || strings.Contains(base, "..") || !baseRE.MatchString(base) {
+			return badRequest("the base must be a branch name such as main or job/3/integration")
+		}
+	}
+	return nil
+}
+
+var baseRE = regexp.MustCompile(`^[A-Za-z0-9._/-]+$`)

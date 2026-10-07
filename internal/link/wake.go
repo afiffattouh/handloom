@@ -110,6 +110,7 @@ func (l *Link) runLadder(ctx context.Context) {
 	}
 	l.runSpawns(ctx)
 	l.runMerges(ctx)
+	l.runCollects(ctx)
 }
 
 // vouch tells the hub that an agent's terminal still exists, so the hub can

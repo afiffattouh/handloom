@@ -11,6 +11,7 @@ import (
 
 	"handloom/internal/api"
 	"handloom/internal/client"
+	"handloom/internal/profile"
 )
 
 // The link starts spawned agents in a tmux server of its own (tmux -L
@@ -101,7 +102,19 @@ func (l *Link) launch(ctx context.Context, s api.Spawn) error {
 		if err := l.worktree(ctx, s, dir); err != nil {
 			return err
 		}
-		if err := l.recordScope(ctx, s, dir); err != nil {
+	}
+	kbase := ""
+	if s.Knowledge != "" {
+		runtime, err := l.profileRuntime(ctx, s)
+		if err != nil {
+			return err
+		}
+		if kbase, err = l.mountKnowledge(ctx, s, dir, runtime); err != nil {
+			return err
+		}
+	}
+	if s.Repo != "" || s.Knowledge != "" {
+		if err := l.recordScope(ctx, s, dir, kbase); err != nil {
 			return err
 		}
 	}
@@ -142,10 +155,30 @@ func (l *Link) worktree(ctx context.Context, s api.Spawn, dir string) error {
 		l.opt.Log.Printf("spawn %d: the repository %s has uncommitted changes; the worktree starts from its last commit", s.ID, s.Repo)
 	}
 	branch := fmt.Sprintf("job/%d/%s", *s.Job, s.Name)
-	if _, err := git("worktree", "add", "-b", branch, dir, "HEAD"); err != nil {
+	start := "HEAD"
+	if s.Base != "" {
+		if _, err := git("rev-parse", "--verify", "-q", s.Base+"^{commit}"); err != nil {
+			return fmt.Errorf("the base branch %q does not exist in %s", s.Base, s.Repo)
+		}
+		start = s.Base
+	}
+	if _, err := git("worktree", "add", "-b", branch, dir, start); err != nil {
 		if _, err2 := git("worktree", "add", dir, branch); err2 != nil {
 			return fmt.Errorf("could not make a worktree for %s: %v", s.Name, err)
 		}
 	}
 	return nil
+}
+
+// profileRuntime is whether the agent's profile runs on a model on this
+// machine ("local") or on a cloud model. An agent without a profile counts as cloud.
+func (l *Link) profileRuntime(ctx context.Context, s api.Spawn) (string, error) {
+	if s.Profile == "" {
+		return profile.Cloud, nil
+	}
+	var p api.ProfileFull
+	if err := l.hub.Do(ctx, "GET", fmt.Sprintf("/v1/device/spawns/%d/profile", s.ID), nil, &p); err != nil {
+		return "", fmt.Errorf("profile %s: %w", s.Profile, err)
+	}
+	return p.Spec.Runtime, nil
 }

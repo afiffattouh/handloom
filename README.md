@@ -4,7 +4,7 @@
 
 Handloom runs jobs made of coding agents on your own machines. You describe a job; a lead agent plans it and starts workers; each worker gets its own copy of the repository; the machine that holds the files checks the work; you review and close. One hub keeps the record, and every machine only calls out to it.
 
-See `docs/` for the design, [DECISIONS.md](DECISIONS.md) for choices and evidence, and [docs/deploy.md](docs/deploy.md) for deployment details.
+See [docs/overview.html](docs/overview.html) for the whole picture on one page (topology, architecture, flow, setup, teams, client knowledge; open it in a browser), `docs/` for the design, [DECISIONS.md](DECISIONS.md) for choices and evidence, and [docs/deploy.md](docs/deploy.md) for deployment details.
 
 ## Quick start
 

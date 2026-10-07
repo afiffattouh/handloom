@@ -4,6 +4,8 @@
 <p class="muted">{{.Job.Status}} · lead: {{if .Job.Lead}}{{.Job.Lead}}{{else}}none{{end}}{{if .Job.Repo}} · repository {{.Job.Repo}} on {{.Job.Device}}{{end}}{{if .Job.Confidential}} · confidential{{end}}</p>
 {{if .Body}}<pre class="cmd">{{.Body}}</pre>{{end}}
 {{if .Job.Repo}}<p class="muted">Accepted work is merged into the branch <code>job/{{.Job.ID}}/integration</code> in the repository (checked again after each merge); nothing is merged into your own branches.</p>{{end}}
+{{if .Job.Base}}<p class="muted">Agents start from the branch <code>{{.Job.Base}}</code>.</p>{{end}}
+{{if .Job.Knowledge}}<p class="muted">Client knowledge: <code>{{.Job.Knowledge}}</code> on {{.Job.Device}}. Agents read it. {{if .Job.Notes}}<strong>{{.Job.Notes}} proposed note{{if ne .Job.Notes 1}}s{{end}}</strong> are on the branch <code>job/{{.Job.ID}}</code> of that repository: look at them with <code>git -C {{.Job.Knowledge}} diff HEAD...job/{{.Job.ID}}</code> and merge what you accept with <code>git -C {{.Job.Knowledge}} merge job/{{.Job.ID}}</code>.{{else}}Proposed notes will appear on the branch <code>job/{{.Job.ID}}</code> of it; you merge them yourself.{{end}}{{if .Job.NotesProblem}} <span class="check-result bad">Problem: {{.Job.NotesProblem}}</span>{{end}}</p>{{end}}
 {{if .Job.Verify}}<p class="muted">Checked by the device after each submit: <code>{{.Job.Verify}}</code></p>{{end}}
 
 {{if .Ready}}

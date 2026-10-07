@@ -143,6 +143,25 @@ func (c *call) digest() (*api.Digest, error) {
 	}
 	mrows.Close()
 
+	// Proposed notes that could not be put on the job's branch.
+	krows, err := c.tx.Query(`SELECT k.job_id, j.title, k.agent, k.status, k.detail FROM kcollect k JOIN task j ON j.id = k.job_id
+		WHERE j.status = 'open' AND k.status IN ('conflict', 'failed') `+jscope+`
+		AND k.id = (SELECT max(k2.id) FROM kcollect k2 WHERE k2.job_id = k.job_id AND k2.agent = k.agent)`, jex...)
+	if err != nil {
+		return nil, err
+	}
+	for krows.Next() {
+		var id int64
+		var title, agent, status, detail string
+		if err := krows.Scan(&id, &title, &agent, &status, &detail); err != nil {
+			krows.Close()
+			return nil, err
+		}
+		d.NeedsYou = append(d.NeedsYou, api.DigestItem{Kind: "notes-" + status, ID: id, Title: title,
+			Detail: agent + "'s proposed notes could not be put on the knowledge branch: " + detail, At: c.now})
+	}
+	krows.Close()
+
 	// Agents, and a silent lead.
 	extra, ex = scope("a")
 	agents, err := c.agents(`WHERE 1 = 1 `+extra, ex...)

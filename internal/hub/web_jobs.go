@@ -81,7 +81,7 @@ func (h *Hub) webJobCreate(q *webReq) error {
 	}
 	f := q.r.PostForm
 	req := api.JobNewReq{Title: strings.TrimSpace(f.Get("title")), Body: strings.TrimSpace(strings.ReplaceAll(f.Get("body"), "\r\n", "\n")),
-		Repo: strings.TrimSpace(f.Get("repo")), Verify: strings.TrimSpace(f.Get("verify")), Device: f.Get("device"),
+		Repo: strings.TrimSpace(f.Get("repo")), Verify: strings.TrimSpace(f.Get("verify")), Knowledge: strings.TrimSpace(f.Get("knowledge")), Base: strings.TrimSpace(f.Get("base")), Device: f.Get("device"),
 		LeadProfile: f.Get("lead_profile"), Confidential: f.Get("confidential") == "1"}
 	res, err := q.c.createJob(req)
 	if err != nil {

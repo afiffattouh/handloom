@@ -37,11 +37,12 @@ type spawnRow struct {
 	profileVersion          int
 	profileHash             string
 	role, repo              string
+	knowledge, base         string
 }
 
 func (s *spawnRow) api() api.Spawn {
 	return api.Spawn{ID: s.id, Name: s.name, Kind: s.kind, Model: s.model, Device: s.device, Job: nullInt(s.job),
-		Project: s.project, Role: s.role, Repo: s.repo, Verify: s.verify, Profile: profileRef(s.profileName, s.profileVersion), Status: s.status, Pane: s.pane, Error: s.errText, CreatedBy: s.createdBy, CreatedAt: store.Time(s.created)}
+		Project: s.project, Role: s.role, Repo: s.repo, Knowledge: s.knowledge, Base: s.base, Verify: s.verify, Profile: profileRef(s.profileName, s.profileVersion), Status: s.status, Pane: s.pane, Error: s.errText, CreatedBy: s.createdBy, CreatedAt: store.Time(s.created)}
 }
 
 func profileRef(name string, version int) string {
@@ -53,13 +54,13 @@ func profileRef(name string, version int) string {
 
 const spawnSelect = `SELECT s.id, s.project_id, s.device_id, s.job_id, s.name, s.kind, s.model, s.status, s.pane, s.error,
 	s.created_by, s.created_at, s.updated_at, d.name, p.name, s.profile_name, s.profile_version, s.profile_hash, s.role, s.repo,
-	COALESCE((SELECT t.verify FROM task t WHERE t.id = s.job_id), '') FROM spawn s JOIN device d ON d.id = s.device_id
+	COALESCE((SELECT t.verify FROM task t WHERE t.id = s.job_id), ''), s.knowledge, s.base FROM spawn s JOIN device d ON d.id = s.device_id
 	JOIN project p ON p.id = s.project_id `
 
 func scanSpawn(s scanner) (*spawnRow, error) {
 	r := &spawnRow{}
 	err := s.Scan(&r.id, &r.projectID, &r.deviceID, &r.job, &r.name, &r.kind, &r.model, &r.status, &r.pane, &r.errText,
-		&r.createdBy, &r.created, &r.updated, &r.device, &r.project, &r.profileName, &r.profileVersion, &r.profileHash, &r.role, &r.repo, &r.verify)
+		&r.createdBy, &r.created, &r.updated, &r.device, &r.project, &r.profileName, &r.profileVersion, &r.profileHash, &r.role, &r.repo, &r.verify, &r.knowledge, &r.base)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -209,13 +210,13 @@ func (c *call) spawnFromRequest(req api.SpawnReq) (any, error) {
 	if req.Role == api.RoleLead && !job.Valid {
 		return nil, badRequest("a lead leads a job: name one")
 	}
-	repo := ""
+	repo, knowledge, base := "", "", ""
 	if job.Valid {
 		jt, err := c.task(job.Int64)
 		if err != nil {
 			return nil, err
 		}
-		repo = jt.repo
+		repo, knowledge, base = jt.repo, jt.knowledge, jt.base
 		if jt.deviceID.Valid && jt.deviceID.Int64 != deviceID {
 			return nil, conflict("job %d lives on another device (its repository is there)", jt.id)
 		}
@@ -257,8 +258,8 @@ func (c *call) spawnFromRequest(req api.SpawnReq) (any, error) {
 	if prof != nil {
 		pn, pv, ph = prof.name, prof.version, prof.hash
 	}
-	res, err := c.tx.Exec(`INSERT INTO spawn(project_id, device_id, job_id, name, kind, model, status, created_by, created_at, updated_at, profile_name, profile_version, profile_hash, role, repo)
-		VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?)`, projectID, deviceID, nullAny(job), req.Name, req.Kind, req.Model, c.p.actor(), ms, ms, pn, pv, ph, req.Role, repo)
+	res, err := c.tx.Exec(`INSERT INTO spawn(project_id, device_id, job_id, name, kind, model, status, created_by, created_at, updated_at, profile_name, profile_version, profile_hash, role, repo, knowledge, base)
+		VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, projectID, deviceID, nullAny(job), req.Name, req.Kind, req.Model, c.p.actor(), ms, ms, pn, pv, ph, req.Role, repo, knowledge, base)
 	if err != nil {
 		return nil, conflict("%q is already being started", req.Name)
 	}

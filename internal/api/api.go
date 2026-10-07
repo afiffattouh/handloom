@@ -310,6 +310,10 @@ type Job struct {
 	Repo         string    `json:"repo,omitempty"`   // a git repository on Device; each agent of the job works in its own worktree of it
 	Verify       string    `json:"verify,omitempty"` // a command the device runs in an agent's worktree after it submits
 	Device       string    `json:"device,omitempty"`
+	Knowledge    string    `json:"knowledge,omitempty"` // a git repository on Device with what is known about the client; agents read it, and what they add is proposed on the branch job/<id> of it
+	Base         string    `json:"base,omitempty"`      // the branch of Repo the job's worktrees start from (default: its current commit)
+	Notes        int       `json:"notes,omitempty"`     // notes proposed so far on that branch
+	NotesProblem string    `json:"notes_problem,omitempty"`
 	CreatedBy    string    `json:"created_by"`
 	CreatedAt    time.Time `json:"created_at"`
 	Tasks        JobCounts `json:"tasks"`
@@ -331,6 +335,8 @@ type JobNewReq struct {
 	Project      string `json:"project,omitempty"`
 	Repo         string `json:"repo,omitempty"`
 	Verify       string `json:"verify,omitempty"`
+	Knowledge    string `json:"knowledge,omitempty"`    // a git repository on the device with what is known about the client
+	Base         string `json:"base,omitempty"`         // a branch of Repo to start the worktrees from
 	Device       string `json:"device,omitempty"`       // where the repo is, and where the lead starts
 	LeadProfile  string `json:"lead_profile,omitempty"` // start the job's lead from this profile (instead of naming an existing agent)
 	LeadName     string `json:"lead_name,omitempty"`    // default lead-<job id>
@@ -353,8 +359,10 @@ type Spawn struct {
 	Device    string    `json:"device"`
 	Project   string    `json:"project"`
 	Job       *int64    `json:"job,omitempty"`
-	Role      string    `json:"role,omitempty"`    // worker, or lead for the job's own lead
-	Repo      string    `json:"repo,omitempty"`    // the repository its work directory is a worktree of
+	Role      string    `json:"role,omitempty"` // worker, or lead for the job's own lead
+	Repo      string    `json:"repo,omitempty"` // the repository its work directory is a worktree of
+	Knowledge string    `json:"knowledge,omitempty"`
+	Base      string    `json:"base,omitempty"`
 	Verify    string    `json:"verify,omitempty"`  // the job's verify command, which the device runs after this agent submits
 	Profile   string    `json:"profile,omitempty"` // name@version it is pinned to
 	Status    string    `json:"status"`            // pending | launching | started | failed
@@ -497,4 +505,18 @@ type WhoAmI struct {
 	Name   string `json:"name,omitempty"`
 	Device string `json:"device,omitempty"`
 	Agent  *Agent `json:"agent,omitempty"`
+}
+
+// PendingCollect is one gathering of an agent's proposed notes a device has been asked to do.
+type PendingCollect struct {
+	ID    int64  `json:"id"`
+	Job   int64  `json:"job"`
+	Agent string `json:"agent"`
+}
+
+// CollectReport is the device's account of one: how many notes it put on the job's branch.
+type CollectReport struct {
+	Status string `json:"status"` // done | conflict | failed
+	Notes  int    `json:"notes"`
+	Detail string `json:"detail,omitempty"`
 }

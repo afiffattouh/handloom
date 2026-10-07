@@ -33,6 +33,7 @@ type taskRow struct {
 	repo, verify     string
 	deviceID         sql.NullInt64
 	jobVerify        string // the verify command of the job this task belongs to
+	knowledge, base  string // of a job
 	check            *api.TaskCheck
 }
 
@@ -60,6 +61,7 @@ const taskSelect = `SELECT t.id, t.project_id, t.title, t.body, t.status, t.owne
 	t.lease_expires_at, t.depends_on, t.evidence, t.note, t.blocked_reason, t.reject_reason, t.created_by,
 	t.created_at, t.updated_at, p.name, COALESCE(o.name, ''), COALESCE(s.name, ''),
 	t.kind, t.job_id, t.parent_id, t.confidential, t.repo, t.verify, t.device_id,
+	t.knowledge, t.base,
 	COALESCE((SELECT j.verify FROM task j WHERE j.id = t.job_id), ''),
 	ck.agent, ck.command, ck.exit_code, ck.timed_out, ck.tail, ck.sha256, ck.at, cd.name
 	FROM task t LEFT JOIN task_check ck ON ck.task_id = t.id LEFT JOIN device cd ON cd.id = ck.device_id JOIN project p ON p.id = t.project_id
@@ -72,7 +74,7 @@ func scanTask(s scanner) (*taskRow, error) {
 	var ckExit, ckTimed, ckAt sql.NullInt64
 	err := s.Scan(&t.id, &t.projectID, &t.title, &t.body, &t.status, &t.owner, &t.assigned, &t.lease,
 		&deps, &evidence, &t.note, &t.blocked, &t.reject, &t.createdBy, &t.created, &t.updated,
-		&t.project, &t.ownerName, &t.assignedName, &t.kind, &t.jobID, &t.parentID, &t.confidential, &t.repo, &t.verify, &t.deviceID, &t.jobVerify,
+		&t.project, &t.ownerName, &t.assignedName, &t.kind, &t.jobID, &t.parentID, &t.confidential, &t.repo, &t.verify, &t.deviceID, &t.knowledge, &t.base, &t.jobVerify,
 		&ckAgent, &ckCmd, &ckExit, &ckTimed, &ckTail, &ckSHA, &ckAt, &ckDev)
 	if err != nil {
 		return nil, err
@@ -467,6 +469,9 @@ func taskAccept(c *call) (any, error) {
 		return nil, err
 	}
 	if err := c.queueMerge(t); err != nil {
+		return nil, err
+	}
+	if err := c.queueCollectAfterAccept(t, t.ownerName); err != nil {
 		return nil, err
 	}
 	// Tell assignees of tasks that this one was holding back.

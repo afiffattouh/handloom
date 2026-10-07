@@ -36,6 +36,9 @@ type scopeRecord struct {
 	// keeps the repository's .git read-only), so the link commits what it
 	// changed when it submits.
 	Autocommit bool `json:"autocommit,omitempty"`
+	// Knowledge: the repository whose checkout the agent has at .handloom/knowledge, and the commit it started at.
+	Knowledge string `json:"knowledge,omitempty"`
+	KBase     string `json:"kbase,omitempty"`
 }
 
 func (l *Link) scopeFile(agent string) string {
@@ -67,7 +70,7 @@ func (l *Link) loadScope(agent string) *scopeRecord {
 
 // recordScope is called when the link has made a worktree for a spawn. The
 // patterns come from the profile version the spawn is pinned to.
-func (l *Link) recordScope(ctx context.Context, s api.Spawn, dir string) error {
+func (l *Link) recordScope(ctx context.Context, s api.Spawn, dir, kbase string) error {
 	var write []string
 	if s.Profile != "" {
 		var p api.ProfileFull
@@ -76,15 +79,20 @@ func (l *Link) recordScope(ctx context.Context, s api.Spawn, dir string) error {
 		}
 		write = p.Spec.Write
 	}
-	if len(write) == 0 && s.Verify == "" && s.Kind != "codex" {
+	if len(write) == 0 && s.Verify == "" && s.Kind != "codex" && s.Knowledge == "" {
 		os.Remove(l.scopeFile(s.Name)) // an earlier agent of the same name must not leave its limits behind
 		return nil
 	}
-	base, err := l.opt.Git(ctx, "git", "-C", dir, "rev-parse", "HEAD")
-	if err != nil {
-		return err
+	base := ""
+	if s.Repo != "" {
+		out, err := l.opt.Git(ctx, "git", "-C", dir, "rev-parse", "HEAD")
+		if err != nil {
+			return err
+		}
+		base = strings.TrimSpace(out)
 	}
-	rec := scopeRecord{Spawn: s.ID, Agent: s.Name, Dir: dir, Base: strings.TrimSpace(base), Write: write, Verify: s.Verify, Autocommit: s.Kind == "codex"}
+	rec := scopeRecord{Spawn: s.ID, Agent: s.Name, Dir: dir, Base: base, Write: write, Verify: s.Verify, Autocommit: s.Kind == "codex" && s.Repo != "",
+		Knowledge: s.Knowledge, KBase: kbase}
 	if s.Job != nil {
 		rec.Job = *s.Job
 	}

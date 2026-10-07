@@ -265,6 +265,26 @@ CREATE TABLE merge (
 );
 CREATE INDEX merge_pending ON merge(device_id, status);
 CREATE INDEX merge_task ON merge(task_id);
+`, `
+-- F: a job may name a knowledge repository (read by every agent, extended by proposals on a branch of its own) and a base branch.
+ALTER TABLE task ADD COLUMN knowledge TEXT NOT NULL DEFAULT '';
+ALTER TABLE task ADD COLUMN base TEXT NOT NULL DEFAULT '';
+ALTER TABLE spawn ADD COLUMN knowledge TEXT NOT NULL DEFAULT '';
+ALTER TABLE spawn ADD COLUMN base TEXT NOT NULL DEFAULT '';
+-- What the device found when it gathered an agent's proposed notes onto the job's branch. Counts only: the notes stay in the repository.
+CREATE TABLE kcollect (
+  id         INTEGER PRIMARY KEY,
+  job_id     INTEGER NOT NULL REFERENCES task(id),
+  device_id  INTEGER NOT NULL REFERENCES device(id),
+  agent      TEXT NOT NULL,
+  status     TEXT NOT NULL DEFAULT 'pending',
+  notes      INTEGER NOT NULL DEFAULT 0,
+  detail     TEXT NOT NULL DEFAULT '',
+  created_at INTEGER NOT NULL,
+  done_at    INTEGER
+);
+CREATE INDEX kcollect_pending ON kcollect(device_id, status);
+CREATE INDEX kcollect_job ON kcollect(job_id);
 `}
 
 // Open opens (and migrates) the database at path. Use ":memory:" in tests.

@@ -1238,3 +1238,167 @@ func TestAnAgentCannotReachTheMergeEndpoints(t *testing.T) {
 		}
 	}
 }
+
+// ---- knowledge and base ----
+
+// knowledgeRepo is a toy knowledge repository: a client note and a confidential folder.
+func knowledgeRepo(t *testing.T) string {
+	t.Helper()
+	k := gitRepo(t)
+	os.WriteFile(filepath.Join(k, "acme.md"), []byte("# Acme\ninvoice prefix is ACM\n"), 0o644)
+	os.MkdirAll(filepath.Join(k, "confidential"), 0o755)
+	os.WriteFile(filepath.Join(k, "confidential", "contract.md"), []byte("secret terms\n"), 0o644)
+	gitOut(t, k, "add", ".")
+	gitOut(t, k, "commit", "-q", "-m", "acme")
+	return k
+}
+
+func (f *fixture) knowledgeJob(repo, knowledge, base, runtime string) (api.Job, api.Spawn, *client.Client) {
+	f.t.Helper()
+	f.spawnLink(&tmuxLog{})
+	f.must(f.admin.Post("/v1/profiles", api.ProfileReq{Name: "coder", Spec: profile.Spec{Kind: "claude", Runtime: runtime, Tools: profile.Tools{Allow: []string{"read", "edit"}}}}, nil))
+	var j api.Job
+	f.must(f.human.Post("/v1/jobs", api.JobNewReq{Title: "Client work", Repo: repo, Knowledge: knowledge, Base: base, Device: "dev"}, &j))
+	var s api.Spawn
+	f.must(f.human.Post("/v1/spawns", api.SpawnReq{Name: "alpha", Profile: "coder", Job: j.ID, Device: "dev"}, &s))
+	f.ladder()
+	ac := client.Socket(f.link.opt.Socket, "alpha")
+	if f.spawnStatus(s.ID).Status == "launching" {
+		f.must(ac.Post("/v1/agents", api.RegisterReq{Name: "alpha", Kind: "claude"}, nil))
+		f.must(client.Direct(f.url, f.cred).Post(fmt.Sprintf("/v1/spawns/%d/report", s.ID), api.SpawnReport{Status: "started"}, nil))
+	}
+	return j, s, ac
+}
+
+func (f *fixture) collectNow(job int64) {
+	f.t.Helper()
+	f.must(f.human.Post(fmt.Sprintf("/v1/jobs/%d/close", job), api.JobCloseReq{Cancel: true}, nil))
+	f.ladder()
+}
+
+func TestAgentsGetTheClientKnowledgeAndTheirNotesLandOnABranch(t *testing.T) {
+	f := newFixture(t)
+	repo, k := gitRepo(t), knowledgeRepo(t)
+	mainBefore := gitOut(t, k, "rev-parse", "HEAD")
+	j, s, _ := f.knowledgeJob(repo, k, "", "cloud")
+	if got := f.spawnStatus(s.ID).Status; got == "failed" {
+		t.Fatalf("spawn: %+v", f.spawnStatus(s.ID))
+	}
+	dir := filepath.Join(f.link.opt.WorkRoot, fmt.Sprintf("job-%d", j.ID), "alpha")
+	mount := filepath.Join(dir, ".handloom", "knowledge")
+	if b, err := os.ReadFile(filepath.Join(mount, "acme.md")); err != nil || !strings.Contains(string(b), "ACM") {
+		t.Fatalf("the agent cannot read the client note: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(mount, "confidential")); err == nil {
+		t.Fatal("a cloud agent got the confidential folder")
+	}
+	// The code pipeline never sees the knowledge checkout.
+	if files, _ := f.link.changedFiles(context.Background(), f.link.loadScope("alpha")); len(files) != 0 {
+		t.Fatalf("the knowledge checkout shows up as the agent's work: %v", files)
+	}
+
+	// The agent proposes a note by writing it in its checkout; the link gathers it on close.
+	os.WriteFile(filepath.Join(mount, "decisions.md"), []byte("# Decision\nuse prefix ACM\n"), 0o644)
+	f.collectNow(j.ID)
+	if got := gitOut(t, k, "rev-parse", "HEAD"); got != mainBefore {
+		t.Fatal("something was committed to the knowledge repository's own branch")
+	}
+	if got := gitOut(t, k, "show", fmt.Sprintf("job/%d:decisions.md", j.ID)); !strings.Contains(got, "prefix ACM") {
+		t.Fatalf("the proposal is not on the job's branch: %q", got)
+	}
+	if got := gitOut(t, k, "log", "-1", "--format=%an", fmt.Sprintf("job/%d", j.ID)); got != "alpha" {
+		t.Fatalf("proposal author: %q", got)
+	}
+	var job api.Job
+	f.must(f.human.Get(fmt.Sprintf("/v1/jobs/%d", j.ID), &job))
+	if job.Notes != 1 || job.Knowledge != k {
+		t.Fatalf("the hub should know a count and a path, nothing else: %+v", job)
+	}
+}
+
+func TestALocalAgentGetsTheConfidentialFolderToo(t *testing.T) {
+	f := newFixture(t)
+	repo, k := gitRepo(t), knowledgeRepo(t)
+	j, _, _ := f.knowledgeJob(repo, k, "", "local")
+	mount := filepath.Join(f.link.opt.WorkRoot, fmt.Sprintf("job-%d", j.ID), "alpha", ".handloom", "knowledge")
+	if _, err := os.Stat(filepath.Join(mount, "confidential", "contract.md")); err != nil {
+		t.Fatalf("a local-model agent should see confidential notes: %v", err)
+	}
+}
+
+func TestTheJobsWorktreesStartFromTheBaseBranch(t *testing.T) {
+	f := newFixture(t)
+	repo := gitRepo(t)
+	gitOut(t, repo, "checkout", "-q", "-b", "feature")
+	os.WriteFile(filepath.Join(repo, "feature.txt"), []byte("f"), 0o644)
+	gitOut(t, repo, "add", ".")
+	gitOut(t, repo, "commit", "-q", "-m", "feature work")
+	gitOut(t, repo, "checkout", "-q", "-")
+	j, _, _ := f.knowledgeJob(repo, "", "feature", "cloud")
+	dir := filepath.Join(f.link.opt.WorkRoot, fmt.Sprintf("job-%d", j.ID), "alpha")
+	if _, err := os.Stat(filepath.Join(dir, "feature.txt")); err != nil {
+		t.Fatalf("the worktree did not start from the base branch: %v", err)
+	}
+	if rec := f.link.loadScope("alpha"); rec != nil && rec.Base != gitOut(t, repo, "rev-parse", "feature") {
+		t.Fatalf("scope base %s", rec.Base)
+	}
+}
+
+func TestABaseThatDoesNotExistFailsTheSpawnInWords(t *testing.T) {
+	f := newFixture(t)
+	repo := gitRepo(t)
+	_, s, _ := f.knowledgeJob(repo, "", "nope", "cloud")
+	got := f.spawnStatus(s.ID)
+	if got.Status != "failed" || !strings.Contains(got.Error, "base branch") {
+		t.Fatalf("%+v", got)
+	}
+}
+
+func TestAKnowledgePathThatIsNotARepositoryFailsTheSpawnInWords(t *testing.T) {
+	f := newFixture(t)
+	_, s, _ := f.knowledgeJob(gitRepo(t), t.TempDir(), "", "cloud")
+	got := f.spawnStatus(s.ID)
+	if got.Status != "failed" || !strings.Contains(got.Error, "not a git repository") {
+		t.Fatalf("%+v", got)
+	}
+}
+
+func TestConflictingProposalsAreReportedNotLost(t *testing.T) {
+	f := newFixture(t)
+	repo, k := gitRepo(t), knowledgeRepo(t)
+	j, _, _ := f.knowledgeJob(repo, k, "", "cloud")
+	mount := filepath.Join(f.link.opt.WorkRoot, fmt.Sprintf("job-%d", j.ID), "alpha", ".handloom", "knowledge")
+	// Somebody put a different version of the same note on the job's branch first.
+	wt := filepath.Join(f.link.opt.WorkRoot, fmt.Sprintf("job-%d", j.ID), "_knowledge")
+	gitOut(t, k, "worktree", "add", "-b", fmt.Sprintf("job/%d", j.ID), wt, "HEAD")
+	f.commitIn(wt, "acme.md", "# Acme\ninvoice prefix is XYZ\n", "other agent")
+	os.WriteFile(filepath.Join(mount, "acme.md"), []byte("# Acme\ninvoice prefix is QRS\n"), 0o644)
+	f.collectNow(j.ID)
+	var d api.Digest
+	f.must(f.human.Get("/v1/digest", &d))
+	_ = d // the job is cancelled, so it no longer asks; the job record keeps the problem
+	var job api.Job
+	f.must(f.human.Get(fmt.Sprintf("/v1/jobs/%d", j.ID), &job))
+	if !strings.Contains(job.NotesProblem, "acme.md") {
+		t.Fatalf("the conflict was not reported: %+v", job)
+	}
+	if got := gitOut(t, wt, "status", "--porcelain"); got != "" {
+		t.Fatalf("the job's branch was left half-merged: %q", got)
+	}
+}
+
+func TestAnAgentCannotReachTheNoteCollectionEndpoints(t *testing.T) {
+	f := newFixture(t)
+	for _, c := range []struct{ method, path string }{{"GET", "/v1/device/kcollects"}, {"POST", "/v1/kcollects/1/report"}} {
+		var err error
+		if c.method == "GET" {
+			err = f.worker.Get(c.path, nil)
+		} else {
+			err = f.worker.Post(c.path, api.CollectReport{Status: "done"}, nil)
+		}
+		var ce *client.Error
+		if !errors.As(err, &ce) || ce.Status != 403 {
+			t.Fatalf("%s %s from an agent: %v", c.method, c.path, err)
+		}
+	}
+}

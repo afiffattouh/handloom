@@ -1,156 +1,209 @@
-<p align="center"><img src="docs/brand/banner.png" alt="Handloom: your agents, on your machines" width="800"></p>
+<p align="center"><img src="docs/brand/banner.png" alt="Handloom: your agents, on your machines" width="820"></p>
 
-# Handloom
+<p align="center">
+  <a href="https://github.com/afiffattouh/handloom/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/afiffattouh/handloom/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="LICENSE"><img alt="Apache-2.0" src="https://img.shields.io/badge/licence-Apache--2.0-1f5f4a"></a>
+  <img alt="One static binary" src="https://img.shields.io/badge/one%20static%20binary-Go-1f5f4a">
+</p>
 
-> Formerly "handloom". The command is `handloom`; `hl` is the short alias. Old names (`handloom`, `HANDLOOM_*`, `Handloom-Agent`, `~/.config/handloom`) are still accepted. The project is not public yet.
+**Handloom runs jobs made of coding agents on your own machines.** You describe a job. A lead agent plans it and starts workers. Each worker gets its own copy of the repository. The machine that holds the files checks the work. You review it and close the job. One small hub keeps the record; every machine only calls out to it, so nothing needs an open port.
 
-Handloom runs jobs made of coding agents on your own machines. You describe a job; a lead agent plans it and starts workers; each worker gets its own copy of the repository; the machine that holds the files checks the work; you review and close. One hub keeps the record, and every machine only calls out to it.
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/img/command-dark.png">
+    <img src="docs/img/command-light.png" alt="The command center: what needs you, jobs, the fleet of agents and recent activity" width="900">
+  </picture>
+</p>
 
-See [docs/tui.md](docs/tui.md) for the terminal console (`handloom tui`), [docs/mcp.md](docs/mcp.md) for using Handloom from an AI app (Claude, Codex) over MCP, and [docs/overview.html](docs/overview.html) for the whole picture on one page (topology, architecture, flow, setup, teams, client knowledge; open it in a browser), `docs/` for the design, [DECISIONS.md](DECISIONS.md) for choices and evidence, and [docs/deploy.md](docs/deploy.md) for deployment details.
+## Contents
+
+[What you get](#what-you-get) · [How it works](#how-it-works) · [Quick start](#quick-start) · [Ways to use it](#ways-to-use-it) · [Agent CLIs](#agent-clis) · [Guard rails](#guard-rails) · [Run it yourself](#run-it-yourself) · [Status](#status) · [Documentation](#documentation) · [Contributing](#contributing)
+
+## What you get
+
+| | |
+| --- | --- |
+| **Jobs with a lead** | Each job has its own lead agent, a team of workers, tasks with owners and dependencies, and a brief that says what done looks like. |
+| **Profiles and skills** | What an agent may do and know, as versioned, hash-pinned profiles: tools, denied commands, allowed paths, skills. 41 ready-made starters (engineering, design, research, consulting, marketing, sales, finance, HR) and a form that asks "what should it do?" in plain words. |
+| **Any agent CLI, any model** | Claude Code, Codex, OMP, Pi and OpenCode, including models running on your own machine. Handloom limits each as far as that CLI allows and says plainly what it cannot enforce. |
+| **Proof, not claims** | A task is submitted with evidence. The device runs the job's check, refuses edits outside the profile's paths, merges accepted work into an integration branch and re-checks it. A lead cannot accept failed work. |
+| **Only people approve** | Starting and closing jobs, answering questions and writing profiles need a signed-in person. Agents, devices and AI apps cannot. |
+| **Web, terminal, CLI, MCP** | A server-rendered web UI, a full-screen terminal console, every action as a command, and an MCP server so your own AI app can look at your work and start jobs. |
+| **Client knowledge** | A knowledge repository per client that agents read first; what they learn comes back as a proposal on a branch that only you merge. |
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/img/inbox.png" alt="The inbox: questions, work to review, finished jobs"></td>
+    <td width="50%"><img src="docs/img/job.png" alt="A job: tasks with owners, status, checks and merges, the brief and recent activity"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub><b>Inbox.</b> What needs a person, in one place, live.</sub></td>
+    <td align="center"><sub><b>A job.</b> Every task with its owner, evidence and check.</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/img/agent.png" alt="An agent's page with its terminal"></td>
+    <td width="50%"><img src="docs/img/starters.png" alt="The starter library of ready-made profiles"></td>
+  </tr>
+  <tr>
+    <td align="center"><sub><b>An agent.</b> Its state, lease, and a read-only view of its terminal.</sub></td>
+    <td align="center"><sub><b>Starter library.</b> Ready-made roles, each with its skills.</sub></td>
+  </tr>
+</table>
+
+## How it works
+
+```mermaid
+flowchart LR
+  you["You<br/>browser · terminal · AI app"] -- HTTPS --> hub
+  subgraph hub["Hub (one container, one SQLite file)"]
+    api["API · web UI · audit log<br/>no git, no shell, no model"]
+  end
+  subgraph a["Machine A"]
+    la["link"] --> ta["tmux windows<br/>lead + workers<br/>one git worktree each"]
+  end
+  subgraph b["Machine B"]
+    lb["link"] --> tb["tmux windows<br/>workers"]
+  end
+  la -. "outbound only" .-> hub
+  lb -. "outbound only" .-> hub
+```
+
+1. **You start a job** in the web UI, the console or the CLI: a title, a brief, a machine, optionally a repository and a check command.
+2. **The lead plans it.** The hub records a spawn request; the link on that machine makes a git worktree, opens a tmux window and starts the lead from its profile. The lead creates tasks and asks the link to start workers.
+3. **Workers build in their own worktrees** and submit with evidence. The link refuses a submit that touches files outside the profile's paths, then runs the job's check.
+4. **The lead reviews.** It can accept only work whose check passed. The link merges accepted branches into `job/<id>/integration` and re-checks; a conflict goes back to the lead.
+5. **You decide.** Questions land in your inbox (and on your phone). When every task is done you look at the result, close the job, and merge the integration branch yourself. Nothing touches your own branches.
+
+The hub never runs git, a shell or a model, so it can be small and public. Everything that runs code lives on machines you own, and the device's word beats the agent's word.
 
 ## Quick start
 
-New here? Read [docs/setup.md](docs/setup.md): it covers the domain, https, every token and the first job, step by step. The short version:
+Four stages, each done once. The long version, with the domain, https and every token explained, is [docs/setup.md](docs/setup.md).
 
-Four stages. You do each one once.
+**1. Run the hub** on any server with Docker:
 
-**1. Run the hub (once, on a VPS or any server).** It is one container with one volume.
-
-```
-# DNS: an A record for handloom.example.com pointing at this server; ports 80 and 443 open
+```bash
+# a DNS A record for handloom.example.com pointing at the server; ports 80 and 443 open
 HANDLOOM_DOMAIN=handloom.example.com docker compose -f docker-compose.caddy.yml up -d --build
 docker compose -f docker-compose.caddy.yml logs handloom | grep -E "Admin token|setup code"
 ```
 
-Open `https://handloom.example.com/setup`, enter the setup code and make your owner account. On Dokploy, see [docs/deploy.md](docs/deploy.md). Keep the admin token somewhere safe.
+Open `https://handloom.example.com/setup`, enter the setup code and make your owner account. Keep the admin token somewhere safe. On Dokploy, see [docs/deploy.md](docs/deploy.md).
 
-**2. Join each machine that will run agents (once per machine).** A machine needs `git`, `tmux`, and at least one agent CLI that is logged in (Claude Code, Codex, Pi, OMP or OpenCode).
+**2. Join each machine** that will run agents. It needs `git`, `tmux` and at least one logged-in agent CLI.
 
-- Put the `handloom` binary on the machine: `scripts/setup.sh device <ssh-name> --hub <hub-url>` from this repository does it over ssh, or build it (`go build -o bin/handloom ./cmd/handloom`) and copy it.
-- In the web UI open **Devices, Add a device**, and copy the join command it shows.
-- On the machine run it (`handloom link join <hub-url> <join-token>`), then `handloom link install` so the link starts at boot.
-- Run `handloom doctor`. It checks the link, git, tmux and the agent CLIs, and says what to fix.
-
-**3. Add profiles (once per kind of agent).** In the web UI, **Profiles, Starter library**: 41 ready-made profiles (leads, engineering, design, research and writing, consulting, marketing, sales, finance, HR) with their skills. Add a lead and one or more workers, choosing the CLI and where the model runs. Or write your own with **New profile**, which checks and explains what you build. From the command line: `handloom starters`, `handloom profile add coder --kind claude --runtime cloud`. For a local model: `handloom profile add coder --kind omp --runtime local --model <your-local-model> --adapt`.
-
-**4. Start a job.** **Jobs, New job**: a title, a brief, the device, optionally the repository path and a check command, and the lead's profile. The lead starts workers by itself. Questions and finished jobs arrive in your inbox. When every task is done, review `job/<id>/integration` in the repository and merge it yourself.
-
-The inbox shows a **Get started** checklist until all four stages are done. Everything above also works from the command line: `handloom help`.
-
-**Security.** Anyone who can post to your hub can in effect run code on every connected device, and agents often run without approval prompts. Use https (or a private network), a strong owner password, and revoke devices you no longer use. Only a signed-in human can start or close jobs, answer questions or change profiles.
-
-## What is here
-
-- **Hub** (`handloom hub`): HTTP API, web UI and one SQLite file. No AI, no git, no shell in it.
-- **Link** (`handloom link`): one per device. Starts agents in tmux windows with their own git worktrees, wakes them, refuses submits outside the profile's paths, runs the job's check, merges accepted work.
-- **CLI** (`handloom <verb>`, short `hl`): what agents and people type. Agents never hold a credential.
-- **Jobs and tasks**: a job is a root task with its own lead; tasks have owners, leases, dependencies and need evidence to be submitted.
-- **Profiles**: versioned, pinned by hash, with tools, denied commands, skills and write scope.
-- **Agent CLIs** a profile can name: Claude Code, Codex, OMP, Pi and OpenCode, so agents can run on different models (including a model on your own machine). Handloom starts each one itself, limits it as far as that CLI allows, and says plainly what it cannot enforce.
-- **MCP server** (`handloom mcp`): the agent verbs as tools, for agents whose sandbox cannot reach the link.
-- **Audit log**: every action, append-only.
-
-## Build
-
-```
-go build -o bin/handloom ./cmd/handloom
-go test ./...
+```bash
+go build -o handloom ./cmd/handloom && sudo install handloom /usr/local/bin/   # or: scripts/setup.sh device <ssh-name> --hub <url>
+handloom link join https://handloom.example.com <join-token>   # copy it from the web UI: Machines, Add a machine
+handloom link install                                          # starts at boot
+handloom doctor                                                # says what is missing, one fix per problem
 ```
 
-One static binary. Cross-compile with `CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build ...`.
+**3. Add profiles.** In the web UI: Profiles, Starter library, add a lead and a worker and choose their CLI. Or from the command line:
 
-## Set up a server with a script
-
-`scripts/setup.sh` does it over ssh from this repo: it builds handloom for the server's CPU, copies the binary, and runs the hub or the link as a systemd service that starts at boot. `local` instead of an ssh name sets up this machine.
-
-```
-scripts/setup.sh hub vps                                   # prints the admin token once: store it
-export HANDLOOM_TOKEN=hva_...
-scripts/setup.sh device vps    --hub http://100.x.y.z:7420   # the hub's own machine
-scripts/setup.sh device laptop --hub http://100.x.y.z:7420   # every other machine
-scripts/setup.sh status laptop
-scripts/setup.sh remove laptop --purge
+```bash
+handloom starters                                                    # the 41 ready-made roles
+handloom profile add coder --kind claude --runtime cloud
+handloom profile make scout --can research --kind omp --runtime local --model <your-local-model>
 ```
 
-- The hub listens on the server's Tailscale address by default (`--addr` to change). It is plain HTTP: keep it on a private network.
-- `device` needs a join token. With `HANDLOOM_TOKEN` set to the admin token the script creates the device itself; otherwise pass `--join-token`.
-- Linux with systemd only. Root gets a system service and `/usr/local/bin/handloom`; other users get a user service and `~/.local/bin/handloom`.
-- Running it again is safe: it replaces the binary, keeps the credential and restarts the service.
-- `remove` never deletes the hub's data.
+**4. Start a job.** Jobs, New job: a title, a brief, the machine, the repository and check command, and the lead's profile. The lead starts the workers. The inbox shows a Get started checklist until all four stages are done.
 
-After that, add agents on each machine (below). The script needs Go on the machine you run it from, or `--binary` with a prebuilt handloom.
+> **Security.** Anyone who can post to your hub can in effect run code on every connected machine, and agents often run without approval prompts. Use https or a private network, a strong owner password, and revoke machines you no longer use. See [SECURITY.md](SECURITY.md).
 
-## By hand
+## Ways to use it
 
-On the machine that runs the hub (bind it to a private address):
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <b>Web UI</b><br>
+      The command center, inbox, jobs, agents, profiles, machines and settings. Light and dark, works on a phone, live updates, copy buttons on every token and command.
+    </td>
+    <td width="50%" valign="top">
+      <b>Terminal console</b><br>
+      <code>handloom login https://your-hub</code> once, then <code>handloom tui</code>: overview, inbox (accept, send back, answer, each after a y/n), jobs with a new-job form, agents with their terminals, library. See <a href="docs/tui.md">docs/tui.md</a>.
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <b>Command line</b><br>
+      Everything the web UI does is also a command: <code>handloom job new</code>, <code>task accept</code>, <code>people</code>, <code>prices</code>, <code>metrics</code>, <code>screen</code>, <code>token new</code>. <code>handloom help</code> lists them all.
+    </td>
+    <td width="50%" valign="top">
+      <b>Your own AI app (MCP)</b><br>
+      Let Claude or Codex look at your work and start jobs: the web UI's <i>Connect an AI app</i> page makes a token the hub limits to reading and starting work, and shows the settings to paste. It cannot approve anything. See <a href="docs/mcp.md">docs/mcp.md</a>.
+    </td>
+  </tr>
+</table>
+
+<p align="center">
+  <img src="docs/img/tui-inbox.png" alt="The terminal console showing the inbox" width="760">
+</p>
+
+## Agent CLIs
+
+A profile names the CLI and where its model runs (cloud or local). Each CLI enforces different things; the profile form and `handloom profile add` say what will and will not be enforced instead of refusing.
+
+| CLI | Model on your own machine | Refuses specific commands | Skills | Web tool |
+| --- | :---: | :---: | --- | :---: |
+| Claude Code | cloud models | yes | native | yes |
+| Codex | cloud models | no (always has a shell) | in its instructions | yes |
+| OMP | yes | no (always has a shell) | in its instructions | yes |
+| Pi | yes | no (always has a shell) | in its instructions | no |
+| OpenCode | yes | yes | in its instructions | yes |
+
+For a CLI that cannot refuse commands, "never run risky commands" becomes a standing rule in the agent's instructions: asked, not blocked, and the profile page says so.
+
+## Guard rails
+
+- **Only people approve.** Accepting work, answering questions, closing jobs and writing profiles are refused for agents, devices and AI-app tokens, whatever they are configured to auto-approve.
+- **The device checks, not the agent.** The check command runs on the machine that holds the files; its exit code sits next to the agent's own claim.
+- **Scope is enforced at submit.** Edits outside a profile's allowed paths are refused and logged.
+- **Profiles are pinned.** A spawn runs `name@version` by hash. Editing a profile makes a new version.
+- **Agents never hold a credential.** They talk to the link over a unix socket with a per-run token stored hashed on the hub.
+- **Confidential material stays local.** The terminal view is off for confidential jobs unless the hub is set up for it, and agents on cloud models never get the `confidential/` folder of a knowledge repository.
+- **Everything is audited**, append-only: who did what, and through which door.
+
+## Run it yourself
+
+- **Docker, behind Caddy:** the quick start above. One image, one volume; accounts, jobs and profiles live in one SQLite file, snapshotted before every migration. `handloom hub backup` and `restore` are built in.
+- **Dokploy or any compose host:** [docs/deploy.md](docs/deploy.md), including deploying from Git on every push.
+- **A private network, no domain:** `scripts/setup.sh hub <ssh-name>` runs the hub as a systemd service on a Tailscale address (plain HTTP: keep it private), and `scripts/setup.sh device <ssh-name> --hub <url>` does the same for each machine.
+- **Build:** `go build -o bin/handloom ./cmd/handloom`; `go test ./...`. One static binary, cross-compile with `CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build ...`.
+- **Recovery** (on the hub's own machine): `handloom hub reset-password`, `reset-human-token`, `reset-admin-token`, `create-owner`.
+
+## Status
+
+Handloom is used for real work by its author and is pre-1.0. Honest about what is and is not proven:
+
+- **Proven with real agents:** Claude Code, Codex, OMP, Pi and OpenCode as workers; Claude Code and OMP as leads; parallel workers; a forced merge conflict resolved by a lead; fully local jobs on a local model. Evidence is in [docs/evidence](docs/evidence) and [DECISIONS.md](DECISIONS.md).
+- **Not proven yet:** phone push against a real ntfy topic; a clean install on a fresh machine; macOS (the link needs tmux and is only run on Linux so far); Windows is not supported.
+- **Planned, tracked as [issues](https://github.com/afiffattouh/handloom/issues):** published binaries and an install script, a remote MCP endpoint, container isolation, schedules and a knowledge librarian.
+
+## Documentation
+
+| | |
+| --- | --- |
+| [docs/setup.md](docs/setup.md) | Step-by-step setup: domain, https, tokens, first job |
+| [docs/overview.html](docs/overview.html) | The whole picture on one page: topology, architecture, flow, teams, knowledge (open in a browser) |
+| [docs/tui.md](docs/tui.md) · [docs/mcp.md](docs/mcp.md) | The terminal console · using Handloom from an AI app |
+| [docs/protocol.md](docs/protocol.md) | The API, version `handloom/1` |
+| [docs/deploy.md](docs/deploy.md) · [docs/isolation.md](docs/isolation.md) | Deploying · the container-mode design |
+| [docs/design-principles.md](docs/design-principles.md) · [docs/brand.md](docs/brand.md) | The UI's rules · the name, logo, colours and voice |
+| [DECISIONS.md](DECISIONS.md) | Every choice made, with what was and was not tested |
 
 ```
-handloom hub init --data ./handloom-data              # prints the admin token once
-handloom hub serve --data ./handloom-data --addr 100.x.y.z:7420
+cmd/handloom/       main                       internal/tui/     the terminal console
+internal/hub/       API, web UI, scopes, audit internal/link/    device daemon, wake ladder, spawn, checks, merges
+internal/store/     SQLite schema, migrations  internal/profile/ profiles, per-CLI capabilities
+internal/cli/       verbs and commands         internal/starters/ the 41 starters
+internal/mcp/       MCP server (agent, operator) adapters/       per-CLI instruction snippets and shims
 ```
 
-As admin, from anywhere that reaches the hub:
+## Contributing
 
-```
-export HANDLOOM_HUB=http://100.x.y.z:7420 HANDLOOM_TOKEN=hva_...
-handloom device add laptop                        # prints a one-time join token
-handloom human add you                            # prints your human token
-```
-
-On each device:
-
-```
-handloom link join http://100.x.y.z:7420 hvj_...
-handloom link run                                 # keep it running, or: handloom link install
-```
-
-In a project directory on a device, for a Claude Code agent:
-
-```
-handloom adapter install claude --name alice --dir .
-tmux new -s alice claude                      # inside tmux or Herdr, so it can be woken
-```
-
-Make one agent the lead (admin or human): `handloom agent role alice lead`, then run the adapter install again so its instructions say so.
-
-For a Codex agent (its sandbox blocks the link's socket, so it gets the handloom verbs as MCP tools):
-
-```
-handloom adapter install codex --name bob --dir .
-tmux new -s bob handloom run bob -- codex -c 'mcp_servers.handloom.command="/path/to/handloom"' -c 'mcp_servers.handloom.args=["mcp"]'
-```
-
-For an agent with no terminal: `handloom register carol --kind claude --wake-target headless`, install the adapter, and create its session once with `HANDLOOM_HEADLESS=1 claude -p --session-id <uuid> "..."`. The link then wakes it with `claude -p --resume`.
-
-From then on agents use `handloom inbox`, `handloom send`, `handloom task ...`. Run `handloom help` for the full list.
-
-## Tests
-
-- `go test ./...`: unit tests. Every cell of the scope table has a test that proves a forbidden action is rejected.
-- `test/e2e/m0.sh`: two shells on two machines run a task from creation to acceptance with `handloom` commands only, and a lease expires.
-- `test/e2e/m1.sh`: a lead Claude Code and a worker Claude Code on two machines finish a three-task job after one brief.
-- `test/e2e/m2.sh`: the same with a Claude Code lead, a Codex worker and a headless Claude Code worker (and a Pi worker when `PI_MODEL` is set).
-
-The e2e scripts need a second machine reachable by ssh (see `test/e2e/lib.sh`).
-
-## Layout
-
-```
-cmd/handloom/            main
-internal/hub/        HTTP API, scopes, leases, events, audit
-internal/store/      SQLite schema and migrations
-internal/link/       daemon, local socket, wake ladder
-internal/drivers/    tmux and herdr nudge drivers
-internal/cli/        verbs, hooks, adapter installer
-internal/mcp/        stdio MCP server
-internal/client/     HTTP client and link configuration
-internal/api/        wire types
-adapters/            instruction snippets; per kind: manifest and, for pi/omp/opencode, the shim
-docs/protocol.md     the API, version handloom/1
-scripts/setup.sh     set up a server: hub or device, as a service
-test/e2e/            two-machine scenarios
-```
+Issues and pull requests are welcome; start with [CONTRIBUTING.md](CONTRIBUTING.md). Report vulnerabilities privately, see [SECURITY.md](SECURITY.md).
 
 ## Licence
 
-Apache-2.0 (proposed). See [LICENSE](LICENSE).
+Apache-2.0. See [LICENSE](LICENSE).

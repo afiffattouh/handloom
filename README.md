@@ -17,7 +17,7 @@
 
 ## Contents
 
-[What you get](#what-you-get) · [How it works](#how-it-works) · [Quick start](#quick-start) · [Ways to use it](#ways-to-use-it) · [Agent CLIs](#agent-clis) · [Guard rails](#guard-rails) · [Run it yourself](#run-it-yourself) · [Status](#status) · [Documentation](#documentation) · [Contributing](#contributing)
+[What you get](#what-you-get) · [How it works](#how-it-works) · [Quick start](#quick-start) · [Ways to use it](#ways-to-use-it) · [Teams](#teams) · [Client knowledge](#client-knowledge) · [Agent CLIs](#agent-clis) · [Guard rails](#guard-rails) · [Run it yourself](#run-it-yourself) · [Status](#status) · [Documentation](#documentation) · [Contributing](#contributing)
 
 ## What you get
 
@@ -52,21 +52,12 @@
 
 ## How it works
 
-```mermaid
-flowchart LR
-  you["You<br/>browser · terminal · AI app"] -- HTTPS --> hub
-  subgraph hub["Hub (one container, one SQLite file)"]
-    api["API · web UI · audit log<br/>no git, no shell, no model"]
-  end
-  subgraph a["Machine A"]
-    la["link"] --> ta["tmux windows<br/>lead + workers<br/>one git worktree each"]
-  end
-  subgraph b["Machine B"]
-    lb["link"] --> tb["tmux windows<br/>workers"]
-  end
-  la -. "outbound only" .-> hub
-  lb -. "outbound only" .-> hub
-```
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/img/topology-dark.png">
+    <img src="docs/img/topology-light.png" alt="Where everything runs: you and your phone reach the hub over HTTPS; machines connect to the hub outbound only; each machine runs a link, a tmux server and the agents." width="900">
+  </picture>
+</p>
 
 1. **You start a job** in the web UI, the console or the CLI: a title, a brief, a machine, optionally a repository and a check command.
 2. **The lead plans it.** The hub records a spawn request; the link on that machine makes a git worktree, opens a tmux window and starts the lead from its profile. The lead creates tasks and asks the link to start workers.
@@ -75,6 +66,26 @@ flowchart LR
 5. **You decide.** Questions land in your inbox (and on your phone). When every task is done you look at the result, close the job, and merge the integration branch yourself. Nothing touches your own branches.
 
 The hub never runs git, a shell or a model, so it can be small and public. Everything that runs code lives on machines you own, and the device's word beats the agent's word.
+
+**One job, from your sentence to a branch you can merge.** Read down: each box sits in the lane of whoever does it, and dashed boxes are waiting, not working.
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/img/flow-dark.png">
+    <img src="docs/img/flow-light.png" alt="The flow of one job across You, Hub, Link, Lead and Worker, in nine steps, from the new job to the inbox saying the job is done." width="900">
+  </picture>
+</p>
+
+At any step an agent can ask you a question. It lands in your inbox and on your phone, and only you can answer it. If the lead goes quiet its lease runs out, the job shows "lead lost", and you can hand it to another agent.
+
+**Who is responsible for what.** The split is deliberate: the hub can be public and small because it never touches a repository.
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/img/layers-dark.png">
+    <img src="docs/img/layers-light.png" alt="The three layers: the hub records and routes, the link on each device does the real work, the agent plans or builds and then proves it." width="900">
+  </picture>
+</p>
 
 ## Quick start
 
@@ -139,6 +150,69 @@ handloom profile make scout --can research --kind omp --runtime local --model <y
 <p align="center">
   <img src="docs/img/tui-inbox.png" alt="The terminal console showing the inbox" width="760">
 </p>
+
+## Teams
+
+One hub serves one team. Everyone signs in to the same web UI and everyone's machines can join it. The owner invites people (an invite link, their own password) and decides what each can touch.
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/img/teams-dark.png">
+    <img src="docs/img/teams-light.png" alt="A team: an owner, members and a viewer sign in to one hub; personal laptops, a shared build machine and a local-model box all join the same hub and run the agents." width="900">
+  </picture>
+</p>
+
+| Action | Owner | Member | Viewer |
+| --- | :---: | :---: | :---: |
+| See jobs, tasks, inbox, activity | yes | yes | yes |
+| Start and close jobs | yes | yes | no |
+| Answer an agent's question | yes | yes | no |
+| Accept or send back submitted work | yes | yes | no |
+| Start an agent by hand | yes | yes | no |
+| Create and edit profiles | yes | no | no |
+| Add or revoke machines | yes | no | no |
+| Invite people, change roles, set alerts | yes | no | no |
+
+Agents are not people: they can never start or close a job, answer a question or change a profile, whoever started them.
+
+**A day in a team**
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/img/team-day-dark.png">
+    <img src="docs/img/team-day-light.png" alt="A day in a team: the owner sets up, a member starts a job in the afternoon, the lead asks a question, a second member answers from the train, a viewer checks in the morning, the first member reviews and merges." width="900">
+  </picture>
+</p>
+
+**Ways to organise it**
+
+- **One team, one hub.** The default. Everyone shares the inbox and the machines.
+- **Just you, several machines.** The same product with one person: a laptop, a desktop and a server, one inbox on your phone.
+- **A separate hub per trust boundary.** Only when a contract says client data must not share a system. Most teams do not need this: separate clients by job, repository and knowledge repository.
+
+**What a team should know today.** There is no per-person or per-team isolation inside one hub: every signed-in person sees every job, and every member can start a job on any joined machine. The profile is the limit, and only the owner writes profiles. A machine belongs to the hub, not to a person. There is one alert topic for the whole hub. See [#13](https://github.com/afiffattouh/handloom/issues/13).
+
+## Client knowledge
+
+Each client gets one knowledge repository: markdown notes in git that link to each other with `[[links]]`. Agents read it before they work. What they learn comes back as a **proposal** on a branch, and only a person merges it. The hub never holds the notes, only a count.
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/img/knowledge-dark.png">
+    <img src="docs/img/knowledge-light.png" alt="The knowledge pipeline: keep a repository per client, name it on the job, agents read it, notes become proposals on a branch, you merge what you accept, a librarian keeps it tidy (planned)." width="900">
+  </picture>
+</p>
+
+```
+acme-knowledge/                  # one repository per client, owned by you
+  clients/acme.md                # "Invoice prefix: ACM. Billing contact: Dana. See [[contract-terms]]"
+  decisions/2026-10-invoice-ids.md
+  confidential/                  # local-model agents only; never checked out for a cloud model
+    contract-terms.md
+branch job/12                    # what job 12's agents proposed; you review it, then merge it
+```
+
+Continuing a project: a job points at an existing repository and starts from its latest commit; to build on unmerged work, give it a base branch such as `job/12/integration`. The hub sees the knowledge repository's path and a count of proposed notes, not the notes or their file names; back those up with git. A librarian that keeps the notes tidy is planned ([#7](https://github.com/afiffattouh/handloom/issues/7)).
 
 ## Agent CLIs
 

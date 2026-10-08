@@ -10,6 +10,10 @@
 # ssh (`docker save | ssh host docker load`); the compose file says
 # `pull_policy: never`, so Dokploy uses the loaded image.
 set -euo pipefail
+# Since 2026-10-08 the Dokploy app builds from the Git repository (afiffattouh/handloom, branch main) and a push
+# to main redeploys it through a webhook. This script replaces that with a raw compose file and an image loaded
+# over ssh, which switches the app off Git: it only runs with ALLOW_RAW=1 (for a hub without a GitHub repository).
+[ "${ALLOW_RAW:-}" = 1 ] || { echo "This hub deploys from Git: push to main. (ALLOW_RAW=1 switches it to an ssh-loaded image instead.)" >&2; exit 1; }
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 : "${DOKPLOY_URL:?}" "${DOKPLOY_API_KEY:?}" "${DOKPLOY_SSH:?}" "${COMPOSE_ID:?}" "${HUB_URL:?}"
 PLATFORM="${PLATFORM:-linux/amd64}"

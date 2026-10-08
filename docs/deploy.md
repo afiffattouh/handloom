@@ -83,3 +83,14 @@ Before an upgrade changes the schema the hub writes `/data/backups/pre-vN.db` fi
 ## Images
 
 The Dockerfile cross-compiles in the builder stage, so `docker build --platform linux/amd64 .` works from an arm64 machine. The result is a static binary on distroless (about 14 MB), running as a non-root user.
+
+## Deploying from Git (how the live hub runs)
+
+The Dokploy app uses the **Git** source: the public repository `https://github.com/afiffattouh/handloom.git`, branch `main`, compose file `./docker-compose.yml`. Dokploy builds the image on the server from the `Dockerfile`, so there is nothing to load by hand. Environment (`HANDLOOM_BASE_URL`, `HANDLOOM_TRUST_PROXY=1`) is set on the Dokploy app, not in the repository. The data volume is the same as before, so a redeploy keeps accounts, jobs and profiles.
+
+To redeploy on every push, add a webhook on the repository (Settings, Webhooks): payload URL `https://<your-dokploy>/api/deploy/compose/<the app's webhook token>` (Dokploy shows it on the app's Deployments tab), content type `application/json`, the push event only. Deploys happen on pushes to `main`.
+
+Back up first when a change touches the database (`docker exec <container> /handloom hub backup --to /data/backups/x.db --data /data`); the hub also snapshots before each migration.
+
+`scripts/dokploy-deploy.sh` is the older route (build locally, load the image over ssh, point a raw compose file at it). It switches the app off Git, so it only runs with `ALLOW_RAW=1`.
+

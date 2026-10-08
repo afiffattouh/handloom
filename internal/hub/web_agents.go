@@ -46,6 +46,7 @@ type profileView struct {
 
 // profileReview is what the form shows before anything is saved.
 type profileReview struct {
+	Adapted  []string // what was fitted to the chosen CLI instead of refused
 	Problems []string
 	Enforce  []string
 	Prompt   string
@@ -64,7 +65,7 @@ func (q *webReq) profilesPage(status int, errMsg string) error {
 		return err
 	}
 	q.page(status, "profiles", pageData{Title: "Profiles", Error: errMsg,
-		Notice: map[string]string{"saved": "Profile saved."}[q.r.URL.Query().Get("done")],
+		Notice: map[string]string{"saved": "Profile saved.", "adapted": "Profile saved, with some settings fitted to its agent CLI."}[q.r.URL.Query().Get("done")],
 		Extra:  map[string]any{"List": rows, "CanEdit": q.isOwner(), "Counts": q.versionCounts()}})
 	return nil
 }
@@ -124,7 +125,7 @@ func (q *webReq) profileForm(status int, errMsg string, v *profileView) error {
 		title = v.Name
 	}
 	q.page(status, "profile", pageData{Title: title, Error: errMsg, Extra: v,
-		Notice: map[string]string{"saved": "Saved. New agents started from this profile use this version; running ones keep theirs.", "added": "Added from the starter library. It is yours now: change anything you like."}[q.r.URL.Query().Get("done")]})
+		Notice: map[string]string{"saved": "Saved. New agents started from this profile use this version; running ones keep theirs.", "adapted": "Saved. Some settings were fitted to this agent CLI: see \"What this profile enforces\" below. New agents use this version; running ones keep theirs.", "added": "Added from the starter library. It is yours now: change anything you like."}[q.r.URL.Query().Get("done")]})
 	return nil
 }
 
@@ -234,6 +235,8 @@ func (h *Hub) webProfileSave(q *webReq) error {
 		}
 	}
 	spec := specFromForm(q, old)
+	profile.Normalize(&spec)
+	adapted := profile.Adapt(&spec)
 	var n int
 	q.c.tx.QueryRow(`SELECT count(*) FROM profile WHERE name = ?`, name).Scan(&n)
 	if isNew && n > 0 {
@@ -250,7 +253,11 @@ func (h *Hub) webProfileSave(q *webReq) error {
 	if _, err := q.c.saveProfile(name, spec); err != nil {
 		return q.profileError(err, &profileView{IsNew: isNew, Name: name, Spec: spec})
 	}
-	http.Redirect(q.w, q.r, "/profiles/"+name+"?done=saved", http.StatusSeeOther)
+	done := "saved"
+	if len(adapted) > 0 {
+		done = "adapted"
+	}
+	http.Redirect(q.w, q.r, "/profiles/"+name+"?done="+done, http.StatusSeeOther)
 	return nil
 }
 
@@ -368,7 +375,9 @@ func (q *webReq) profileCheck(name string) error {
 	}
 	spec := specFromForm(q, old)
 	probe := spec
-	rv := &profileReview{Problems: profile.Normalize(&probe), Prompt: probe.Prompt, Skills: profile.SkillNames(&probe)}
+	profile.Normalize(&probe)
+	adapted := profile.Adapt(&probe)
+	rv := &profileReview{Adapted: adapted, Problems: profile.Normalize(&probe), Prompt: probe.Prompt, Skills: profile.SkillNames(&probe)}
 	if len(rv.Problems) == 0 {
 		rv.Enforce = profile.Enforcement(&probe)
 	}

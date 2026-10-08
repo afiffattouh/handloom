@@ -49,10 +49,14 @@
     <label class="check"><input type="checkbox" name="tool" value="web"{{if index .Tool "web"}} checked{{end}}> fetch web pages and search</label>
   </fieldset>
   <div class="card-inset" id="live-summary" data-summary="1"><strong>In plain words:</strong> <span id="summary-text">{{.Summary}}</span></div>
-  <label><span>Shell commands it must not run: one per line, such as rm or git push</span>
-    <textarea name="deny" rows="3">{{.Deny}}</textarea></label>
-  <label><span>Paths it may change in a repository job, one pattern per line, such as src/** or docs/*.md. Checked when it submits; empty means no check.</span>
-    <textarea name="write" rows="3" class="mono">{{.WriteText}}</textarea></label>
+  <details class="limits"{{if or .Deny .WriteText}} open{{end}}>
+    <summary>Limits <span class="desc">(optional: leave them empty unless you need them)</span></summary>
+    <label><span>Commands it should never run, one per line, such as rm or git push</span>
+      <textarea name="deny" rows="3">{{.Deny}}</textarea></label>
+    <p class="desc">Claude Code and OpenCode refuse these outright. The other CLIs cannot, so for them Handloom writes the rule into the agent's instructions instead; it is asked, not blocked, and the review says so.</p>
+    <label><span>Where it may change files in a repository job, one pattern per line, such as docs/*.md. Empty means anywhere.</span>
+      <textarea name="write" rows="3" class="mono">{{.WriteText}}</textarea></label>
+  </details>
   <label>Instructions (added to the agent's own)
     <textarea name="prompt" rows="10" class="mono">{{.Spec.Prompt}}</textarea></label>
 
@@ -76,6 +80,7 @@
     <h3>Before you save</h3>
     {{if .Review.Problems}}<div class="error" role="alert"><svg class="icon"><use href="#i-circle-alert"/></svg><div>{{range .Review.Problems}}<div>{{.}}</div>{{end}}</div></div>{{else}}<p class="notice"><svg class="icon"><use href="#i-circle-check"/></svg>Nothing blocks saving this.</p>{{end}}
     {{if .Warnings}}<div class="warn-box"><svg class="icon sev-warn"><use href="#i-triangle-alert"/></svg><div><strong>Worth a look</strong>{{range .Warnings}}<div>{{.}}</div>{{end}}</div></div>{{end}}
+    {{if .Review.Adapted}}<div class="warn-box"><svg class="icon sev-warn"><use href="#i-triangle-alert"/></svg><div><strong>Fitted to this agent CLI</strong>{{range .Review.Adapted}}<div>{{.}}</div>{{end}}<div class="desc">Nothing is refused: saving applies these.</div></div></div>{{end}}
     {{if .Review.Enforce}}<div><h3>What will be enforced</h3><ul class="plain">{{range .Review.Enforce}}<li>{{.}}</li>{{end}}</ul></div>{{end}}
     {{if .Review.Skills}}<p class="desc">Skills: {{range $i, $s := .Review.Skills}}{{if $i}}, {{end}}{{$s}}{{end}}</p>{{end}}
     <div><h3>The instructions it will get</h3><p class="desc">Yours, then Handloom's standing instructions for working in a team.</p><div class="inset wrap">{{if .Review.Prompt}}{{.Review.Prompt}}{{else}}(none){{end}}</div></div>

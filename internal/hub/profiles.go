@@ -92,11 +92,18 @@ func profileNew(c *call) (any, error) {
 	if err := c.decode(&req); err != nil {
 		return nil, err
 	}
+	var adapted []string
+	if req.Adapt {
+		profile.Normalize(&req.Spec) // fills the kind before it is fitted
+		adapted = profile.Adapt(&req.Spec)
+	}
 	p, err := c.saveProfile(req.Name, req.Spec)
 	if err != nil {
 		return nil, err
 	}
-	return p.full(), nil
+	full := p.full()
+	full.Adapted = adapted
+	return full, nil
 }
 
 // saveProfile validates and stores a profile as a new version, or returns the

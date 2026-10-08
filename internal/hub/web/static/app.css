@@ -377,3 +377,6 @@ details.options[open] > summary { border-bottom: 1px solid var(--border); }
 .progress-col { min-width: 150px; }
 .prog { padding: 0; border: 0; gap: 8px; }
 .prog .progress { flex: 1; }
+
+details.limits { display: grid; gap: 12px; }
+details.limits > summary { cursor: pointer; font-weight: 500; color: var(--foreground); }

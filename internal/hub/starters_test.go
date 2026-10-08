@@ -153,10 +153,30 @@ func TestTheStarterPagesAndTheAssistedForm(t *testing.T) {
 	if chk.status != 200 || n != 0 {
 		t.Fatalf("checking saved something (%d profiles)", n)
 	}
-	// Codex-only problems show up in the check too.
+	// What a CLI cannot do is fitted, not refused, and the check says so.
 	chk = e.req("POST", "/profiles", url.Values{"name": {"x"}, "kind": {"codex"}, "tool": {"read"}, "check": {"1"}, "csrf": {tok}}, c, nil)
-	if !strings.Contains(chk.body, "codex always has a shell") {
-		t.Fatalf("codex rule not shown: %s", chk.body)
+	if !strings.Contains(chk.body, "Fitted to this agent CLI") || !strings.Contains(chk.body, "always has a shell") || strings.Contains(chk.body, `role="alert"`) {
+		t.Fatalf("codex fitting not shown: %s", chk.body)
+	}
+}
+
+func TestADeniedCommandOnACLIThatCannotRefuseItIsAskedNotRefused(t *testing.T) {
+	e := newWebEnv(t, Options{})
+	c, tok := e.owner()
+	save := url.Values{"name": {"careful-pi"}, "kind": {"pi"}, "runtime": {"local"}, "model": {"gb10/qwen3.8-27b"}, "tool": {"read", "edit", "shell", "web"},
+		"deny": {"rm\ngit push"}, "prompt": {"Be careful."}, "csrf": {tok}, "current_password": {goodPassword}}
+	r := e.req("POST", "/profiles", save, c, nil)
+	if r.status != 303 || !strings.Contains(r.header.Get("Location"), "done=adapted") {
+		t.Fatalf("save: %d %s", r.status, r.body)
+	}
+	page := e.req("GET", "/profiles/careful-pi?done=adapted", nil, c, nil).body
+	for _, want := range []string{"asked in its instructions, not enforced: do not run rm, git push", "Some settings were fitted"} {
+		if !strings.Contains(page, want) {
+			t.Errorf("profile page lacks %q", want)
+		}
+	}
+	if strings.Contains(page, "Pi has no web tool: remove web") {
+		t.Error("a refusal leaked")
 	}
 }
 

@@ -175,33 +175,8 @@ func Build(name string, c Choice) (*Result, error) {
 	if len(r.Problems) > 0 {
 		return r, nil
 	}
-	if kc, ok := profile.CapsFor(spec.Kind); ok && c.Adapt {
-		label := profile.KindLabel(spec.Kind)
-		if len(spec.Tools.DenyCommands) > 0 && !kc.DenyCommands {
-			r.Adapted = append(r.Adapted, "left out the denied commands ("+strings.Join(spec.Tools.DenyCommands, ", ")+"): "+label+" cannot refuse specific commands")
-			spec.Tools.DenyCommands = nil
-		}
-		if kc.AlwaysShell {
-			hasShell := false
-			for _, t := range spec.Tools.Allow {
-				hasShell = hasShell || t == "shell"
-			}
-			if !hasShell {
-				spec.Tools.Allow = append(spec.Tools.Allow, "shell")
-				r.Adapted = append(r.Adapted, "added the shell tool: "+label+" always has one (handloom's own commands run through it)")
-			}
-		}
-		if !kc.Web {
-			var keep []string
-			for _, t := range spec.Tools.Allow {
-				if t == "web" {
-					r.Adapted = append(r.Adapted, "left out the web tool: "+label+" has none")
-					continue
-				}
-				keep = append(keep, t)
-			}
-			spec.Tools.Allow = keep
-		}
+	if c.Adapt {
+		r.Adapted = profile.Adapt(spec)
 	}
 	r.Problems = profile.Normalize(spec)
 	r.Warnings = profile.Warnings(spec)

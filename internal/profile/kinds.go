@@ -209,6 +209,8 @@ func toolEnforcement(kind string, s *Spec) []string {
 		out = append(out, shellNote)
 		if len(s.Tools.DenyCommands) > 0 {
 			out = append(out, "not enforced: denied commands ("+strings.Join(s.Tools.DenyCommands, ", ")+"): "+label+" cannot refuse specific commands")
+		} else if soft := SoftDenied(s); soft != "" {
+			out = append(out, "asked in its instructions, not enforced: do not run "+soft)
 		} else {
 			out = append(out, "not enforced: which shell commands run")
 		}

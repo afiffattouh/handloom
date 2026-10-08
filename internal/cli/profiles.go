@@ -124,10 +124,15 @@ func (e *env) profile(args []string) error {
 			return err
 		}
 		var p api.ProfileFull
-		if err := c.Post("/v1/profiles", api.ProfileReq{Name: name, Spec: *spec}, &p); err != nil {
+		if err := c.Post("/v1/profiles", api.ProfileReq{Name: name, Spec: *spec, Adapt: *adapt}, &p); err != nil {
 			return err
 		}
-		e.print(p, func() { fmt.Fprintf(e.out, "%s: version %d, hash %.12s\n", p.Name, p.Version, p.Hash) })
+		e.print(p, func() {
+			fmt.Fprintf(e.out, "%s: version %d, hash %.12s\n", p.Name, p.Version, p.Hash)
+			for _, a := range p.Adapted {
+				fmt.Fprintln(e.out, "  adapted: "+a)
+			}
+		})
 		return nil
 	case "show", "export":
 		n := 1

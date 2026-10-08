@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"handloom/internal/api"
+	"handloom/internal/profile"
 	"handloom/internal/store"
 )
 
@@ -161,5 +162,18 @@ func TestTheOwnerCanBeCreatedFromTheCommandLine(t *testing.T) {
 	}
 	if _, err := CreateOwner(db, "bad name!", time.Unix(3, 0)); err == nil {
 		t.Fatal("a bad name")
+	}
+}
+
+func TestProfileAdaptThroughTheAPI(t *testing.T) {
+	e := newWebEnv(t, Options{})
+	spec := profile.Spec{Kind: "omp", Runtime: "cloud", Prompt: "p", Tools: profile.Tools{Allow: []string{"read"}, DenyCommands: []string{"rm"}}}
+	if code := e.status(e.admin, "POST", "/v1/profiles", api.ProfileReq{Name: "strict", Spec: spec}); code != 400 {
+		t.Fatalf("without adapt: %d", code)
+	}
+	var p api.ProfileFull
+	e.apiOK(e.admin, "", "POST", "/v1/profiles", api.ProfileReq{Name: "strict", Spec: spec, Adapt: true}, &p)
+	if len(p.Adapted) != 2 || p.Spec.Tools.DenyCommands != nil || !strings.Contains(p.Spec.Prompt, "do not run these shell commands: rm") {
+		t.Fatalf("adapted: %+v", p)
 	}
 }

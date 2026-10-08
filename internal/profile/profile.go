@@ -385,3 +385,50 @@ func joinWords(w []string) string {
 	}
 	return strings.Join(w[:len(w)-1], ", ") + " and " + w[len(w)-1]
 }
+
+// softDeny starts the standing rule Adapt writes into the instructions when
+// the CLI cannot refuse a command itself.
+const softDeny = "Standing rule from this profile: do not run these shell commands: "
+
+// Adapt makes a spec fit its CLI instead of refusing it, and says what it did:
+// denied commands a CLI cannot refuse become a standing rule in the agent's
+// instructions (asked, not enforced), a shell the CLI always has is listed, and
+// a web tool the CLI lacks is left out.
+func Adapt(s *Spec) []string {
+	kc, ok := CapsFor(s.Kind)
+	if !ok {
+		return nil
+	}
+	label := KindLabel(s.Kind)
+	var notes []string
+	if len(s.Tools.DenyCommands) > 0 && !kc.DenyCommands {
+		list := strings.Join(s.Tools.DenyCommands, ", ")
+		s.Prompt = strings.TrimSpace(s.Prompt + "\n\n" + softDeny + list + ".")
+		s.Tools.DenyCommands = nil
+		notes = append(notes, label+" cannot refuse specific commands, so "+list+" is written into the agent's instructions as a rule it is asked to follow. That is a request, not a block. Choose Claude Code or OpenCode if it must be impossible.")
+	}
+	if kc.AlwaysShell && !has(s.Tools.Allow, "shell") {
+		s.Tools.Allow = append(s.Tools.Allow, "shell")
+		notes = append(notes, label+" always has a shell (Handloom's own commands run through it), so it is listed.")
+	}
+	if !kc.Web && has(s.Tools.Allow, "web") {
+		var keep []string
+		for _, t := range s.Tools.Allow {
+			if t != "web" {
+				keep = append(keep, t)
+			}
+		}
+		s.Tools.Allow = keep
+		notes = append(notes, label+" has no web tool, so it was left out.")
+	}
+	return notes
+}
+
+// SoftDenied is the commands a profile only asks its agent not to run.
+func SoftDenied(s *Spec) string {
+	i := strings.LastIndex(s.Prompt, softDeny)
+	if i < 0 {
+		return ""
+	}
+	return strings.TrimSuffix(strings.TrimSpace(s.Prompt[i+len(softDeny):]), ".")
+}

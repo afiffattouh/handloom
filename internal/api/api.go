@@ -415,12 +415,14 @@ type ProfileInfo struct {
 // ProfileFull is one version of a profile with everything in it.
 type ProfileFull struct {
 	ProfileInfo
-	Spec profile.Spec `json:"spec"`
+	Spec    profile.Spec `json:"spec"`
+	Adapted []string     `json:"adapted,omitempty"`
 }
 
 type ProfileReq struct {
-	Name string       `json:"name"`
-	Spec profile.Spec `json:"spec"`
+	Name  string       `json:"name"`
+	Spec  profile.Spec `json:"spec"`
+	Adapt bool         `json:"adapt,omitempty"` // fit the spec to its CLI instead of refusing; the answer says what changed
 }
 
 // ScopeRefusal is a link telling the hub it refused an agent's submit because

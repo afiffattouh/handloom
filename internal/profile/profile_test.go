@@ -431,3 +431,34 @@ func TestInlineSkillsAndLocalWarnings(t *testing.T) {
 		t.Errorf("local Claude: %s", w)
 	}
 }
+
+func TestAdaptFitsASpecToItsCLIAndSaysSo(t *testing.T) {
+	s := Spec{Kind: "pi", Runtime: Local, Model: "m", Prompt: "Work.", Tools: Tools{Allow: []string{"read", "web"}, DenyCommands: []string{"rm", "git push"}}}
+	if bad := Normalize(&s); len(bad) == 0 {
+		t.Fatal("unadapted, this spec has problems")
+	}
+	notes := Adapt(&s)
+	if len(notes) != 3 {
+		t.Fatalf("notes: %v", notes)
+	}
+	if bad := Normalize(&s); len(bad) != 0 {
+		t.Fatalf("adapted but still refused: %v", bad)
+	}
+	if len(s.Tools.DenyCommands) != 0 || !has(s.Tools.Allow, "shell") || has(s.Tools.Allow, "web") {
+		t.Fatalf("tools: %+v", s.Tools)
+	}
+	if SoftDenied(&s) != "rm, git push" || !strings.HasPrefix(s.Prompt, "Work.") {
+		t.Fatalf("prompt: %q", s.Prompt)
+	}
+	// Claude can refuse commands itself: nothing changes.
+	c := Spec{Kind: "claude", Tools: Tools{Allow: []string{"shell"}, DenyCommands: []string{"rm"}}}
+	if n := Adapt(&c); len(n) != 0 || len(c.Tools.DenyCommands) != 1 {
+		t.Fatalf("claude: %v %+v", n, c.Tools)
+	}
+	// Applying it twice changes nothing more.
+	before := s.Prompt
+	Adapt(&s)
+	if s.Prompt != before {
+		t.Fatal("adapting is not idempotent")
+	}
+}

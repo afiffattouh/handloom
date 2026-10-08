@@ -3,7 +3,8 @@
 <div class="page-head">
   <div><h1>{{.Name}}</h1>
     <p class="desc"><span class="badge outline">{{.Kind}}</span>{{if .Profile}} <span class="mono">{{.Profile}}</span>{{end}} · {{.Role}} on {{.Device}}{{if .Job}} · <a href="/jobs/{{.Job}}">job #{{.Job}}</a>{{end}}</p></div>
-  <div class="acts"><span class="badge {{.Badge}}"><i class="dot{{.Dot}}"></i>{{.State}} for {{.StateFor}}</span></div>
+  <div class="acts"><span class="badge {{.Badge}}"><i class="dot{{.Dot}}"></i>{{.State}} for {{.StateFor}}</span>
+    {{if .CanRemove}}<form method="post" action="/agents/{{.Name}}/remove" class="inline"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button type="submit" class="secondary" title="Takes it off the board. Refused while it owns tasks.">Remove</button></form>{{end}}</div>
 </div>
 
 <div class="card"><div class="kpis">

@@ -2,6 +2,7 @@ package hub
 
 import (
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -344,4 +345,53 @@ func meOperatorTokenRemove(c *call) (any, error) {
 		return nil, err
 	}
 	return nil, c.audit("human.operator_token.remove", "human:"+h.Name, nil)
+}
+
+// removeAgent takes a stale agent off the board: one that holds no work. An
+// agent that still runs registers itself again the next time it speaks.
+func (c *call) removeAgent(name string) error {
+	a, err := c.agentByName(name)
+	if err != nil {
+		return err
+	}
+	if a == nil {
+		return notFound("no agent %q", name)
+	}
+	var n int
+	c.tx.QueryRow(`SELECT count(*) FROM task WHERE owner_agent_id = ? OR assigned_to = ?`, a.id, a.id).Scan(&n)
+	if n > 0 {
+		return conflict("%s owns or is assigned %d task(s). Close or cancel the job that holds them first: removing an agent never drops work.", name, n)
+	}
+	c.tx.QueryRow(`SELECT count(*) FROM escalation WHERE from_agent_id = ?`, a.id).Scan(&n)
+	if n > 0 {
+		return conflict("%s has asked questions that are part of the record, so it cannot be removed.", name)
+	}
+	for _, q := range []string{`DELETE FROM message WHERE to_agent_id = ?`, `DELETE FROM event WHERE agent_id = ?`, `DELETE FROM agent WHERE id = ?`} {
+		if _, err := c.tx.Exec(q, a.id); err != nil {
+			return err
+		}
+	}
+	return c.audit("agent.remove", "agent:"+name, map[string]any{"device": a.device, "kind": a.kind, "role": a.role})
+}
+
+func agentRemove(c *call) (any, error) {
+	if c.p.kind != kindAdmin && !(c.p.kind == kindHuman && c.p.role != store.RoleViewer) {
+		return nil, forbidden("removing an agent is for a person who can run work, not for agents or viewers")
+	}
+	return nil, c.removeAgent(c.r.PathValue("name"))
+}
+
+func (h *Hub) webAgentRemove(q *webReq) error {
+	if q.human.Role == store.RoleViewer {
+		return q.refuse("Viewers cannot remove agents.")
+	}
+	if err := q.c.removeAgent(q.r.PathValue("name")); err != nil {
+		if ae, ok := err.(*apiError); ok {
+			q.page(ae.status, "message", pageData{Title: "Not removed", Error: ae.msg})
+			return errHandled
+		}
+		return err
+	}
+	http.Redirect(q.w, q.r, "/agents", http.StatusSeeOther)
+	return nil
 }

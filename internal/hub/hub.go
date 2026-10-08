@@ -240,6 +240,7 @@ func (h *Hub) Handler() http.Handler {
 	v1("POST /me/operator-token", meOperatorToken)
 	v1("POST /me/operator-token/remove", meOperatorTokenRemove)
 	v1("GET /agents/{name}/screen", agentScreen)
+	v1("POST /agents/{name}/remove", agentRemove)
 	v1("POST /device/usage", usagePost)
 	v1("GET /device/tails", deviceTails)
 	v1("POST /device/tails/{name}", tailPut)

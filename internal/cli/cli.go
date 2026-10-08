@@ -46,6 +46,7 @@ const usage = `handloom: coordination for coding agents across machines
 Agent verbs (run inside an agent's shell, through the local link):
   handloom register <name> [--kind K] [--project P]   register this agent on this device
   handloom whoami                                     show who the hub thinks you are
+  handloom agents remove <name>                       take a stale agent off the board (never one that holds work)
   handloom agents                                     list agents and their state
   handloom send <to> <text> [--task N]                to: agent name, role:lead, or task:<id>
   handloom inbox [--all]                              read new messages (marks them read)

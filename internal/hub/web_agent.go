@@ -33,6 +33,7 @@ type agentPageView struct {
 	Recent                                   []agentTask
 	Attach                                   string
 	CanWatch                                 bool
+	CanRemove                                bool
 	WatchWhy                                 string
 }
 
@@ -172,6 +173,7 @@ func (h *Hub) webAgent(q *webReq) error {
 	if started > 0 {
 		v.Attach = "tmux -L handloom attach -t handloom:" + a.name
 	}
+	v.CanRemove = q.human.Role != store.RoleViewer
 	v.CanWatch, v.WatchWhy = q.watchAllowed(a)
 	if v.CanWatch && a.wakeTarget == "" {
 		v.CanWatch, v.WatchWhy = false, "This agent has no terminal the machine's link can read."

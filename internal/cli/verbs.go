@@ -268,8 +268,23 @@ func (e *env) whoami(args []string) error {
 func (e *env) agents(args []string) error {
 	fs := e.flags("agents")
 	project := fs.String("project", "", "project (humans and admin)")
-	if _, err := fs.need(args, 0, 0, "agents"); err != nil {
+	pos, err := fs.parse(args)
+	if err != nil {
 		return err
+	}
+	if len(pos) == 2 && pos[0] == "remove" {
+		c, err := conn()
+		if err != nil {
+			return err
+		}
+		if err := c.Post("/v1/agents/"+url.PathEscape(pos[1])+"/remove", nil, nil); err != nil {
+			return err
+		}
+		fmt.Fprintf(e.out, "Removed %s. If it is still running it registers itself again when it next speaks.\n", pos[1])
+		return nil
+	}
+	if len(pos) != 0 {
+		return usageErr("usage: handloom agents | agents remove <name>")
 	}
 	c, err := conn()
 	if err != nil {

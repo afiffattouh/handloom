@@ -269,3 +269,45 @@ func TestAHumanTokenCanBeResetOnTheHubsMachine(t *testing.T) {
 		t.Fatal("an unknown person")
 	}
 }
+
+func TestAStaleAgentCanBeRemovedButNeverOneHoldingWork(t *testing.T) {
+	e := newWebEnv(t, Options{})
+	ag := e.agents()
+	e.apiOK(ag.device, "", "POST", "/v1/agents", api.RegisterReq{Name: "stale", Kind: "shell"}, nil)
+	mine := e.humanAPI()
+	var as []api.Agent
+	e.apiOK(mine, "", "GET", "/v1/agents", nil, &as)
+	found := false
+	for _, a := range as {
+		found = found || a.Name == "stale"
+	}
+	if !found {
+		t.Fatalf("setup: %+v", as)
+	}
+	if code := e.status(ag.device, "POST", "/v1/agents/stale/remove", nil); code != 403 {
+		t.Fatalf("a device removes an agent: %d", code)
+	}
+	if code := e.status(mine, "POST", "/v1/agents/nobody/remove", nil); code != 404 {
+		t.Fatalf("unknown: %d", code)
+	}
+	e.apiOK(mine, "", "POST", "/v1/agents/stale/remove", nil, nil)
+	e.apiOK(mine, "", "GET", "/v1/agents", nil, &as)
+	for _, a := range as {
+		if a.Name == "stale" {
+			t.Fatal("still listed")
+		}
+	}
+	// An agent that owns a task is not removable.
+	e.apiOK(ag.device, "", "POST", "/v1/agents", api.RegisterReq{Name: "busy", Kind: "shell"}, nil)
+	var task api.Task
+	e.apiOK(mine, "", "POST", "/v1/tasks", api.TaskCreateReq{Title: "x", AssignedTo: "busy"}, &task)
+	if code := e.status(mine, "POST", "/v1/agents/busy/remove", nil); code != 409 {
+		t.Fatalf("an agent holding a task: %d", code)
+	}
+	// An app token cannot remove anything.
+	var r api.TokenResp
+	e.apiOK(mine, "", "POST", "/v1/me/operator-token", nil, &r)
+	if code := e.status(r.Token, "POST", "/v1/agents/busy/remove", nil); code != 403 {
+		t.Fatalf("an app token: %d", code)
+	}
+}

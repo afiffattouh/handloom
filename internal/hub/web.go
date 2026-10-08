@@ -241,6 +241,7 @@ func (h *Hub) webRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /agents", web(h.authed(h.webAgents)))
 	mux.HandleFunc("GET /agents/{name}", web(h.authed(h.webAgent)))
 	mux.HandleFunc("POST /agents/{name}/watch", web(h.authed(h.webWatch)))
+	mux.HandleFunc("POST /agents/{name}/remove", web(h.authed(h.webAgentRemove)))
 	mux.HandleFunc("GET /agents/{name}/tail", web(h.authed(h.webTail)))
 	mux.HandleFunc("POST /agents/spawn", web(h.authed(h.webSpawn)))
 	mux.HandleFunc("GET /profiles", web(h.authed(h.webProfiles)))

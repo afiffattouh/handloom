@@ -20,8 +20,4 @@ Done: everything the web UI does is also an API call and a command: `handloom pr
 
 ## Using Handloom from an agent app through MCP
 
-Today `handloom mcp` (stdio) gives an agent the agent verbs as tools (used with Codex, whose sandbox cannot reach the link). Wanted: someone using the Claude app, Codex or another MCP client can drive Handloom, and an app session can take part as an agent.
-
-- An operator MCP (read status, start jobs, list profiles and starters, read the inbox) as a mode of `handloom mcp`, over stdio first (works in Claude Code, Claude Desktop and Codex), then HTTP on the hub for clients that need a remote connector (which needs OAuth).
-- Approvals stay human. Accepting work, answering a question and closing a job must not be tools an AI can call with the owner's token and auto-approve; they stay outside the operator MCP by default, or are marked so the client always asks.
-- An app session as an agent: it registers through the link with no terminal to wake, and pulls its mail by calling `handloom_inbox` when the person tells it to. No wake ladder for it.
+Done over stdio: `handloom mcp --operator` for a person's own app, and `handloom mcp` with a pull agent for an app session that takes part (docs/mcp.md). Still open: a remote MCP endpoint on the hub for connector-style clients (needs OAuth), and a token limited to the operator tools instead of the person's full token.

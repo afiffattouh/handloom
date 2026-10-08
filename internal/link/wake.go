@@ -57,6 +57,9 @@ func (l *Link) decide(a api.DeviceAgent, m *memo, now time.Time) decision {
 	if a.Unread == 0 {
 		return decision{}
 	}
+	if a.WakeTarget == PullTarget {
+		return decision{} // nobody to type into and nothing to report: it pulls its mail
+	}
 	headless := a.WakeTarget == HeadlessTarget
 	switch {
 	case a.State == api.StateWorking:
@@ -122,7 +125,7 @@ func (l *Link) runLadder(ctx context.Context) {
 // tell "quiet" from "gone". Agents without a terminal (headless, none) are
 // resumable and have nothing to vouch for.
 func (l *Link) vouch(ctx context.Context, a api.DeviceAgent, now time.Time) {
-	if a.WakeTarget == "" || a.WakeTarget == HeadlessTarget {
+	if a.WakeTarget == "" || a.WakeTarget == HeadlessTarget || a.WakeTarget == PullTarget {
 		return
 	}
 	l.mu.Lock()

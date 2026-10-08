@@ -1543,3 +1543,26 @@ func TestIsolationIsASeamNotAFeatureYet(t *testing.T) {
 		t.Fatalf("native command: %q %v", cmd, err)
 	}
 }
+
+func TestAnAppSessionThatPullsItsMailIsLeftAlone(t *testing.T) {
+	f := newFixture(t)
+	f.must(f.worker.Post("/v1/agents", api.RegisterReq{Name: "claude-app", Kind: "app", WakeTarget: PullTarget}, nil))
+	ac := client.Socket(f.link.opt.Socket, "claude-app")
+	f.must(ac.Post("/v1/agents/claude-app/state", api.StateReq{State: "idle"}, nil))
+	f.must(f.human.Post("/v1/messages", api.SendReq{To: "claude-app", Body: "please look at task 3"}, nil))
+	f.ladder()
+	f.advance(10 * time.Minute)
+	f.ladder()
+	if f.driver.count() != 0 {
+		t.Fatalf("typed into an app: %v", f.driver.nudges)
+	}
+	if got := f.inbox(f.lead); len(got) != 0 {
+		t.Fatalf("the lead was told about an app that pulls its mail: %+v", got)
+	}
+	// It reads its mail when it is told to.
+	var msgs []api.Message
+	f.must(ac.Get("/v1/inbox", &msgs))
+	if len(msgs) != 1 || !strings.Contains(msgs[0].Body, "task 3") {
+		t.Fatalf("its inbox: %+v", msgs)
+	}
+}

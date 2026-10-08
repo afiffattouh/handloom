@@ -20,14 +20,25 @@ import (
 // mcp serves the agent verbs as MCP tools on stdin/stdout. Each tool call
 // runs the same code path as the matching command line.
 func (e *env) mcp(args []string) error {
-	if len(args) != 0 {
-		return usageErr("usage: handloom mcp")
+	fs := e.flags("mcp")
+	operator := fs.Bool("operator", false, "serve the tools of a person driving Handloom from their own AI app (needs HANDLOOM_HUB and HANDLOOM_TOKEN) instead of an agent's tools")
+	approvals := fs.Bool("allow-approvals", false, "with --operator: also offer accepting work, answering questions and closing jobs, which only a human should do")
+	pos, err := fs.parse(args)
+	if err != nil {
+		return err
 	}
-	return mcp.Serve(os.Stdin, e.out, Version, func(argv []string) (string, string, int) {
+	if len(pos) != 0 || (*approvals && !*operator) {
+		return usageErr("usage: handloom mcp [--operator [--allow-approvals]]")
+	}
+	run := func(argv []string) (string, string, int) {
 		var out, errb strings.Builder
 		code := Main(argv, &out, &errb)
 		return out.String(), errb.String(), code
-	})
+	}
+	if *operator {
+		return mcp.ServeOperator(os.Stdin, e.out, Version, run, *approvals)
+	}
+	return mcp.Serve(os.Stdin, e.out, Version, run)
 }
 
 const usage = `handloom: coordination for coding agents across machines
@@ -62,7 +73,7 @@ Device:
   handloom adapter install <kind> --name N [--dir D]  install an agent adapter in a project
                                                   (kinds: claude, codex, pi, omp, opencode)
   handloom run <name> -- <command...>                 start an agent CLI as a registered, wakeable agent
-  handloom mcp                                        MCP server (stdio) offering the agent verbs as tools
+  handloom mcp [--operator [--allow-approvals]]       MCP server (stdio): the agent verbs as tools, or with --operator the tools of a person driving Handloom from their own AI app
 
 Hub and administration (HANDLOOM_HUB and HANDLOOM_TOKEN set to the hub URL and a token):
   handloom hub init [--data DIR]                      create the database, print the admin token once

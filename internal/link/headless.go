@@ -19,6 +19,11 @@ import (
 // woken by running one headless turn on its saved session (wake ladder step 3).
 const HeadlessTarget = "headless"
 
+// PullTarget is the wake target of an agent that is not woken: a person's AI
+// app (Claude, Codex, ...) that reads its mail when it is told to. The link
+// neither types into it nor reports it as unreachable.
+const PullTarget = "pull"
+
 // headlessCommands is how each agent kind resumes a session for one turn.
 // {session_id} and {prompt} are replaced. Only the claude line has been run
 // against the real CLI; the others follow each CLI's --help.

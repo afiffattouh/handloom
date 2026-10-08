@@ -505,6 +505,7 @@ type WhoAmI struct {
 	Via    string `json:"via,omitempty"` // how the hub knows the agent: run-token | device-asserted
 	Kind   string `json:"kind"`          // admin | human | device
 	Name   string `json:"name,omitempty"`
+	Role   string `json:"role,omitempty"` // humans: owner | member | viewer
 	Device string `json:"device,omitempty"`
 	Agent  *Agent `json:"agent,omitempty"`
 }

@@ -143,6 +143,9 @@ func (c *call) localAgent() (*agentRow, error) {
 
 func whoami(c *call) (any, error) {
 	out := api.WhoAmI{Kind: c.p.kind, Name: c.p.name}
+	if c.p.kind == kindHuman {
+		out.Role = c.p.role
+	}
 	if c.p.kind == kindDevice {
 		out.Device, out.Name = c.p.name, ""
 		if c.p.agentName != "" {

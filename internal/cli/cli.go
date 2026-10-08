@@ -101,6 +101,7 @@ Hub and administration (HANDLOOM_HUB and HANDLOOM_TOKEN set to the hub URL and a
   handloom spawn <name> [--profile P] [--kind claude] [--model M] [--device D] [--job N]   start an agent in a terminal the link owns (lead, human)
   handloom spawns                                 list spawn requests and how they went
   handloom digest                                 what needs you, what waits for review, what runs
+  handloom tui                                    the full-screen console: overview, inbox, jobs, agents, library (what a bare "handloom" opens in a terminal when HANDLOOM_HUB and HANDLOOM_TOKEN are set)
   handloom escalations [--status open|answered|all]   list the lead's questions (human)
   handloom answer <id> <answer>                       answer a question (human only)
   handloom audit [--after SEQ]                        (admin, human)
@@ -118,8 +119,12 @@ type env struct {
 func Main(args []string, stdout, stderr io.Writer) int {
 	e := &env{out: stdout, err: stderr}
 	if len(args) == 0 {
-		fmt.Fprint(stderr, usage)
-		return 2
+		if wantsConsole(stdout) {
+			args = []string{"tui"}
+		} else {
+			fmt.Fprint(stderr, usage)
+			return 2
+		}
 	}
 	cmd, rest := args[0], args[1:]
 	var err error
@@ -182,6 +187,8 @@ func Main(args []string, stdout, stderr io.Writer) int {
 		err = e.spawns(rest)
 	case "spawn-exec":
 		err = e.spawnExec(rest)
+	case "tui":
+		err = e.tui(rest)
 	case "digest":
 		err = e.digest(rest)
 	case "ask":

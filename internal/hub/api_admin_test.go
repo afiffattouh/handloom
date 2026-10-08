@@ -242,3 +242,12 @@ func TestTheConnectPage(t *testing.T) {
 	}
 	_ = vtok
 }
+
+func TestWhoamiTellsAPersonTheirRole(t *testing.T) {
+	e := newWebEnv(t, Options{})
+	var w api.WhoAmI
+	e.apiOK(e.humanAPI(), "", "GET", "/v1/whoami", nil, &w)
+	if w.Kind != "human" || w.Role != "member" {
+		t.Fatalf("whoami: %+v", w)
+	}
+}

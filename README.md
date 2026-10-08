@@ -241,7 +241,7 @@ For a CLI that cannot refuse commands, "never run risky commands" becomes a stan
 ## Run it yourself
 
 - **Docker, behind Caddy:** the quick start above. One image, one volume; accounts, jobs and profiles live in one SQLite file, snapshotted before every migration. `handloom hub backup` and `restore` are built in.
-- **Dokploy or any compose host:** [docs/deploy.md](docs/deploy.md), including deploying from Git on every push.
+- **Dokploy or any compose host:** [docs/deploy.md](docs/deploy.md): a compose app that you deploy from your own machine, or from Git if you prefer.
 - **A private network, no domain:** `scripts/setup.sh hub <ssh-name>` runs the hub as a systemd service on a Tailscale address (plain HTTP: keep it private), and `scripts/setup.sh device <ssh-name> --hub <url>` does the same for each machine.
 - **Build:** `go build -o bin/handloom ./cmd/handloom`; `go test ./...`. One static binary, cross-compile with `CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build ...`.
 - **Recovery** (on the hub's own machine): `handloom hub reset-password`, `reset-human-token`, `reset-admin-token`, `create-owner`.

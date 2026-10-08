@@ -84,13 +84,15 @@ Before an upgrade changes the schema the hub writes `/data/backups/pre-vN.db` fi
 
 The Dockerfile cross-compiles in the builder stage, so `docker build --platform linux/amd64 .` works from an arm64 machine. The result is a static binary on distroless (about 14 MB), running as a non-root user.
 
-## Deploying from Git (how the live hub runs)
+## Deploying from your own machine (how the live hub runs)
 
-The Dokploy app uses the **Git** source: the public repository `https://github.com/afiffattouh/handloom.git`, branch `main`, compose file `./docker-compose.yml`. Dokploy builds the image on the server from the `Dockerfile`, so there is nothing to load by hand. Environment (`HANDLOOM_BASE_URL`, `HANDLOOM_TRUST_PROXY=1`) is set on the Dokploy app, not in the repository. The data volume is the same as before, so a redeploy keeps accounts, jobs and profiles.
+The Dokploy app is a plain compose app, not tied to any repository. `scripts/dokploy-deploy.sh` builds the image from your working tree, sends it to the Dokploy host over ssh (`docker save | ssh host docker load`), writes the compose file (the image tag, `HANDLOOM_BASE_URL`, `HANDLOOM_TRUST_PROXY=1`, the data volume) and redeploys. The compose file says `pull_policy: never`, so Dokploy uses the loaded image and pulls nothing. The data volume is the same on every deploy, so accounts, jobs and profiles are kept. Publishing the code on GitHub deploys nothing.
 
-To redeploy on every push, add a webhook on the repository (Settings, Webhooks): payload URL `https://<your-dokploy>/api/deploy/compose/<the app's webhook token>` (Dokploy shows it on the app's Deployments tab), content type `application/json`, the push event only. Deploys happen on pushes to `main`.
+```
+DOKPLOY_URL=http://<panel>:3000 DOKPLOY_API_KEY=... DOKPLOY_SSH=<ssh host> \
+COMPOSE_ID=<the compose app's id> HUB_URL=https://<your hub> scripts/dokploy-deploy.sh
+```
 
 Back up first when a change touches the database (`docker exec <container> /handloom hub backup --to /data/backups/x.db --data /data`); the hub also snapshots before each migration.
 
-`scripts/dokploy-deploy.sh` is the older route (build locally, load the image over ssh, point a raw compose file at it). It switches the app off Git, so it only runs with `ALLOW_RAW=1`.
-
+If you would rather deploy from Git, Dokploy can: set the app's source to your repository and branch and compose file `./docker-compose.yml`, put the environment on the app, and add a push webhook to the repository (Dokploy shows its URL on the Deployments tab). It builds the image on the server. The live hub does not do this.

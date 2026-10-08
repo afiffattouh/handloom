@@ -6,14 +6,11 @@
 #   DOKPLOY_SSH=dokploy COMPOSE_ID=<composeId> HUB_URL=https://handloom.example.com \
 #   scripts/dokploy-deploy.sh
 #
-# Why not a registry or git: the repo has no remote yet. The image goes over
-# ssh (`docker save | ssh host docker load`); the compose file says
-# `pull_policy: never`, so Dokploy uses the loaded image.
+# This is how the live hub is deployed: the image is built here from the working
+# tree and goes over ssh (`docker save | ssh host docker load`); the compose file
+# says `pull_policy: never`, so Dokploy uses the loaded image. Nothing is pulled
+# from GitHub, and a push to the repository deploys nothing.
 set -euo pipefail
-# Since 2026-10-08 the Dokploy app builds from the Git repository (afiffattouh/handloom, branch main) and a push
-# to main redeploys it through a webhook. This script replaces that with a raw compose file and an image loaded
-# over ssh, which switches the app off Git: it only runs with ALLOW_RAW=1 (for a hub without a GitHub repository).
-[ "${ALLOW_RAW:-}" = 1 ] || { echo "This hub deploys from Git: push to main. (ALLOW_RAW=1 switches it to an ssh-loaded image instead.)" >&2; exit 1; }
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 : "${DOKPLOY_URL:?}" "${DOKPLOY_API_KEY:?}" "${DOKPLOY_SSH:?}" "${COMPOSE_ID:?}" "${HUB_URL:?}"
 PLATFORM="${PLATFORM:-linux/amd64}"
@@ -33,11 +30,26 @@ say "load it on $DOKPLOY_SSH"
 docker save "handloom-hub:$TAG" | ssh -o BatchMode=yes "$DOKPLOY_SSH" docker load
 
 say "point the compose app at it"
-BODY="$(TAG=$TAG COMPOSE_ID=$COMPOSE_ID python3 - "$(api get compose.one "{\"json\":{\"composeId\":\"$COMPOSE_ID\"}}")" <<'PY'
-import json, os, re, sys
-cur = json.loads(sys.argv[1])["result"]["data"]["json"]["composeFile"]
-new = re.sub(r"image: handloom-hub:\S+", "image: handloom-hub:" + os.environ["TAG"], cur)
-print(json.dumps({"json": {"composeId": os.environ["COMPOSE_ID"], "composeFile": new}}))
+# The compose file is written here in full, so the app is always a raw compose app (not a Git one).
+BODY="$(TAG=$TAG COMPOSE_ID=$COMPOSE_ID HUB_URL=$HUB_URL python3 - <<'PY'
+import json, os
+compose = f"""services:
+  handloom:
+    image: handloom-hub:{os.environ["TAG"]}
+    pull_policy: never
+    restart: unless-stopped
+    environment:
+      HANDLOOM_BASE_URL: {os.environ["HUB_URL"]}
+      HANDLOOM_TRUST_PROXY: "1"
+    volumes:
+      - handloom-data:/data
+    expose:
+      - "7420"
+volumes:
+  handloom-data:
+"""
+print(json.dumps({"json": {"composeId": os.environ["COMPOSE_ID"], "sourceType": "raw", "composeFile": compose,
+                           "customGitUrl": None, "customGitBranch": None, "env": ""}}))
 PY
 )"
 api post compose.update "$BODY" >/dev/null

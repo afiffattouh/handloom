@@ -7,7 +7,7 @@ A handloom is a loom worked by a person. **Warp** threads are held in tension; t
 The words we use follow from this and stay plain: *job*, *agent*, *machine*, *review*. We do not say "weave" in the product; the metaphor lives in the mark.
 
 **Tagline:** Your agents, on your machines.
-**One line:** Open-source, self-hosted coordination of coding agents across devices.
+**One line:** Run a team of coding agents on your own machines. A lead plans, workers build, your machine checks, you approve.
 
 ## The mark
 

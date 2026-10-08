@@ -1,4 +1,4 @@
-<p align="center"><img src="docs/brand/banner.png" alt="Handloom: your agents, on your machines" width="820"></p>
+<p align="center"><img src="docs/brand/banner.png" alt="Handloom: run a team of coding agents on your own machines" width="820"></p>
 
 <p align="center">
   <a href="https://github.com/afiffattouh/handloom/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/afiffattouh/handloom/actions/workflows/ci.yml/badge.svg"></a>

@@ -3,6 +3,7 @@ package link
 import (
 	"bufio"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -12,13 +13,15 @@ import (
 	"sync"
 	"time"
 
+	_ "modernc.org/sqlite"
+
 	"handloom/internal/api"
 )
 
 // Usage, device side. The agent CLIs write their own logs; this reads the
 // token counts out of them (never the text) and reports running totals per
-// agent and model. Claude Code and Codex are read. For other CLIs nothing is
-// reported, so the page says "no usage reported" instead of guessing.
+// agent and model. Claude Code, Codex, OMP, Pi and OpenCode are read.
+// For any other CLI nothing is reported, so the page says "no usage reported" instead of guessing.
 
 const usageEvery = time.Minute
 
@@ -75,6 +78,12 @@ func (l *Link) runUsage(ctx context.Context, agents []api.DeviceAgent) {
 			models = l.claudeUsage(home, a.Dir, a.RegisteredAt)
 		case "codex":
 			models = l.codexUsage(home, a.Dir, a.RegisteredAt)
+		case "omp":
+			models = l.piLikeUsage(filepath.Join(home, ".omp", "agent", "sessions"), a.Dir, a.RegisteredAt)
+		case "pi":
+			models = l.piLikeUsage(filepath.Join(home, ".pi", "agent", "sessions"), a.Dir, a.RegisteredAt)
+		case "opencode":
+			models = openCodeUsage(filepath.Join(home, ".local", "share", "opencode", "opencode.db"), a.Dir, a.RegisteredAt)
 		}
 		if len(models) == 0 {
 			continue
@@ -293,4 +302,126 @@ func (l *Link) cachedParse(path string, since time.Time, parse func(string) (map
 		return nil, false
 	}
 	return c.res, true
+}
+
+// piLikeUsage reads the session logs of OMP and Pi (the same format): each
+// assistant message carries the tokens it used, and the first line names the
+// working directory. Only sessions of this agent's directory, started since it was, count.
+func (l *Link) piLikeUsage(root, dir string, since time.Time) map[string]api.UsageModel {
+	out := map[string]api.UsageModel{}
+	cutoff := since.Add(-24 * time.Hour)
+	filepath.WalkDir(root, func(p string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() || !strings.HasSuffix(d.Name(), ".jsonl") {
+			return nil
+		}
+		if info, err := d.Info(); err != nil || info.ModTime().Before(cutoff) {
+			return nil
+		}
+		res, ok := l.cachedParse(p, since, parsePiLog)
+		if !ok {
+			return nil
+		}
+		l.usage.mu.Lock()
+		cwd := l.usage.cache[p].cwd
+		l.usage.mu.Unlock()
+		if cwd != dir {
+			return nil
+		}
+		for k, v := range res {
+			m := out[k]
+			m.Model = k
+			m.Input += v.Input
+			m.Output += v.Output
+			m.CacheRead += v.CacheRead
+			m.CacheWrite += v.CacheWrite
+			out[k] = m
+		}
+		return nil
+	})
+	return out
+}
+
+func parsePiLog(path string) (map[string]api.UsageModel, string, time.Time) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, "", time.Time{}
+	}
+	defer f.Close()
+	var cwd string
+	var start time.Time
+	res := map[string]api.UsageModel{}
+	sc := bufio.NewScanner(f)
+	sc.Buffer(make([]byte, 1<<20), 16<<20)
+	for sc.Scan() {
+		var d struct {
+			Type      string `json:"type"`
+			Timestamp string `json:"timestamp"`
+			Cwd       string `json:"cwd"`
+			Message   struct {
+				Role  string `json:"role"`
+				Model string `json:"model"`
+				Usage *struct {
+					In         int64 `json:"input"`
+					Out        int64 `json:"output"`
+					CacheRead  int64 `json:"cacheRead"`
+					CacheWrite int64 `json:"cacheWrite"`
+				} `json:"usage"`
+			} `json:"message"`
+		}
+		if json.Unmarshal(sc.Bytes(), &d) != nil {
+			continue
+		}
+		if d.Type == "session" {
+			cwd = d.Cwd
+			start, _ = time.Parse(time.RFC3339Nano, d.Timestamp)
+			continue
+		}
+		u := d.Message.Usage
+		if d.Type != "message" || d.Message.Role != "assistant" || u == nil || d.Message.Model == "" {
+			continue
+		}
+		m := res[d.Message.Model]
+		m.Model = d.Message.Model
+		m.Input += u.In
+		m.Output += u.Out
+		m.CacheRead += u.CacheRead
+		m.CacheWrite += u.CacheWrite
+		res[d.Message.Model] = m
+	}
+	return res, cwd, start
+}
+
+// openCodeUsage reads OpenCode's own database, read-only: the tokens of the
+// assistant messages written in this agent's working directory since it started.
+func openCodeUsage(dbPath, dir string, since time.Time) map[string]api.UsageModel {
+	if _, err := os.Stat(dbPath); err != nil {
+		return nil
+	}
+	db, err := sql.Open("sqlite", "file:"+dbPath+"?mode=ro&_pragma=busy_timeout(2000)")
+	if err != nil {
+		return nil
+	}
+	defer db.Close()
+	rows, err := db.Query(`SELECT json_extract(data, '$.modelID'),
+			coalesce(sum(json_extract(data, '$.tokens.input')), 0), coalesce(sum(json_extract(data, '$.tokens.output')), 0),
+			coalesce(sum(json_extract(data, '$.tokens.cache.read')), 0), coalesce(sum(json_extract(data, '$.tokens.cache.write')), 0)
+		FROM message WHERE json_extract(data, '$.role') = 'assistant' AND json_extract(data, '$.path.cwd') = ? AND time_created >= ?
+		GROUP BY 1`, dir, since.Add(-time.Minute).UnixMilli())
+	if err != nil {
+		return nil
+	}
+	defer rows.Close()
+	out := map[string]api.UsageModel{}
+	for rows.Next() {
+		var m api.UsageModel
+		var name sql.NullString
+		if rows.Scan(&name, &m.Input, &m.Output, &m.CacheRead, &m.CacheWrite) != nil || !name.Valid || name.String == "" {
+			continue
+		}
+		m.Model = name.String
+		if m.Input+m.Output+m.CacheRead+m.CacheWrite > 0 {
+			out[m.Model] = m
+		}
+	}
+	return out
 }

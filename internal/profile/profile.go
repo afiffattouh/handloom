@@ -403,7 +403,7 @@ func Adapt(s *Spec) []string {
 	var notes []string
 	if len(s.Tools.DenyCommands) > 0 && !kc.DenyCommands {
 		list := strings.Join(s.Tools.DenyCommands, ", ")
-		s.Prompt = strings.TrimSpace(s.Prompt + "\n\n" + softDeny + list + ".")
+		s.Prompt = strings.TrimSpace(StripSoftDeny(s.Prompt) + "\n\n" + softDeny + list + ".")
 		s.Tools.DenyCommands = nil
 		notes = append(notes, label+" cannot refuse specific commands, so "+list+" is written into the agent's instructions as a rule it is asked to follow. That is a request, not a block. Choose Claude Code or OpenCode if it must be impossible.")
 	}
@@ -430,5 +430,59 @@ func SoftDenied(s *Spec) string {
 	if i < 0 {
 		return ""
 	}
-	return strings.TrimSuffix(strings.TrimSpace(s.Prompt[i+len(softDeny):]), ".")
+	rest := s.Prompt[i+len(softDeny):]
+	if end := strings.Index(rest, ".\n"); end >= 0 {
+		rest = rest[:end]
+	}
+	return strings.TrimSuffix(strings.TrimSpace(rest), ".")
+}
+
+// StripSoftDeny removes the standing rule Adapt wrote, so writing it again never repeats it.
+func StripSoftDeny(prompt string) string {
+	i := strings.Index(prompt, softDeny)
+	if i < 0 {
+		return prompt
+	}
+	rest := prompt[i:]
+	end := strings.Index(rest, ".\n")
+	if end < 0 {
+		return strings.TrimSpace(prompt[:i])
+	}
+	return strings.TrimSpace(prompt[:i] + rest[end+2:])
+}
+
+// Intent is what a person wants an agent to do, in plain words, and the tools that means.
+type Intent struct {
+	Key, Label, Hint string
+	Tools            []string
+}
+
+var Intents = []Intent{
+	{"look", "Look and report", "Reads what it is given and tells you what it found. Changes nothing.", []string{"read"}},
+	{"research", "Research the web", "Reads, searches and fetches web pages. Changes nothing.", []string{"read", "web"}},
+	{"write", "Write and edit files", "Reads and changes files. Cannot run programs.", []string{"read", "edit"}},
+	{"build", "Build and test", "Reads, changes files and runs commands, such as tests.", []string{"read", "edit", "shell"}},
+}
+
+// RiskyCommands are what "be careful" refuses when an agent can run commands.
+var RiskyCommands = []string{"rm", "sudo", "git push", "git reset"}
+
+// IntentOf names the intent whose tools are exactly these, or "custom".
+func IntentOf(allow []string) string {
+	have := map[string]bool{}
+	for _, t := range allow {
+		have[t] = true
+	}
+	for _, in := range Intents {
+		if len(in.Tools) == len(have) {
+			same := true
+			for _, t := range in.Tools {
+				same = same && have[t]
+			}
+			if same {
+				return in.Key
+			}
+		}
+	}
+	return "custom"
 }

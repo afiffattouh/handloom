@@ -55,3 +55,21 @@ func TestTheOwnersSettingsAreCommands(t *testing.T) {
 	}
 	r.t.Setenv("HANDLOOM_TOKEN", "")
 }
+
+func TestAProfileInPlainWords(t *testing.T) {
+	r := newRig(t)
+	out := r.as(r.admin, "profile", "make", "scout", "--can", "look", "--kind", "pi", "--runtime", "local", "--model", "gb10/qwen3.8-27b", "--prompt", "Find things.")
+	if !strings.Contains(out, "scout: version 1") || !strings.Contains(out, "adapted: Pi always has a shell") {
+		t.Fatalf("make: %s", out)
+	}
+	out = r.as(r.admin, "profile", "make", "builder", "--can", "build", "--careful", "--kind", "pi", "--runtime", "local", "--model", "m")
+	if !strings.Contains(out, "adapted: Pi cannot refuse specific commands") {
+		t.Fatalf("careful on pi: %s", out)
+	}
+	if code, _, errs := r.exec("profile", "make", "x", "--can", "fly", "--kind", "claude", "--runtime", "cloud"); code == 0 || !strings.Contains(errs, "--can is one of") {
+		t.Fatalf("a bad --can: %d %s", code, errs)
+	}
+	if show := r.as(r.admin, "profile", "show", "builder"); !strings.Contains(show, "asked in its instructions") && !strings.Contains(show, "rm, sudo") {
+		t.Fatalf("show: %s", show)
+	}
+}

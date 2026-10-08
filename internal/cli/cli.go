@@ -78,6 +78,7 @@ Device:
 Hub and administration (HANDLOOM_HUB and HANDLOOM_TOKEN set to the hub URL and a token):
   handloom hub init [--data DIR]                      create the database, print the admin token once
   handloom hub serve [--data DIR] [--addr A] [--lease 15m] [--auto-init]
+  handloom hub reset-admin-token [--data DIR]         a new admin token, if the old one is lost (prints it once)
   handloom hub create-owner <name> [--data DIR]       make the first owner without the web setup page (prints the password once)
   handloom hub backup --to FILE [--data DIR]          consistent copy while the hub runs
   handloom hub restore --from FILE [--data DIR] [--force]    hub must be stopped

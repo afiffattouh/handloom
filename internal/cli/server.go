@@ -69,7 +69,7 @@ func (e *env) hub(args []string) error {
 	to := fs.String("to", "", "backup: file to write")
 	from := fs.String("from", "", "restore: backup file to restore")
 	force := fs.Bool("force", false, "restore: replace an existing database (stop the hub first)")
-	pos, err := fs.need(args, 0, 1, "hub init|serve|backup|restore|reset-password|create-owner|install|uninstall [--data DIR] [--addr A] [--lease D]")
+	pos, err := fs.need(args, 0, 1, "hub init|serve|backup|restore|reset-password|reset-admin-token|create-owner|install|uninstall [--data DIR] [--addr A] [--lease D]")
 	if err != nil {
 		return err
 	}
@@ -122,6 +122,21 @@ func (e *env) hub(args []string) error {
 			return err
 		}
 		fmt.Fprintf(e.out, "Backup written to %s (mode 0600). It holds hashed tokens and all hub data: keep it private.\n", *to)
+		return nil
+	case "reset-admin-token":
+		if len(pos) != 0 {
+			return usageErr("usage: handloom hub reset-admin-token [--data DIR]   (prints a new admin token once; the old one stops working)")
+		}
+		db, err := store.Open(dbPath)
+		if err != nil {
+			return err
+		}
+		defer db.Close()
+		tok, err := store.ResetAdminToken(db, time.Now())
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(e.out, "New admin token (shown once; the old one no longer works):\n%s\n", tok)
 		return nil
 	case "create-owner":
 		if len(pos) != 1 {

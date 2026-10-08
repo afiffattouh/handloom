@@ -380,3 +380,6 @@ details.options[open] > summary { border-bottom: 1px solid var(--border); }
 
 details.limits { display: grid; gap: 12px; }
 details.limits > summary { cursor: pointer; font-weight: 500; color: var(--foreground); }
+
+fieldset.intents { display: grid; gap: 8px; }
+label.intent { align-items: flex-start; }

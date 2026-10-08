@@ -25,6 +25,12 @@
   <input type="hidden" name="csrf" value="{{$.CSRF}}">
   {{if .IsNew}}<label>Name <input name="name" required maxlength="40" value="{{.Name}}" placeholder="researcher" pattern="[A-Za-z0-9][A-Za-z0-9_.\-]*"></label>{{end}}
   <label>What it is for <input name="description" maxlength="200" value="{{.Spec.Description}}"></label>
+  <fieldset class="intents">
+    <legend>What should it do?</legend>
+    {{range .Intents}}<label class="check intent"><input type="radio" name="intent" value="{{.Key}}" data-tools="{{range $i, $t := .Tools}}{{if $i}},{{end}}{{$t}}{{end}}"{{if eq .Key $.Extra.Intent}} checked{{end}}><span><strong>{{.Label}}</strong><br><span class="desc">{{.Hint}}</span></span></label>
+    {{end}}<label class="check intent"><input type="radio" name="intent" value="custom"{{if eq .Intent "custom"}} checked{{end}}><span><strong>Something else</strong><br><span class="desc">Choose the tools yourself, under "Fine tune".</span></span></label>
+  </fieldset>
+  <label class="check"><input type="checkbox" name="careful" value="1"{{if .Careful}} checked{{end}}> <span>Never run risky commands <span class="desc">(rm, sudo, git push, git reset). Only matters when it can run commands.</span></span></label>
   <div class="grid2 even">
   <label>Agent CLI
     <select name="kind">{{range .Kinds}}<option value="{{.Value}}"{{if eq .Value $.Extra.Spec.Kind}} selected{{end}}>{{.Label}}</option>{{end}}</select>
@@ -34,24 +40,17 @@
   </label>
   </div>
   <label><span>Model <span class="desc">(optional for cloud CLIs; <strong>name it for a local model</strong>, such as gb10/qwen3.8-27b, or the CLI may use a cloud model)</span></span><input name="model" value="{{.Spec.Model}}" placeholder="sonnet" class="mono-input"></label>
-  <div class="presets" id="presets" hidden>
-    <span class="desc">Quick settings:</span>
-    <button type="button" class="secondary sm-btn" data-preset="read">Reads only</button>
-    <button type="button" class="secondary sm-btn" data-preset="read,edit">Writes files</button>
-    <button type="button" class="secondary sm-btn" data-preset="read,edit,shell">Runs commands</button>
-    <button type="button" class="secondary sm-btn" data-preset="read,web">Researches the web</button>
-  </div>
-  <fieldset>
-    <legend>Tools it may use</legend>
-    <label class="check"><input type="checkbox" name="tool" value="read"{{if index .Tool "read"}} checked{{end}}> read files</label>
-    <label class="check"><input type="checkbox" name="tool" value="edit"{{if index .Tool "edit"}} checked{{end}}> write and edit files</label>
-    <label class="check"><input type="checkbox" name="tool" value="shell"{{if index .Tool "shell"}} checked{{end}}> run shell commands</label>
-    <label class="check"><input type="checkbox" name="tool" value="web"{{if index .Tool "web"}} checked{{end}}> fetch web pages and search</label>
-  </fieldset>
   <div class="card-inset" id="live-summary" data-summary="1"><strong>In plain words:</strong> <span id="summary-text">{{.Summary}}</span></div>
-  <details class="limits"{{if or .Deny .WriteText}} open{{end}}>
-    <summary>Limits <span class="desc">(optional: leave them empty unless you need them)</span></summary>
-    <label><span>Commands it should never run, one per line, such as rm or git push</span>
+  <details class="limits"{{if or .Deny .WriteText (eq .Intent "custom")}} open{{end}}>
+    <summary>Fine tune <span class="desc">(optional: the exact tools, and limits)</span></summary>
+    <fieldset>
+      <legend>Tools it may use <span class="desc">(used when you choose "Something else")</span></legend>
+      <label class="check"><input type="checkbox" name="tool" value="read"{{if index .Tool "read"}} checked{{end}}> read files</label>
+      <label class="check"><input type="checkbox" name="tool" value="edit"{{if index .Tool "edit"}} checked{{end}}> write and edit files</label>
+      <label class="check"><input type="checkbox" name="tool" value="shell"{{if index .Tool "shell"}} checked{{end}}> run shell commands</label>
+      <label class="check"><input type="checkbox" name="tool" value="web"{{if index .Tool "web"}} checked{{end}}> fetch web pages and search</label>
+    </fieldset>
+    <label><span>Other commands it should never run, one per line</span>
       <textarea name="deny" rows="3">{{.Deny}}</textarea></label>
     <p class="desc">Claude Code and OpenCode refuse these outright. The other CLIs cannot, so for them Handloom writes the rule into the agent's instructions instead; it is asked, not blocked, and the review says so.</p>
     <label><span>Where it may change files in a repository job, one pattern per line, such as docs/*.md. Empty means anywhere.</span>

@@ -2,6 +2,7 @@ package link
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"io"
@@ -1490,6 +1491,49 @@ func TestCodexUsageComesFromTheSessionOfItsDirectory(t *testing.T) {
 	m := got["gpt-x"]
 	if len(got) != 1 || m.Input != 500 || m.CacheRead != 1500 || m.Output != 120 {
 		t.Fatalf("usage (the last running total, cached tokens split out): %+v", got)
+	}
+}
+
+func TestOMPPiAndOpenCodeUsageComeFromTheirOwnLogs(t *testing.T) {
+	f := newFixture(t)
+	home, dir := t.TempDir(), "/work/job-1/boss-1"
+	msg := func(model string, in, out int) string {
+		return fmt.Sprintf(`{"type":"message","timestamp":"2026-10-07T10:00:05Z","message":{"role":"assistant","model":"%s","content":"private","usage":{"input":%d,"output":%d,"cacheRead":7,"cacheWrite":0}}}`, model, in, out)
+	}
+	for _, c := range []struct{ kind, root string }{{"omp", ".omp"}, {"pi", ".pi"}} {
+		writeLines(t, filepath.Join(home, c.root, "agent", "sessions", "-slug-", "a.jsonl"),
+			`{"type":"session","timestamp":"2026-10-07T10:00:00Z","cwd":"`+dir+`"}`, msg("qwen", 100, 10), `{"type":"message","message":{"role":"user","content":"x"}}`, msg("qwen", 50, 5))
+		writeLines(t, filepath.Join(home, c.root, "agent", "sessions", "-slug-", "b.jsonl"),
+			`{"type":"session","timestamp":"2026-10-07T10:00:00Z","cwd":"/work/other"}`, msg("qwen", 9999, 9999))
+		got := f.link.piLikeUsage(filepath.Join(home, c.root, "agent", "sessions"), dir, time.Date(2026, 10, 7, 9, 0, 0, 0, time.UTC))
+		m := got["qwen"]
+		if len(got) != 1 || m.Input != 150 || m.Output != 15 || m.CacheRead != 14 {
+			t.Fatalf("%s usage: %+v", c.kind, got)
+		}
+	}
+	// OpenCode keeps tokens in its database.
+	dbPath := filepath.Join(home, "opencode.db")
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	db.Exec("CREATE TABLE message (id text PRIMARY KEY, session_id text, time_created integer, time_updated integer, data text)")
+	ins := func(id, cwd string, in, out int, at time.Time) {
+		data := fmt.Sprintf(`{"role":"assistant","modelID":"qwen3.8-27b","path":{"cwd":"%s"},"tokens":{"input":%d,"output":%d,"cache":{"read":3,"write":1}}}`, cwd, in, out)
+		if _, err := db.Exec("INSERT INTO message VALUES (?, 's', ?, ?, ?)", id, at.UnixMilli(), at.UnixMilli(), data); err != nil {
+			t.Fatal(err)
+		}
+	}
+	start := time.Date(2026, 10, 7, 10, 0, 0, 0, time.UTC)
+	ins("1", dir, 100, 10, start.Add(time.Minute))
+	ins("2", dir, 20, 2, start.Add(2*time.Minute))
+	ins("3", "/work/other", 999, 999, start.Add(time.Minute))
+	ins("4", dir, 888, 888, start.Add(-time.Hour)) // before the agent existed
+	db.Close()
+	got := openCodeUsage(dbPath, dir, start)
+	m := got["qwen3.8-27b"]
+	if len(got) != 1 || m.Input != 120 || m.Output != 12 || m.CacheRead != 6 || m.CacheWrite != 2 {
+		t.Fatalf("opencode usage: %+v", got)
 	}
 }
 

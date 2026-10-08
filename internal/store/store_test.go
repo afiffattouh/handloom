@@ -119,3 +119,26 @@ func TestBackupAndRestoreRoundTrip(t *testing.T) {
 		t.Fatal("Restore accepted a corrupt backup")
 	}
 }
+
+func TestResetAdminTokenReplacesTheOldOne(t *testing.T) {
+	db, err := Open(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ResetAdminToken(db, time.Unix(1, 0)); err == nil {
+		t.Fatal("reset before init")
+	}
+	old, err := Init(db, time.Unix(1, 0))
+	if err != nil {
+		t.Fatal(err)
+	}
+	fresh, err := ResetAdminToken(db, time.Unix(2, 0))
+	if err != nil || fresh == old || !strings.HasPrefix(fresh, PrefixAdmin) {
+		t.Fatalf("reset: %q %v", fresh, err)
+	}
+	var h string
+	db.QueryRow(`SELECT value FROM meta WHERE key = 'admin_hash'`).Scan(&h)
+	if h != HashToken(fresh) {
+		t.Fatal("the new token is not the stored one")
+	}
+}

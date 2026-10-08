@@ -17,6 +17,9 @@ import (
 // ---- profiles ----
 
 type profileView struct {
+	Intents   []profile.Intent
+	Intent    string
+	Careful   bool
 	Info      api.ProfileInfo
 	Spec      profile.Spec
 	Enforce   []string
@@ -103,6 +106,8 @@ func (q *webReq) profileForm(status int, errMsg string, v *profileView) error {
 	for _, t := range v.Spec.Tools.Allow {
 		v.Tool[t] = true
 	}
+	v.Intents, v.Intent = profile.Intents, profile.IntentOf(v.Spec.Tools.Allow)
+	v.Careful = len(v.Spec.Tools.DenyCommands) > 0 || profile.SoftDenied(&v.Spec) != ""
 	v.Deny = strings.Join(v.Spec.Tools.DenyCommands, "\n")
 	v.WriteText = strings.Join(v.Spec.Write, "\n")
 	v.Skills = skillViews(&v.Spec)
@@ -184,9 +189,24 @@ func specFromForm(q *webReq, old *profile.Spec) profile.Spec {
 	s := profile.Spec{Description: strings.TrimSpace(f.Get("description")), Kind: kind,
 		Runtime: f.Get("runtime"), Model: strings.TrimSpace(f.Get("model")), Prompt: strings.TrimSpace(strings.ReplaceAll(f.Get("prompt"), "\r\n", "\n"))}
 	s.Tools.Allow = f["tool"]
+	for _, in := range profile.Intents { // a plain-words choice sets the tools; "custom" keeps the boxes
+		if f.Get("intent") == in.Key {
+			s.Tools.Allow = append([]string(nil), in.Tools...)
+		}
+	}
 	for _, line := range strings.Split(strings.ReplaceAll(f.Get("deny"), "\r\n", "\n"), "\n") {
 		if line = strings.TrimSpace(line); line != "" {
 			s.Tools.DenyCommands = append(s.Tools.DenyCommands, line)
+		}
+	}
+	if f.Get("intent") != "" && f.Get("careful") != "1" {
+		s.Prompt = profile.StripSoftDeny(s.Prompt) // the box was unchecked: the rule goes too
+	}
+	if f.Get("careful") == "1" && inList(s.Tools.Allow, "shell") {
+		for _, c := range profile.RiskyCommands {
+			if !inList(s.Tools.DenyCommands, c) {
+				s.Tools.DenyCommands = append(s.Tools.DenyCommands, c)
+			}
 		}
 	}
 	for _, line := range strings.Split(strings.ReplaceAll(f.Get("write"), "\r\n", "\n"), "\n") {
@@ -409,4 +429,13 @@ func (q *webReq) versionCounts() map[string]int {
 		}
 	}
 	return out
+}
+
+func inList(list []string, x string) bool {
+	for _, y := range list {
+		if y == x {
+			return true
+		}
+	}
+	return false
 }

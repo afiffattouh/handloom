@@ -4,6 +4,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"handloom/internal/api"
 	"handloom/internal/profile"
@@ -134,7 +135,7 @@ func TestTheStarterPagesAndTheAssistedForm(t *testing.T) {
 
 	// The new-profile form: start from a starter, and check before saving without saving.
 	form := e.req("GET", "/profiles/new", nil, c, nil).body
-	for _, want := range []string{"Start from a ready-made profile", `name="kind"`, "Check before saving", "In plain words", `data-preset="read,edit"`} {
+	for _, want := range []string{"Start from a ready-made profile", `name="kind"`, "Check before saving", "In plain words", `name="intent"`, "Build and test"} {
 		if !strings.Contains(form, want) {
 			t.Errorf("new form lacks %q", want)
 		}
@@ -251,5 +252,73 @@ func TestAnEarlierVersionCanBecomeAProfileOfItsOwn(t *testing.T) {
 	}
 	if r := e.req("GET", "/profiles/new?copy=lead&version=9", nil, c, nil); r.status != 404 {
 		t.Fatalf("a version that does not exist: %d", r.status)
+	}
+}
+
+func TestAPlainWordsChoiceSetsTheToolsAndCarefulBlocksRiskyCommands(t *testing.T) {
+	e := newWebEnv(t, Options{})
+	c, tok := e.owner()
+	save := func(name, kind string, f url.Values) webResp {
+		f.Set("name", name)
+		f.Set("kind", kind)
+		f.Set("runtime", "cloud")
+		f.Set("prompt", "Do it.")
+		f.Set("csrf", tok)
+		f.Set("current_password", goodPassword)
+		return e.req("POST", "/profiles", f, c, nil)
+	}
+	if r := save("builder", "claude", url.Values{"intent": {"build"}, "careful": {"1"}}); r.status != 303 {
+		t.Fatalf("save: %d %s", r.status, r.body)
+	}
+	page := e.req("GET", "/profiles/builder", nil, c, nil).body
+	for _, want := range []string{"read", "shell", "refused by Claude Code: the shell command rm", "git push"} {
+		if !strings.Contains(page, want) {
+			t.Errorf("builder lacks %q", want)
+		}
+	}
+	// "Look and report" ignores stray boxes and a careful box (no shell to be careful about).
+	if r := save("looker", "claude", url.Values{"intent": {"look"}, "careful": {"1"}, "tool": {"shell", "edit"}}); r.status != 303 {
+		t.Fatalf("save looker: %d", r.status)
+	}
+	var spec string
+	e.hub.db.QueryRow(`SELECT spec FROM profile WHERE name = 'looker'`).Scan(&spec)
+	if strings.Contains(spec, "shell") || strings.Contains(spec, "edit") || strings.Contains(spec, "deny_commands") {
+		t.Fatalf("look and report is not read-only: %s", spec)
+	}
+	// "Something else" uses the boxes.
+	if r := save("custom1", "claude", url.Values{"intent": {"custom"}, "tool": {"read", "web"}}); r.status != 303 {
+		t.Fatalf("save custom: %d", r.status)
+	}
+	e.hub.db.QueryRow(`SELECT spec FROM profile WHERE name = 'custom1'`).Scan(&spec)
+	if !strings.Contains(spec, "web") {
+		t.Fatalf("custom tools lost: %s", spec)
+	}
+	e.clock.advance(2 * time.Minute) // the password check is rate limited
+	// Careful on a CLI that cannot refuse: asked in the instructions, once, however many times it is saved.
+	if r := save("pi-careful", "pi", url.Values{"intent": {"build"}, "careful": {"1"}}); r.status != 303 {
+		t.Fatalf("save pi: %d", r.status)
+	}
+	edit := e.req("GET", "/profiles/pi-careful", nil, c, nil).body
+	if !strings.Contains(edit, "asked in its instructions, not enforced: do not run rm, sudo, git push, git reset") {
+		t.Fatalf("pi careful: %s", edit)
+	}
+	f := url.Values{"intent": {"build"}, "careful": {"1"}, "kind": {"pi"}, "runtime": {"cloud"}, "prompt": {"Do it.\n\n" + "Standing rule from this profile: do not run these shell commands: rm, sudo, git push, git reset."}, "csrf": {tok}, "current_password": {goodPassword}}
+	if r := e.req("POST", "/profiles/pi-careful", f, c, nil); r.status != 303 {
+		t.Fatalf("resave: %d %s", r.status, r.body)
+	}
+	e.hub.db.QueryRow(`SELECT spec FROM profile WHERE name = 'pi-careful' ORDER BY version DESC LIMIT 1`).Scan(&spec)
+	if n := strings.Count(spec, "Standing rule from this profile"); n != 1 {
+		t.Fatalf("the standing rule appears %d times: %s", n, spec)
+	}
+	e.clock.advance(2 * time.Minute)
+	// Unchecking removes it.
+	f.Del("careful")
+	f.Set("prompt", "Do it.\n\nStanding rule from this profile: do not run these shell commands: rm, sudo, git push, git reset.")
+	if r := e.req("POST", "/profiles/pi-careful", f, c, nil); r.status != 303 {
+		t.Fatalf("resave 2: %d %s", r.status, r.body)
+	}
+	e.hub.db.QueryRow(`SELECT spec FROM profile WHERE name = 'pi-careful' ORDER BY version DESC LIMIT 1`).Scan(&spec)
+	if strings.Contains(spec, "Standing rule") {
+		t.Fatalf("the rule stayed after unchecking: %s", spec)
 	}
 }

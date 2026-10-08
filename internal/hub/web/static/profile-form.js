@@ -1,13 +1,12 @@
 // Helps while writing a profile. The form works without it: the server says the
-// same things after "Check before saving". This only makes the quick settings
+// same things after "Check before saving". This only makes the choices
 // and the plain-words summary react as you click.
 (function () {
   var form = document.querySelector('form [name=tool]') ? document.querySelector('form [name=tool]').form : null;
   if (!form) return;
   var boxes = form.querySelectorAll('input[name=tool]');
   var deny = form.querySelector('[name=deny]'), write = form.querySelector('[name=write]');
-  var out = document.getElementById('summary-text'), presets = document.getElementById('presets');
-  if (presets) presets.hidden = false;
+  var out = document.getElementById('summary-text');
 
   function lines(el) { return el ? el.value.split('\n').map(function (s) { return s.trim(); }).filter(Boolean) : []; }
   function join(w) { return w.length < 2 ? w.join('') : w.slice(0, -1).join(', ') + ' and ' + w[w.length - 1]; }
@@ -24,13 +23,25 @@
     if (cannot.length && can.length) text += ' It cannot ' + join(cannot) + '.';
     if (out) out.textContent = text;
   }
-  if (presets) presets.addEventListener('click', function (e) {
-    var b = e.target.closest ? e.target.closest('[data-preset]') : null;
-    if (!b) return;
-    var want = b.getAttribute('data-preset').split(',');
-    boxes.forEach(function (x) { x.checked = want.indexOf(x.value) >= 0; });
-    summary();
+  var radios = form.querySelectorAll('input[name=intent]');
+  function syncIntent() {
+    var on = [];
+    boxes.forEach(function (b) { if (b.checked) on.push(b.value); });
+    var key = on.sort().join(',');
+    var match = 'custom';
+    radios.forEach(function (r) { var t = r.getAttribute('data-tools'); if (t && t.split(',').sort().join(',') === key) match = r.value; });
+    radios.forEach(function (r) { r.checked = r.value === match; });
+  }
+  radios.forEach(function (r) {
+    r.addEventListener('change', function () {
+      var t = r.getAttribute('data-tools');
+      if (!t) return; // "something else": leave the boxes as they are
+      var want = t.split(',');
+      boxes.forEach(function (x) { x.checked = want.indexOf(x.value) >= 0; });
+      summary();
+    });
   });
+  boxes.forEach(function (b) { b.addEventListener('change', syncIntent); });
   form.addEventListener('input', summary);
   form.addEventListener('change', summary);
 })();

@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 
@@ -45,7 +46,7 @@ func (e *env) profiles(args []string) error {
 // profile: new (from a directory), check, show, export, versions.
 func (e *env) profile(args []string) error {
 	if len(args) == 0 {
-		return usageErr("usage: handloom profile new <dir> | add <starter> --kind K --runtime R [--name N] [--adapt] | check <dir> | show <name> [--version N] | export <name> <dir> | versions <name>")
+		return usageErr("usage: handloom profile new <dir> | add <starter> --kind K --runtime R [--name N] [--adapt] | make <name> --can look|research|write|build --kind K --runtime R | check <dir> | show <name> [--version N] | export <name> <dir> | versions <name>")
 	}
 	sub := args[0]
 	fs := e.flags("profile " + sub)
@@ -54,6 +55,11 @@ func (e *env) profile(args []string) error {
 	runtime := fs.String("runtime", "", "add: where the model runs, cloud or local")
 	model := fs.String("model", "", "add: a model name (default: the CLI's own)")
 	asName := fs.String("name", "", "add: a name for the profile (default: the starter's)")
+	can := fs.String("can", "", "make: what it does in plain words: look, research, write or build")
+	careful := fs.Bool("careful", false, "make: never run risky commands (rm, sudo, git push, git reset)")
+	promptText := fs.String("prompt", "", "make: its instructions")
+	promptFile := fs.String("prompt-file", "", "make: a file with its instructions")
+	desc := fs.String("description", "", "make: what it is for")
 	adapt := fs.Bool("adapt", false, "add: leave out what the CLI cannot do (Codex has no skills or denied commands) instead of refusing")
 	pos, err := fs.parse(args[1:])
 	if err != nil {
@@ -66,6 +72,46 @@ func (e *env) profile(args []string) error {
 		return nil
 	}
 	switch sub {
+	case "make":
+		if err := need(1, "make <name> --can look|research|write|build --kind K --runtime R [--model M] [--careful] [--prompt TEXT | --prompt-file F]"); err != nil {
+			return err
+		}
+		var tools []string
+		for _, in := range profile.Intents {
+			if in.Key == *can {
+				tools = in.Tools
+			}
+		}
+		if tools == nil {
+			return usageErr("--can is one of: look (read only), research (read and the web), write (read and edit files), build (also run commands)")
+		}
+		spec := profile.Spec{Description: *desc, Kind: *kind, Runtime: *runtime, Model: *model, Prompt: *promptText}
+		spec.Tools.Allow = append([]string(nil), tools...)
+		if *promptFile != "" {
+			b, err := os.ReadFile(*promptFile)
+			if err != nil {
+				return err
+			}
+			spec.Prompt = string(b)
+		}
+		if *careful && *can == "build" {
+			spec.Tools.DenyCommands = append([]string(nil), profile.RiskyCommands...)
+		}
+		c, err := conn()
+		if err != nil {
+			return err
+		}
+		var p api.ProfileFull
+		if err := c.Post("/v1/profiles", api.ProfileReq{Name: pos[0], Spec: spec, Adapt: true}, &p); err != nil {
+			return err
+		}
+		e.print(p, func() {
+			fmt.Fprintf(e.out, "%s: version %d (%s on a %s model, can %s)\n", p.Name, p.Version, p.Spec.Kind, p.Spec.Runtime, *can)
+			for _, a := range p.Adapted {
+				fmt.Fprintln(e.out, "  adapted: "+a)
+			}
+		})
+		return nil
 	case "add":
 		if err := need(1, "add <starter> --kind claude|codex --runtime cloud|local [--model M] [--name N] [--adapt]"); err != nil {
 			return err

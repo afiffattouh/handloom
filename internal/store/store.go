@@ -487,3 +487,25 @@ func Restore(src, dst string, force bool) error {
 	}
 	return os.Rename(tmp, dst)
 }
+
+// ResetAdminToken replaces the admin token and returns the new one. It is the
+// recovery path for a lost token: whoever can open the database can run it.
+func ResetAdminToken(db *sql.DB, now time.Time) (string, error) {
+	tok := NewToken(PrefixAdmin)
+	tx, err := db.Begin()
+	if err != nil {
+		return "", err
+	}
+	defer tx.Rollback()
+	res, err := tx.Exec(`UPDATE meta SET value = ? WHERE key = 'admin_hash'`, HashToken(tok))
+	if err != nil {
+		return "", err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return "", fmt.Errorf("this hub is not initialised yet")
+	}
+	if _, err := tx.Exec(`INSERT INTO audit(actor, action, target, payload, created_at) VALUES ('admin', 'admin.token.reset', 'hub', '{}', ?)`, Millis(now)); err != nil {
+		return "", err
+	}
+	return tok, tx.Commit()
+}

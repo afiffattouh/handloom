@@ -21,8 +21,10 @@ JT="$(admin device add mcp-dev --json | python3 -c 'import json,sys;print(json.l
 HT="$(admin human add tester --json | python3 -c 'import json,sys;print(json.load(sys.stdin)["token"])')"
 $CLEAN "$BIN" link join "$H" "$JT" >/dev/null
 admin profile add lead --kind claude --runtime cloud | sed 's/^/    /'
+AT="$(HANDLOOM_HUB="$H" HANDLOOM_TOKEN="$HT" $CLEAN "$BIN" token new --app --json | python3 -c 'import json,sys;print(json.load(sys.stdin)["token"])')"
+case "$AT" in hvo_*) ok "an app token was made";; *) bad "no app token";; esac
 cat > "$OUT/mcp.json" <<EOF2
-{"mcpServers": {"handloom": {"command": "$BIN", "args": ["mcp", "--operator"], "env": {"HANDLOOM_HUB": "$H", "HANDLOOM_TOKEN": "$HT", "HANDLOOM_HOME": "$OUT/home"}}}}
+{"mcpServers": {"handloom": {"command": "$BIN", "args": ["mcp", "--operator"], "env": {"HANDLOOM_HUB": "$H", "HANDLOOM_TOKEN": "$AT", "HANDLOOM_HOME": "$OUT/home"}}}}
 EOF2
 ask() { (cd "$OUT" && $CLEAN claude -p --model haiku --mcp-config "$OUT/mcp.json" --strict-mcp-config --allowedTools "mcp__handloom__*" --permission-mode dontAsk "$1" 2>&1); }
 

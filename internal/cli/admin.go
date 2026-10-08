@@ -163,16 +163,38 @@ func (e *env) notifications(args []string) error {
 // token makes a new personal API token for the person the current token belongs to.
 func (e *env) token(args []string) error {
 	fs := e.flags("token")
+	app := fs.Bool("app", false, "new: a token for your AI app (Claude, Codex): it can read and start work but not approve; your own token keeps working")
 	pos, err := fs.parse(args)
 	if err != nil {
 		return err
 	}
+	if len(pos) == 1 && pos[0] == "remove-app" {
+		c, err := conn()
+		if err != nil {
+			return err
+		}
+		if err := c.Post("/v1/me/operator-token/remove", nil, nil); err != nil {
+			return err
+		}
+		fmt.Fprintln(e.out, "Your AI app can no longer connect.")
+		return nil
+	}
 	if len(pos) != 1 || pos[0] != "new" {
-		return usageErr("usage: handloom token new   (a new personal API token; the one you are using stops working)")
+		return usageErr("usage: handloom token new [--app] | token remove-app   (a new personal API token, which replaces the one you use; or with --app a token for your AI app that cannot approve)")
 	}
 	c, err := conn()
 	if err != nil {
 		return err
+	}
+	if *app {
+		var r api.TokenResp
+		if err := c.Post("/v1/me/operator-token", nil, &r); err != nil {
+			return err
+		}
+		e.print(r, func() {
+			fmt.Fprintf(e.out, "Token for %s's AI app (shown once; it replaces an earlier app token). Use it as HANDLOOM_TOKEN in `handloom mcp --operator`:\n%s\n", r.Name, r.Token)
+		})
+		return nil
 	}
 	var r api.TokenResp
 	if err := c.Post("/v1/me/token", nil, &r); err != nil {

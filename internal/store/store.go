@@ -310,6 +310,13 @@ CREATE TABLE price (
   cache_read  REAL NOT NULL DEFAULT 0,
   cache_write REAL NOT NULL DEFAULT 0
 );
+`, `
+-- A token for a person's own AI app: it acts as that person but the hub only lets it read and start work, never approve. One per person; a new one replaces it.
+CREATE TABLE operator_token (
+  human_id   INTEGER PRIMARY KEY REFERENCES human(id) ON DELETE CASCADE,
+  token_hash TEXT NOT NULL UNIQUE,
+  created_at INTEGER NOT NULL
+);
 `}
 
 // Open opens (and migrates) the database at path. Use ":memory:" in tests.
@@ -370,11 +377,12 @@ func migrate(db *sql.DB, path string) error {
 
 // Token prefixes tell the hub which table to look in.
 const (
-	PrefixAdmin  = "hva_"
-	PrefixJoin   = "hvj_"
-	PrefixDevice = "hvd_"
-	PrefixHuman  = "hvh_"
-	PrefixRun    = "hvr_" // an agent's run token
+	PrefixAdmin    = "hva_"
+	PrefixJoin     = "hvj_"
+	PrefixDevice   = "hvd_"
+	PrefixHuman    = "hvh_"
+	PrefixOperator = "hvo_" // a person's AI app: reads and starts work, cannot approve
+	PrefixRun      = "hvr_" // an agent's run token
 )
 
 // NewToken returns a random token with the given prefix (256 bits of entropy).

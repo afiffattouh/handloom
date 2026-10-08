@@ -237,6 +237,8 @@ func (h *Hub) Handler() http.Handler {
 	v1("POST /notifications", notificationsSet)
 	v1("POST /notifications/test", notificationsTest)
 	v1("POST /me/token", meToken)
+	v1("POST /me/operator-token", meOperatorToken)
+	v1("POST /me/operator-token/remove", meOperatorTokenRemove)
 	v1("GET /agents/{name}/screen", agentScreen)
 	v1("POST /device/usage", usagePost)
 	v1("GET /device/tails", deviceTails)
@@ -346,6 +348,7 @@ type principal struct {
 	kind      string
 	name      string // human or device name
 	role      string // humans: owner | member | viewer
+	operator  bool   // a person's AI app: only the calls in operatorCalls
 	deviceID  int64
 	agentName string    // from the Handloom-Agent header; checked in call.agent
 	runToken  string    // from the Handloom-Run-Token header
@@ -387,6 +390,9 @@ func (h *Hub) handle(fn func(*call) (any, error)) http.HandlerFunc {
 		c := &call{h: h, tx: tx, r: r, now: h.opt.Now()}
 		var out any
 		c.p, err = authenticate(tx, r, c.now)
+		if err == nil && c.p.operator && !operatorCalls[r.Pattern] {
+			err = forbidden("this token is for an AI app: it can read and start work, not approve or change settings. Use your own token or the web UI for that")
+		}
 		if err == nil {
 			out, err = fn(c)
 		}
@@ -448,6 +454,12 @@ func authenticate(tx *sql.Tx, r *http.Request, now time.Time) (*principal, error
 	case strings.HasPrefix(tok, store.PrefixHuman):
 		p := &principal{kind: kindHuman}
 		if err := tx.QueryRow(`SELECT name, role FROM human WHERE token_hash = ?`, hash).Scan(&p.name, &p.role); err != nil {
+			return nil, unauthorized("invalid token")
+		}
+		return p, nil
+	case strings.HasPrefix(tok, store.PrefixOperator):
+		p := &principal{kind: kindHuman, operator: true}
+		if err := tx.QueryRow(`SELECT h.name, h.role FROM operator_token o JOIN human h ON h.id = o.human_id WHERE o.token_hash = ?`, hash).Scan(&p.name, &p.role); err != nil {
 			return nil, unauthorized("invalid token")
 		}
 		return p, nil
@@ -754,4 +766,19 @@ func (h *Hub) allowRate(key string, burst, perMinute float64, now time.Time) boo
 	}
 	b.tokens--
 	return true
+}
+
+// operatorCalls is everything a person's AI app may do with its token. It can
+// look at the picture and start work; accepting, answering, closing and every
+// setting stay with the person's own token and the web UI.
+var operatorCalls = map[string]bool{
+	"GET /v1/whoami": true, "GET /v1/digest": true, "GET /v1/metrics": true, "GET /v1/projects": true,
+	"GET /v1/jobs": true, "GET /v1/jobs/{id}": true, "POST /v1/jobs": true,
+	"GET /v1/tasks": true, "GET /v1/tasks/{id}": true,
+	"GET /v1/agents": true, "GET /v1/agents/{name}/screen": true,
+	"GET /v1/escalations": true, "GET /v1/escalations/{id}": true,
+	"GET /v1/profiles": true, "GET /v1/profiles/{name}": true, "GET /v1/profiles/{name}/versions": true,
+	"GET /v1/starters": true, "GET /v1/starters/{name}": true,
+	"GET /v1/spawns": true, "GET /v1/spawns/{id}": true,
+	"POST /v1/messages": true,
 }

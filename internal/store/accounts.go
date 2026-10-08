@@ -241,3 +241,23 @@ func ListDevices(q Querier) ([]DeviceInfo, error) {
 	}
 	return out, rows.Err()
 }
+
+// SetOperatorToken gives a person a token for their AI app (the old one stops working).
+func SetOperatorToken(q Querier, humanID int64, tokenHash string, now int64) error {
+	_, err := q.Exec(`INSERT INTO operator_token(human_id, token_hash, created_at) VALUES (?, ?, ?)
+		ON CONFLICT(human_id) DO UPDATE SET token_hash = excluded.token_hash, created_at = excluded.created_at`, humanID, tokenHash, now)
+	return err
+}
+
+// RemoveOperatorToken takes an AI app's access away.
+func RemoveOperatorToken(q Querier, humanID int64) error {
+	_, err := q.Exec(`DELETE FROM operator_token WHERE human_id = ?`, humanID)
+	return err
+}
+
+// HasOperatorToken says whether a person has an AI app connected.
+func HasOperatorToken(q Querier, humanID int64) (bool, error) {
+	var n int
+	err := q.QueryRow(`SELECT count(*) FROM operator_token WHERE human_id = ?`, humanID).Scan(&n)
+	return n > 0, err
+}

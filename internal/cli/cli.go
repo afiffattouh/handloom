@@ -91,7 +91,7 @@ Hub and administration (HANDLOOM_HUB and HANDLOOM_TOKEN set to the hub URL and a
   handloom people [add <name> [--role R] | invite <name> | role <name> --role R]   (owner) who can sign in; invite links
   handloom prices [set <model> --input N --output N | remove <model>]              (owner) what models cost, for usage figures
   handloom notifications [set --url U --topic T | test]                             (owner) phone push through ntfy
-  handloom token new                                  a new personal API token (the one you use stops working)
+  handloom token new [--app] | token remove-app       a new personal API token (the one you use stops working); --app: a token for your AI app, which cannot approve
   handloom screen <agent>                             the end of an agent's terminal (held in memory for a minute)
   handloom metrics [--range 7d]                       the command center's numbers
   handloom starters [name]                        the starter library: ready-made profiles; add one with: handloom profile add <name> --kind K --runtime R

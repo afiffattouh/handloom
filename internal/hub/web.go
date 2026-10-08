@@ -35,7 +35,7 @@ const (
 	maxForm      = 64 << 10
 )
 
-var pageNames = []string{"setup", "login", "inbox", "closed", "message", "devices", "settings", "invite", "agents", "profiles", "profile", "jobs", "jobform", "job", "command", "agent", "starters", "starter"}
+var pageNames = []string{"setup", "login", "inbox", "closed", "message", "devices", "settings", "invite", "agents", "profiles", "profile", "jobs", "jobform", "job", "command", "agent", "starters", "starter", "connect"}
 
 type pageData struct {
 	Title  string
@@ -58,10 +58,10 @@ type navCounts struct{ Needs, Jobs, Agents, Devices int }
 
 // activeMenu says which menu item a page belongs to.
 var activeMenu = map[string]string{"inbox": "inbox", "jobs": "jobs", "jobform": "jobs", "job": "jobs", "agents": "agents", "agent": "agents",
-	"profiles": "profiles", "profile": "profiles", "starters": "profiles", "starter": "profiles", "devices": "devices", "settings": "settings", "command": "command"}
+	"profiles": "profiles", "profile": "profiles", "starters": "profiles", "starter": "profiles", "devices": "devices", "settings": "settings", "command": "command", "connect": "connect"}
 
 // narrowPages are forms and reading pages.
-var narrowPages = map[string]bool{"jobform": true, "profile": true, "settings": true, "devices": true, "message": true}
+var narrowPages = map[string]bool{"jobform": true, "profile": true, "settings": true, "connect": true, "devices": true, "message": true}
 
 func (h *Hub) loadTemplates() error {
 	h.pages = map[string]*template.Template{}
@@ -247,6 +247,9 @@ func (h *Hub) webRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /settings/notifications", web(h.authed(h.webNotifications)))
 	mux.HandleFunc("POST /settings/notifications/test", web(h.authed(h.webNotifyTest)))
 	mux.HandleFunc("POST /settings/token", web(h.authed(h.webToken)))
+	mux.HandleFunc("GET /connect", web(h.authed(h.webConnect)))
+	mux.HandleFunc("POST /connect/token", web(h.authed(h.webConnectToken)))
+	mux.HandleFunc("POST /connect/remove", web(h.authed(h.webConnectRemove)))
 	mux.HandleFunc("POST /settings/prices", web(h.authed(h.webPriceSet)))
 	mux.HandleFunc("POST /settings/prices/delete", web(h.authed(h.webPriceDelete)))
 	mux.HandleFunc("GET /invite/{token}", web(h.webInviteGet))

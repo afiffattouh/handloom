@@ -25,6 +25,7 @@
       <a href="/profiles"{{if eq .Active "profiles"}} aria-current="page"{{end}}><svg class="icon"><use href="#i-file-user"/></svg>Profiles</a>
       <div class="grp">Admin</div>
       <a href="/devices"{{if eq .Active "devices"}} aria-current="page"{{end}}><svg class="icon"><use href="#i-server"/></svg>Machines{{if .Nav.Devices}} <span class="count">{{.Nav.Devices}}</span>{{end}}</a>
+      {{if ne .Human.Role "viewer"}}<a href="/connect"{{if eq .Active "connect"}} aria-current="page"{{end}}><svg class="icon"><use href="#i-plug"/></svg>Connect an AI app</a>{{end}}
       {{if eq .Human.Role "owner"}}<a href="/settings"{{if eq .Active "settings"}} aria-current="page"{{end}}><svg class="icon"><use href="#i-settings"/></svg>Settings</a>{{end}}
     </nav>
     <div class="foot">

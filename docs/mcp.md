@@ -8,18 +8,20 @@ Your app can look at the picture and start work for you: what needs you, the job
 
 **It cannot approve.** Accepting work, answering an agent's question and closing a job are not tools unless you turn them on, because an app set to auto-approve would otherwise approve its own agents' work. When something needs your decision, the app tells you what it is and where to decide it (the Inbox). Read tools are marked read-only so a client may let them through; the tools that start things are marked as changing data, so a client can ask you first.
 
-Set it up (a personal API token: `handloom token new`, or Settings in the web UI):
+Set it up. The easiest way is the **Connect an AI app** page in the web UI: it makes a token for the app and shows these settings with your hub address and the token already filled in. From the command line, `handloom token new --app` makes the token.
+
+The app token is not your own token. The hub lets it do only what the tools above do (read, start a job, message an agent) and refuses everything else, however the app is configured: accepting, answering, closing, settings. Making a new one replaces the old; `handloom token remove-app` (or the page) disconnects the app.
 
 ```
 # Claude Code
-claude mcp add handloom --env HANDLOOM_HUB=https://your-hub --env HANDLOOM_TOKEN=hvh_... -- handloom mcp --operator
+claude mcp add handloom --env HANDLOOM_HUB=https://your-hub --env HANDLOOM_TOKEN=hvo_... -- handloom mcp --operator
 ```
 
 ```json
 // Claude Desktop: claude_desktop_config.json
 { "mcpServers": { "handloom": {
     "command": "handloom", "args": ["mcp", "--operator"],
-    "env": { "HANDLOOM_HUB": "https://your-hub", "HANDLOOM_TOKEN": "hvh_..." } } } }
+    "env": { "HANDLOOM_HUB": "https://your-hub", "HANDLOOM_TOKEN": "hvo_..." } } } }
 ```
 
 ```toml
@@ -27,12 +29,12 @@ claude mcp add handloom --env HANDLOOM_HUB=https://your-hub --env HANDLOOM_TOKEN
 [mcp_servers.handloom]
 command = "handloom"
 args = ["mcp", "--operator"]
-env = { HANDLOOM_HUB = "https://your-hub", HANDLOOM_TOKEN = "hvh_..." }
+env = { HANDLOOM_HUB = "https://your-hub", HANDLOOM_TOKEN = "hvo_..." }
 ```
 
 `handloom` has to be on the machine your app runs on (it is one binary). The operator tools do not need the link.
 
-If you really want the app to approve (accept, send back, answer, close), add `--allow-approvals`. Each of those tools is then marked destructive and described as an approval, so a client asks every time. Do not combine it with auto-approve.
+If you really want the app to approve (accept, send back, answer, close), give it your own token (`handloom token new`, not `--app`) and add `--allow-approvals`: an app token is refused those calls by the hub. Each of those tools is then marked destructive and described as an approval, so a client asks every time. Do not combine it with auto-approve.
 
 Tools: `handloom_digest`, `handloom_jobs`, `handloom_job`, `handloom_tasks`, `handloom_task`, `handloom_agents`, `handloom_questions`, `handloom_profiles`, `handloom_starters`, `handloom_metrics`, `handloom_screen`, `handloom_job_new`, `handloom_send`; with `--allow-approvals` also `handloom_task_accept`, `handloom_task_reject`, `handloom_answer`, `handloom_job_close`.
 

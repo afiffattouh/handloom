@@ -1,0 +1,57 @@
+{{define "content"}}
+<div class="page-head"><div><h1>Connect an AI app</h1><p class="desc">Let Claude, Codex or another AI app look at your work in Handloom and start jobs for you, from where you already chat.</p></div></div>
+{{with .Extra}}
+{{if .NewToken}}
+<article class="card attention">
+  <div class="ch"><div><h3>Your app's token</h3><p class="desc">Copy it now; it is not shown again. The settings below already contain it.</p></div></div>
+  <div class="cc"><div class="inset wrap sel" tabindex="0">{{.NewToken}}</div></div>
+</article>
+{{end}}
+
+<section class="card" aria-labelledby="what">
+  <div class="ch"><div><h2 id="what">What the app can and cannot do</h2></div></div>
+  <div class="cc">
+  <p class="text">It acts as you, with a token of its own. It can see what needs you, the jobs, tasks, agents and metrics, read an agent's terminal, start a job and message an agent.</p>
+  <p class="text"><strong>It cannot accept work, answer an agent's question, close a job or change settings.</strong> The hub refuses those for this token, whatever the app is set to do. When something needs your decision, the app tells you and you decide in the Inbox.</p>
+  </div>
+</section>
+
+<section class="card" aria-labelledby="tok">
+  <div class="ch"><div><h2 id="tok">Token</h2><p class="desc">{{if .HasToken}}An app is connected. Making a new token replaces the old one, so the old app stops working until you paste the new one.{{else}}No app is connected yet.{{end}}</p></div></div>
+  <div class="cc">
+  <form method="post" action="/connect/token" class="stack">
+    <input type="hidden" name="csrf" value="{{$.CSRF}}">
+    <label>Your password, to confirm <input type="password" name="current_password" autocomplete="current-password" required></label>
+    <div class="acts"><button type="submit">{{if .HasToken}}Make a new token{{else}}Make a token for my app{{end}}</button></div>
+  </form>
+  {{if .HasToken}}
+  <form method="post" action="/connect/remove" class="stack">
+    <input type="hidden" name="csrf" value="{{$.CSRF}}">
+    <label>Your password, to confirm <input type="password" name="current_password" autocomplete="current-password" required></label>
+    <div class="acts"><button type="submit" class="secondary">Disconnect the app</button></div>
+  </form>
+  {{end}}
+  </div>
+</section>
+
+<section class="card" aria-labelledby="set">
+  <div class="ch"><div><h2 id="set">The settings</h2><p class="desc">The app runs the <code>handloom</code> program on the machine where the app runs, so install it there first (one file). Then add this, once.{{if not .NewToken}} Make a token above to have it filled in; until then <code>TOKEN</code> stands for it.{{end}}</p></div></div>
+  <div class="cc">
+  <h3>Claude Code</h3>
+  <div class="inset wrap sel" tabindex="0">claude mcp add handloom --env HANDLOOM_HUB={{.Base}} --env HANDLOOM_TOKEN={{if .NewToken}}{{.NewToken}}{{else}}TOKEN{{end}} -- handloom mcp --operator</div>
+  <h3>Claude Desktop</h3>
+  <p class="desc">Settings → Developer → Edit config (claude_desktop_config.json), then restart the app.</p>
+  <div class="inset wrap sel" tabindex="0">{ "mcpServers": { "handloom": {
+  "command": "handloom", "args": ["mcp", "--operator"],
+  "env": { "HANDLOOM_HUB": "{{.Base}}", "HANDLOOM_TOKEN": "{{if .NewToken}}{{.NewToken}}{{else}}TOKEN{{end}}" } } } }</div>
+  <h3>Codex</h3>
+  <p class="desc">Add to <code>~/.codex/config.toml</code>.</p>
+  <div class="inset wrap sel" tabindex="0">[mcp_servers.handloom]
+command = "handloom"
+args = ["mcp", "--operator"]
+env = { HANDLOOM_HUB = "{{.Base}}", HANDLOOM_TOKEN = "{{if .NewToken}}{{.NewToken}}{{else}}TOKEN{{end}}" }</div>
+  <p class="desc">Then ask the app something like "what needs me in Handloom?" or "start a job to fix the login bug on GB10 with the lead profile". Treat the token like a password.</p>
+  </div>
+</section>
+{{end}}
+{{end}}

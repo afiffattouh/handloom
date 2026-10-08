@@ -177,3 +177,68 @@ func TestProfileAdaptThroughTheAPI(t *testing.T) {
 		t.Fatalf("adapted: %+v", p)
 	}
 }
+
+func TestAnAppTokenReadsAndStartsWorkButCannotApprove(t *testing.T) {
+	e := newWebEnv(t, Options{})
+	mine := e.humanAPI()
+	var r api.TokenResp
+	e.apiOK(mine, "", "POST", "/v1/me/operator-token", nil, &r)
+	if !strings.HasPrefix(r.Token, store.PrefixOperator) {
+		t.Fatalf("token: %+v", r)
+	}
+	app := r.Token
+	// It can look.
+	for _, p := range []string{"/v1/whoami", "/v1/digest", "/v1/jobs", "/v1/tasks", "/v1/agents", "/v1/escalations", "/v1/profiles", "/v1/starters", "/v1/metrics"} {
+		if code := e.status(app, "GET", p, nil); code != 200 {
+			t.Errorf("GET %s: %d", p, code)
+		}
+	}
+	// It cannot approve, change settings, or make tokens, and each refusal is audited.
+	for _, c := range [][2]string{
+		{"POST", "/v1/tasks/1/accept"}, {"POST", "/v1/tasks/1/reject"}, {"POST", "/v1/escalations/1/answer"}, {"POST", "/v1/jobs/1/close"},
+		{"POST", "/v1/prices"}, {"GET", "/v1/people"}, {"POST", "/v1/profiles"}, {"POST", "/v1/me/token"}, {"POST", "/v1/me/operator-token"}, {"GET", "/v1/notifications"},
+	} {
+		if code := e.status(app, c[0], c[1], map[string]any{}); code != 403 {
+			t.Errorf("%s %s with an app token: %d, want 403", c[0], c[1], code)
+		}
+	}
+	// Making a new one replaces the old; removing it ends access; the person's own token is unaffected.
+	var r2 api.TokenResp
+	e.apiOK(mine, "", "POST", "/v1/me/operator-token", nil, &r2)
+	if code := e.status(app, "GET", "/v1/jobs", nil); code != 401 {
+		t.Fatalf("the old app token: %d", code)
+	}
+	e.apiOK(mine, "", "POST", "/v1/me/operator-token/remove", nil, nil)
+	if code := e.status(r2.Token, "GET", "/v1/jobs", nil); code != 401 {
+		t.Fatalf("a removed app token: %d", code)
+	}
+	if code := e.status(mine, "GET", "/v1/jobs", nil); code != 200 {
+		t.Fatalf("own token: %d", code)
+	}
+}
+
+func TestTheConnectPage(t *testing.T) {
+	e := newWebEnv(t, Options{})
+	c, tok := e.owner()
+	page := e.req("GET", "/connect", nil, c, nil)
+	for _, want := range []string{"Connect an AI app", "claude mcp add handloom", "mcp_servers.handloom", "cannot accept work", "TOKEN"} {
+		if !strings.Contains(page.body, want) {
+			t.Errorf("page lacks %q", want)
+		}
+	}
+	if r := e.req("POST", "/connect/token", url.Values{"csrf": {tok}, "current_password": {"wrong password"}}, c, nil); r.status == 200 {
+		t.Fatalf("a token without the password: %d", r.status)
+	}
+	r := e.req("POST", "/connect/token", url.Values{"csrf": {tok}, "current_password": {goodPassword}}, c, nil)
+	if r.status != 200 || !strings.Contains(r.body, "hvo_") || !strings.Contains(r.body, "HANDLOOM_TOKEN=hvo_") {
+		t.Fatalf("token page: %d %.300s", r.status, r.body)
+	}
+	if again := e.req("GET", "/connect", nil, c, nil); strings.Contains(again.body, "HANDLOOM_TOKEN=hvo_") || !strings.Contains(again.body, "An app is connected") {
+		t.Fatal("the token must be shown once")
+	}
+	vc, vtok := e.member("vi", "viewer")
+	if r := e.req("GET", "/connect", nil, vc, nil); r.status != 403 {
+		t.Fatalf("a viewer: %d", r.status)
+	}
+	_ = vtok
+}

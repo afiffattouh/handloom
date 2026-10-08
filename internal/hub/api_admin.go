@@ -310,3 +310,38 @@ func agentScreen(c *call) (any, error) {
 
 var _ = profile.Cloud
 var _ = fmt.Sprint
+
+// meOperatorToken gives the signed-in person a token for their AI app. It
+// works only for the calls in operatorCalls, so an app set to approve
+// everything still cannot approve.
+func meOperatorToken(c *call) (any, error) {
+	if c.p.kind != kindHuman || c.p.operator {
+		return nil, forbidden("only a person, with their own token, makes a token for an AI app")
+	}
+	h, err := store.HumanByName(c.tx, c.p.name)
+	if err != nil || h == nil {
+		return nil, notFound("no such person")
+	}
+	tok := store.NewToken(store.PrefixOperator)
+	if err := store.SetOperatorToken(c.tx, h.ID, store.HashToken(tok), store.Millis(c.now)); err != nil {
+		return nil, err
+	}
+	if err := c.audit("human.operator_token", "human:"+h.Name, nil); err != nil {
+		return nil, err
+	}
+	return api.TokenResp{Name: h.Name, Token: tok}, nil
+}
+
+func meOperatorTokenRemove(c *call) (any, error) {
+	if c.p.kind != kindHuman || c.p.operator {
+		return nil, forbidden("only a person, with their own token, removes an AI app's access")
+	}
+	h, err := store.HumanByName(c.tx, c.p.name)
+	if err != nil || h == nil {
+		return nil, notFound("no such person")
+	}
+	if err := store.RemoveOperatorToken(c.tx, h.ID); err != nil {
+		return nil, err
+	}
+	return nil, c.audit("human.operator_token.remove", "human:"+h.Name, nil)
+}

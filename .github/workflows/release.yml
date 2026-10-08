@@ -1,0 +1,46 @@
+name: release
+# Pushing a tag such as v0.1.0 builds the binaries and publishes a GitHub release.
+# Running it by hand (Actions, release, Run workflow) builds the same files and keeps them as a
+# workflow artifact without publishing anything, so the pipeline can be tried safely.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to stamp into the build (not published)"
+        default: "v0.0.0-test"
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Test
+        run: go vet ./... && go test ./...
+      - name: Build every platform
+        run: scripts/release-build.sh "${VERSION}" dist
+        env:
+          VERSION: ${{ github.event_name == 'push' && github.ref_name || inputs.version }}
+      - name: The linux/amd64 binary runs and reports its version
+        run: |
+          tar -xzf dist/handloom_${VERSION}_linux_amd64.tar.gz -C /tmp handloom
+          /tmp/handloom version | tee /dev/stderr | grep -q "$VERSION"
+        env:
+          VERSION: ${{ github.event_name == 'push' && github.ref_name || inputs.version }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: handloom-${{ github.event_name == 'push' && github.ref_name || inputs.version }}
+          path: dist/*
+      - name: Publish the release
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          flags=""; case "$TAG" in *-*) flags="--prerelease";; esac
+          gh release create "$TAG" dist/* --title "Handloom $TAG" --generate-notes $flags

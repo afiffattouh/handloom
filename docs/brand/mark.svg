@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Handloom"><rect width="64" height="64" rx="14" fill="#1f5f4a"/><defs><mask id="ma"><rect width="64" height="64" fill="#fff"/><rect x="4.4" y="25.4" width="55.2" height="13.2" rx="6.6" fill="#000"/></mask>
+<mask id="mb"><rect width="64" height="64" fill="#fff"/><rect x="36.4" y="8.4" width="13.2" height="47.2" rx="6.6" fill="#000"/></mask></defs>
+<rect x="17.0" y="11" width="8" height="42" rx="4.0" fill="#ffffff" mask="url(#ma)"/>
+<rect x="7" y="28.0" width="50" height="8" rx="4.0" fill="#4fc3b5" mask="url(#mb)"/>
+<rect x="39.0" y="11" width="8" height="42" rx="4.0" fill="#ffffff"/></svg>

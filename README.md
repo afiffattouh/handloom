@@ -1,3 +1,5 @@
+<p align="center"><img src="docs/brand/banner.png" alt="Handloom: your agents, on your machines" width="800"></p>
+
 # Handloom
 
 > Formerly "handloom". The command is `handloom`; `hl` is the short alias. Old names (`handloom`, `HANDLOOM_*`, `Handloom-Agent`, `~/.config/handloom`) are still accepted. The project is not public yet.

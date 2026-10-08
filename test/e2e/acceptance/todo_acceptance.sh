@@ -3,7 +3,7 @@
 # The agents never see this file. usage: todo_acceptance.sh <dir>
 cd "$1" || exit 2
 pass=0; total=0; T="$(mktemp -d)"; export TODO_FILE="$T/todo.json"
-t() { total=$((total+1)); if eval "$2" >"$T/out" 2>"$T/err"; then pass=$((pass+1)); else echo "  not met: $1"; fi; }
+t() { total=$((total+1)); if (eval "$2") >"$T/out" 2>"$T/err"; then pass=$((pass+1)); else echo "  not met: $1"; fi; }
 run() { python3 todo.py "$@"; }
 t "add prints the new id" '[ "$(run add "buy milk")" = "1" ]'
 t "a second add prints 2" '[ "$(run add "write report" --tag work --tag urgent)" = "2" ]'

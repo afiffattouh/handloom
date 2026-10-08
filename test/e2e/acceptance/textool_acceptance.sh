@@ -2,7 +2,7 @@
 # Black-box acceptance of the text tool on a checkout: prints "ACCEPT passed/total". The agents never see it.
 cd "$1" || exit 2
 pass=0; total=0; T="$(mktemp -d)"
-t() { total=$((total+1)); if eval "$2" >"$T/out" 2>"$T/err"; then pass=$((pass+1)); else echo "  not met: $1"; fi; }
+t() { total=$((total+1)); if (eval "$2") >"$T/out" 2>"$T/err"; then pass=$((pass+1)); else echo "  not met: $1"; fi; }
 run() { python3 tool.py "$@"; }
 printf 'one two\nthree\n' > "$T/words.txt"
 printf 'name,age\nAda,36\nLin,29\n' > "$T/a.csv"

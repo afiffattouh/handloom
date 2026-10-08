@@ -430,3 +430,7 @@ details.limits > summary { cursor: pointer; font-weight: 500; color: var(--foreg
 
 fieldset.intents { display: grid; gap: 8px; }
 label.intent { align-items: flex-start; }
+
+/* wide pages, comfortable forms: single-line fields stop at a readable width and buttons keep their own size */
+.stack input:not([type=checkbox]):not([type=radio]), .stack select { max-width: 36rem; }
+.stack > button, .stack > .acts { justify-self: start; }

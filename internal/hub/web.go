@@ -72,7 +72,7 @@ var activeMenu = map[string]string{"inbox": "inbox", "jobs": "jobs", "jobform": 
 	"profiles": "profiles", "profile": "profiles", "starters": "profiles", "starter": "profiles", "devices": "devices", "settings": "settings", "command": "command", "connect": "connect"}
 
 // narrowPages are forms and reading pages.
-var narrowPages = map[string]bool{"jobform": true, "profile": true, "settings": true, "connect": true, "devices": true, "message": true}
+var narrowPages = map[string]bool{"jobform": true, "profile": true, "message": true}
 
 func (h *Hub) loadTemplates() error {
 	h.pages = map[string]*template.Template{}

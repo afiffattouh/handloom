@@ -140,7 +140,7 @@ func (q *webReq) devicesPage(status int, errMsg string, fresh *devicesView) erro
 		}
 		v.Devices = append(v.Devices, dv)
 	}
-	q.page(status, "devices", pageData{Title: "Devices", Error: errMsg, Notice: map[string]string{"revoked": "Device revoked."}[q.r.URL.Query().Get("done")], Extra: v})
+	q.page(status, "devices", pageData{Title: "Machines", Error: errMsg, Notice: map[string]string{"revoked": "Device revoked."}[q.r.URL.Query().Get("done")], Extra: v})
 	return nil
 }
 

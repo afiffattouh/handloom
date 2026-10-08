@@ -434,3 +434,12 @@ label.intent { align-items: flex-start; }
 /* wide pages, comfortable forms: single-line fields stop at a readable width and buttons keep their own size */
 .stack input:not([type=checkbox]):not([type=radio]), .stack select { max-width: 36rem; }
 .stack > button, .stack > .acts { justify-self: start; }
+
+/* copy button on blocks meant to be copied (copy.js) */
+.copyable { position: relative; min-width: 0; }
+.copyable > .inset { padding-right: 44px; }
+.copy-btn { position: absolute; top: 6px; right: 6px; width: 28px; height: 28px; padding: 0; border-radius: 7px; background: var(--card); color: var(--muted-foreground); border: 1px solid var(--border); box-shadow: none; opacity: 0; transition: opacity .12s; }
+.copyable:hover .copy-btn, .copy-btn:focus-visible, .copy-btn.done { opacity: 1; }
+.copy-btn:hover { background: var(--accent); color: var(--foreground); filter: none; }
+.copy-btn.done { color: var(--success); }
+@media (hover: none) { .copy-btn { opacity: 1; } }

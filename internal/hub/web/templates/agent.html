@@ -20,7 +20,7 @@
     <div class="ch"><div><h2 id="term">Terminal</h2><p class="desc">The last lines on its screen, read-only, refreshed while this page is open.</p></div></div>
     <div class="cc">
       {{if .CanWatch}}
-      <pre class="inset screen" id="screen" data-tail="/agents/{{.Name}}/tail" data-watch="/agents/{{.Name}}/watch">Waiting for the machine to send the screen…</pre>
+      <pre class="inset screen" data-copy id="screen" data-tail="/agents/{{.Name}}/tail" data-watch="/agents/{{.Name}}/watch">Waiting for the machine to send the screen…</pre>
       {{else}}
       <p class="desc">{{.WatchWhy}}</p>
       {{end}}

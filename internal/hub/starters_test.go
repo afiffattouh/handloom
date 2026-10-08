@@ -159,3 +159,77 @@ func TestTheStarterPagesAndTheAssistedForm(t *testing.T) {
 		t.Fatalf("codex rule not shown: %s", chk.body)
 	}
 }
+
+func TestAProfileIsNotReplacedByAccident(t *testing.T) {
+	e := newWebEnv(t, Options{})
+	c, tok := e.owner()
+	post := func(path string, f url.Values) webResp {
+		f.Set("csrf", tok)
+		f.Set("current_password", goodPassword)
+		return e.req("POST", path, f, c, nil)
+	}
+	create := url.Values{"name": {"lead"}, "kind": {"claude"}, "runtime": {"cloud"}, "tool": {"read"}, "prompt": {"You lead."}}
+	if r := post("/profiles", create); r.status != 303 {
+		t.Fatalf("create: %d %s", r.status, r.body)
+	}
+	// Making another profile under the same name would silently replace what new agents get: refused, in words.
+	local := url.Values{"name": {"lead"}, "kind": {"omp"}, "runtime": {"local"}, "model": {"gb10/qwen3.8-27b"}, "tool": {"read", "shell"}, "prompt": {"You lead."}}
+	if r := post("/profiles", local); r.status != 409 || !strings.Contains(r.body, "already have a profile called") {
+		t.Fatalf("a second profile with the same name: %d", r.status)
+	}
+	// Editing it into a different CLI or runtime needs a yes, and says what changes.
+	edit := url.Values{"kind": {"omp"}, "runtime": {"local"}, "model": {"gb10/qwen3.8-27b"}, "tool": {"read", "shell"}, "prompt": {"You lead."}}
+	r := post("/profiles/lead", edit)
+	if r.status != 409 || !strings.Contains(r.body, "This changes what lead is") || !strings.Contains(r.body, `name="confirm_change"`) || !strings.Contains(r.body, "under a new name") {
+		t.Fatalf("an unconfirmed change: %d %s", r.status, r.body)
+	}
+	var vs []api.ProfileInfo
+	e.apiOK(e.admin, "", "GET", "/v1/profiles/lead/versions", nil, &vs)
+	if len(vs) != 1 {
+		t.Fatalf("nothing was saved yet: %+v", vs)
+	}
+	edit.Set("confirm_change", "1")
+	if r := post("/profiles/lead", edit); r.status != 303 {
+		t.Fatalf("confirmed: %d", r.status)
+	}
+	e.apiOK(e.admin, "", "GET", "/v1/profiles/lead/versions", nil, &vs)
+	if len(vs) != 2 || vs[0].Kind != "claude" && vs[1].Kind != "claude" {
+		t.Fatalf("both versions are kept: %+v", vs)
+	}
+	if body := e.req("GET", "/profiles", nil, c, nil).body; !strings.Contains(body, "2 versions") {
+		t.Fatal("the list does not say that a profile has more than one version")
+	}
+	if body := e.req("GET", "/profiles/lead", nil, c, nil).body; !strings.Contains(body, "v1 (claude, cloud)") || !strings.Contains(body, "v2 (omp, local)") {
+		t.Fatalf("the profile page does not show what each version was")
+	}
+	// A change that keeps the CLI and the runtime needs no yes.
+	same := url.Values{"kind": {"omp"}, "runtime": {"local"}, "model": {"gb10/qwen3.8-27b"}, "tool": {"read", "shell"}, "prompt": {"You lead, more carefully."}}
+	if r := post("/profiles/lead", same); r.status != 303 {
+		t.Fatalf("a plain edit: %d", r.status)
+	}
+}
+
+func TestAnEarlierVersionCanBecomeAProfileOfItsOwn(t *testing.T) {
+	e := newWebEnv(t, Options{})
+	c, tok := e.owner()
+	f := url.Values{"name": {"lead"}, "kind": {"claude"}, "runtime": {"cloud"}, "tool": {"read"}, "prompt": {"You lead."}, "csrf": {tok}, "current_password": {goodPassword}}
+	e.req("POST", "/profiles", f, c, nil)
+	f.Set("kind", "omp")
+	f.Set("runtime", "local")
+	f.Set("model", "gb10/qwen3.8-27b")
+	f.Add("tool", "shell")
+	f.Set("confirm_change", "1")
+	e.req("POST", "/profiles/lead", f, c, nil)
+	if body := e.req("GET", "/profiles/lead?version=1", nil, c, nil).body; !strings.Contains(body, "Make a new profile from this version") || !strings.Contains(body, "copy=lead&version=1") {
+		t.Fatalf("no way to copy an earlier version")
+	}
+	form := e.req("GET", "/profiles/new?copy=lead&version=1", nil, c, nil).body
+	for _, want := range []string{"Started from lead v1", `value="lead-claude"`, `<option value="claude" selected>`} {
+		if !strings.Contains(form, want) {
+			t.Errorf("the copy form lacks %q", want)
+		}
+	}
+	if r := e.req("GET", "/profiles/new?copy=lead&version=9", nil, c, nil); r.status != 404 {
+		t.Fatalf("a version that does not exist: %d", r.status)
+	}
+}

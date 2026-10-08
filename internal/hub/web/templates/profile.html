@@ -1,6 +1,6 @@
 {{define "content"}}
 {{with .Extra}}
-{{if .IsNew}}<div class="page-head"><div><h1>New profile</h1><p class="desc">What an agent started from it may do and know.{{if .From}} Started from the <a href="/profiles/starters/{{.From}}">{{.From}}</a> starter.{{end}}</p></div>
+{{if .IsNew}}<div class="page-head"><div><h1>New profile</h1><p class="desc">What an agent started from it may do and know.{{if .From}} Started from the <a href="/profiles/starters/{{.From}}">{{.From}}</a> starter.{{end}}{{if .Copied}} Started from {{.Copied}}; give it a name of its own.{{end}}</p></div>
   <div class="acts"><a class="button outline" href="/profiles/starters">Starter library</a></div></div>
 {{if .Starters}}
 <section class="card" aria-labelledby="from">
@@ -12,7 +12,7 @@
 </section>
 {{end}}
 {{else}}
-<div class="page-head"><div><h1>{{.Name}} <span class="desc">v{{.Info.Version}}</span></h1><p class="desc">hash <code>{{.Hash}}</code>{{if .Versions}} · versions: {{range .Versions}}<a href="/profiles/{{$.Extra.Name}}?version={{.Version}}">v{{.Version}}</a> {{end}}{{end}}</p></div></div>
+<div class="page-head"><div><h1>{{.Name}} <span class="desc">v{{.Info.Version}}</span></h1><p class="desc"><a href="/profiles/new?copy={{.Name}}&version={{.Info.Version}}">Make a new profile from this version</a> · hash <code>{{.Hash}}</code>{{if .Versions}} · versions: {{range .Versions}}<a href="/profiles/{{$.Extra.Name}}?version={{.Version}}">v{{.Version}} ({{.Kind}}, {{.Runtime}})</a> {{end}}{{end}}</p></div></div>
 <section class="card" aria-labelledby="enf">
   <div class="ch"><div><h2 id="enf">What this profile enforces</h2></div></div>
   <div class="cc"><ul class="plain">{{range .Enforce}}<li>{{.}}</li>{{end}}</ul></div>
@@ -83,6 +83,7 @@
   {{else if .Warnings}}
   <div class="warn-box"><svg class="icon sev-warn"><use href="#i-triangle-alert"/></svg><div><strong>Worth a look</strong>{{range .Warnings}}<div>{{.}}</div>{{end}}</div></div>
   {{end}}
+  {{if .NeedConfirm}}<label class="check"><input type="checkbox" name="confirm_change" value="1"> Yes, new agents of this name should use the new version ({{.Change}})</label>{{end}}
   <label>Your password, to confirm <input type="password" name="current_password" autocomplete="current-password"></label>
   <div class="acts"><button type="submit" name="check" value="1" class="secondary" formnovalidate>Check before saving</button><button type="submit">{{if .IsNew}}Create profile{{else}}Save as a new version{{end}}</button></div>
 </form>

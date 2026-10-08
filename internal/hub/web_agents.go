@@ -38,6 +38,10 @@ type profileView struct {
 	Starters []api.StarterInfo
 	From     string
 	Kinds    []kindOpt
+	// A save that changes the agent CLI or where the model runs replaces what new agents of this name get: it needs a yes.
+	NeedConfirm bool
+	Change      string
+	Copied      string // "name vN" when the form starts from an earlier version
 }
 
 // profileReview is what the form shows before anything is saved.
@@ -61,7 +65,7 @@ func (q *webReq) profilesPage(status int, errMsg string) error {
 	}
 	q.page(status, "profiles", pageData{Title: "Profiles", Error: errMsg,
 		Notice: map[string]string{"saved": "Profile saved."}[q.r.URL.Query().Get("done")],
-		Extra:  map[string]any{"List": rows, "CanEdit": q.isOwner()}})
+		Extra:  map[string]any{"List": rows, "CanEdit": q.isOwner(), "Counts": q.versionCounts()}})
 	return nil
 }
 
@@ -129,6 +133,16 @@ func (h *Hub) webProfileNewForm(q *webReq) error {
 		return q.refuse("Only the owner writes profiles.")
 	}
 	v := &profileView{IsNew: true, Spec: profile.Spec{Kind: "claude", Runtime: profile.Cloud, Tools: profile.Tools{Allow: []string{"read"}}}}
+	if copyOf := q.r.URL.Query().Get("copy"); copyOf != "" {
+		ver, _ := strconv.Atoi(q.r.URL.Query().Get("version"))
+		p, err := q.c.profileVersion(copyOf, ver)
+		if err != nil {
+			return q.profileForm(404, "There is no such profile version to copy.", v)
+		}
+		v.Spec, v.Name = p.spec, copyOf+"-"+p.spec.Kind
+		v.Copied = fmt.Sprintf("%s v%d", copyOf, p.version)
+		return q.profileForm(200, "", v)
+	}
 	if from := q.r.URL.Query().Get("from"); from != "" {
 		spec, err := starters.Template(from)
 		if err != nil {
@@ -220,6 +234,19 @@ func (h *Hub) webProfileSave(q *webReq) error {
 		}
 	}
 	spec := specFromForm(q, old)
+	var n int
+	q.c.tx.QueryRow(`SELECT count(*) FROM profile WHERE name = ?`, name).Scan(&n)
+	if isNew && n > 0 {
+		return q.profileError(conflict("You already have a profile called %q. Open it to change it, or choose another name: saving under the same name would replace what new agents get from it.", name), &profileView{IsNew: true, Name: name, Spec: spec})
+	}
+	if !isNew && old != nil && (old.Kind != spec.Kind || old.Runtime != spec.Runtime) && q.r.PostForm.Get("confirm_change") != "1" {
+		v := &profileView{Name: name, Spec: spec, NeedConfirm: true,
+			Change: fmt.Sprintf("%s on a %s model → %s on a %s model", profile.KindLabel(old.Kind), old.Runtime, profile.KindLabel(spec.Kind), spec.Runtime)}
+		if cur, err := q.c.profileVersion(name, 0); err == nil {
+			v.Info, v.Hash = cur.info(), cur.hash
+		}
+		return q.profileForm(409, "This changes what "+name+" is: "+v.Change+". New agents started from \""+name+"\" will get the new version; agents already running keep their own. If you want both, save it under a new name instead.", v)
+	}
 	if _, err := q.c.saveProfile(name, spec); err != nil {
 		return q.profileError(err, &profileView{IsNew: isNew, Name: name, Spec: spec})
 	}
@@ -355,4 +382,22 @@ func (q *webReq) profileCheck(name string) error {
 		}
 	}
 	return q.profileForm(200, "", v)
+}
+
+// versionCounts is how many versions each profile has.
+func (q *webReq) versionCounts() map[string]int {
+	out := map[string]int{}
+	rows, err := q.c.tx.Query(`SELECT name, count(*) FROM profile GROUP BY name`)
+	if err != nil {
+		return out
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var n string
+		var c int
+		if rows.Scan(&n, &c) == nil {
+			out[n] = c
+		}
+	}
+	return out
 }

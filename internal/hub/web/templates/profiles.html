@@ -4,7 +4,7 @@
 <div class="card"><div class="cc flush tw"><table>
   <thead><tr><th>Profile</th><th>Runs on</th><th>Tools</th><th>Skills</th></tr></thead><tbody>
   {{range .List}}
-  <tr class="link"><td><a class="rowlink" href="/profiles/{{.Name}}"><strong>{{.Name}}</strong> <span class="mono muted">v{{.Version}}</span>{{if .Description}}<div class="desc">{{.Description}}</div>{{end}}</a></td>
+  <tr class="link"><td><a class="rowlink" href="/profiles/{{.Name}}"><strong>{{.Name}}</strong> <span class="mono muted">v{{.Version}}</span>{{with index $.Extra.Counts .Name}}{{if gt . 1}} <span class="desc">· {{.}} versions</span>{{end}}{{end}}{{if .Description}}<div class="desc">{{.Description}}</div>{{end}}</a></td>
     <td class="nw"><span class="badge outline">{{.Kind}}</span> <span class="badge outline">{{.Runtime}}</span></td>
     <td class="desc">{{range $i, $t := .Tools}}{{if $i}}, {{end}}{{$t}}{{else}}none{{end}}</td>
     <td class="desc">{{range $i, $s := .Skills}}{{if $i}}, {{end}}{{$s}}{{else}}none{{end}}</td></tr>

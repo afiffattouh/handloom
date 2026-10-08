@@ -425,7 +425,7 @@ func (m *Model) bodyView(w, h int) string {
 }
 
 func (m *Model) header() string {
-	left := " " + sBold.Render("Handloom") + sMuted.Render("  "+m.host)
+	left := " " + sBold.Render("┃") + sAccent.Render("━") + sBold.Render("┃ Handloom") + sMuted.Render("  "+m.host)
 	who := m.name
 	if who == "" {
 		who = "…"

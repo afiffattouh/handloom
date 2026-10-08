@@ -89,7 +89,7 @@ func (e *env) hub(args []string) error {
 			return fmt.Errorf("no database in %s: run `handloom hub init --data %s` first", abs, abs)
 		}
 		return e.installService(service{
-			name: "handloom-hub", description: "handloom hub",
+			name: "handloom-hub", description: "Handloom hub",
 			args: []string{"hub", "serve", "--data", abs, "--addr", *addr, "--lease", lease.String(), "--unclaimed", unclaimed.String()},
 		})
 	case "uninstall":
@@ -339,7 +339,7 @@ func (e *env) link(args []string) error {
 			return err
 		}
 		return e.installService(service{
-			name: "handloom-link", description: "handloom link (device daemon)",
+			name: "handloom-link", description: "Handloom link (device daemon)",
 			args: []string{"link", "run"}, env: map[string]string{"HANDLOOM_HOME": home},
 		})
 	case "uninstall":

@@ -9,8 +9,8 @@
   --background: #f7f8f7; --foreground: #14201e;
   --card: #ffffff; --card-foreground: #14201e;
   --muted: #eff2f0; --muted-foreground: #5f6e6b;
-  --accent: #e8edea; --border: #dde3df; --input: #cfd7d2; --ring: rgba(15, 118, 110, 0.35);
-  --primary: #0f766e; --primary-foreground: #ffffff;
+  --accent: #e8edea; --border: #dde3df; --input: #cfd7d2; --ring: rgba(31, 95, 74, 0.35);
+  --primary: #1f5f4a; --primary-foreground: #ffffff;
   --destructive: #c2362b; --destructive-soft: #fbe9e6;
   --success: #1b7a3a; --success-soft: #e3f3e8;
   --warning: #92620a; --warning-soft: #f8efd8;

@@ -15,7 +15,7 @@ var (
 	cFg      = lipgloss.AdaptiveColor{Light: "#1c2420", Dark: "#e3e9e5"}
 	cMuted   = lipgloss.AdaptiveColor{Light: "#5a6860", Dark: "#8d9b93"}
 	cBorder  = lipgloss.AdaptiveColor{Light: "#bfcac3", Dark: "#3b4640"}
-	cAccent  = lipgloss.AdaptiveColor{Light: "#1d6b4a", Dark: "#5cc49a"}
+	cAccent  = lipgloss.AdaptiveColor{Light: "#1f5f4a", Dark: "#4fc3b5"}
 	cSuccess = lipgloss.AdaptiveColor{Light: "#1a7f37", Dark: "#56c27a"}
 	cWarn    = lipgloss.AdaptiveColor{Light: "#8a5a00", Dark: "#e3b341"}
 	cBad     = lipgloss.AdaptiveColor{Light: "#c0262d", Dark: "#ff7b72"}

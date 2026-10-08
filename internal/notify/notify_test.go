@@ -10,10 +10,10 @@ import (
 )
 
 func TestNtfyPostsTitleLinkAndBody(t *testing.T) {
-	var gotPath, gotTitle, gotClick, gotAuth, gotBody string
+	var gotPath, gotTitle, gotClick, gotAuth, gotBody, gotIcon string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		b, _ := io.ReadAll(r.Body)
-		gotPath, gotTitle, gotClick, gotAuth, gotBody = r.URL.Path, r.Header.Get("Title"), r.Header.Get("Click"), r.Header.Get("Authorization"), string(b)
+		gotPath, gotTitle, gotClick, gotAuth, gotBody, gotIcon = r.URL.Path, r.Header.Get("Title"), r.Header.Get("Click"), r.Header.Get("Authorization"), string(b), r.Header.Get("Icon")
 	}))
 	defer srv.Close()
 	n, err := NewNtfy(srv.URL+"/", "my-topic", "tk_1")
@@ -23,6 +23,9 @@ func TestNtfyPostsTitleLinkAndBody(t *testing.T) {
 	err = n.Notify(context.Background(), Notification{Kind: KindEscalation, Title: "Handloom", Text: "A question needs you.", Link: "https://h.example/inbox"})
 	if err != nil {
 		t.Fatal(err)
+	}
+	if gotIcon != "https://h.example/static/apple-touch-icon.png" {
+		t.Fatalf("icon: %q", gotIcon)
 	}
 	if gotPath != "/my-topic" || gotTitle != "Handloom" || gotClick != "https://h.example/inbox" || gotAuth != "Bearer tk_1" || gotBody != "A question needs you." {
 		t.Fatalf("path=%q title=%q click=%q auth=%q body=%q", gotPath, gotTitle, gotClick, gotAuth, gotBody)

@@ -4,7 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Handloom Map</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@500;600;700&family=Source+Sans+3:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="icon" href="brand/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap">
 <style>
 /* Layout: one long page. Topology on top, then the layers, the job flow as a swimlane, the guard rails, the feature list. */
 :root {
@@ -14,28 +15,28 @@
   --ink: #1b2326;
   --muted: #5a666a;
   --line: #c9cfca;
-  --warp: #1f6f6b;      /* hub, structure */
-  --warp-soft: #d6ebe8;
-  --weft: #b4561f;      /* work moving through */
-  --weft-soft: #f6e1d3;
+  --warp: #1f5f4a;      /* hub, structure: the brand's loom green */
+  --warp-soft: #d9ebe3;
+  --weft: #2a9d8f;      /* devices, work moving through: the brand's thread teal, one step deeper for text on white */
+  --weft-soft: #d7efec;
   --human: #4a4fa3;
   --human-soft: #e0e1f4;
   --ok: #2f7d3a;
   --warn: #9a6a00;
-  --f-display: "Familjen Grotesk", "Helvetica Neue", Arial, sans-serif;
-  --f-body: "Source Sans 3", "Helvetica Neue", Arial, sans-serif;
-  --f-mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+  --f-display: "Geist", "Helvetica Neue", Arial, sans-serif;
+  --f-body: "Geist", "Helvetica Neue", Arial, sans-serif;
+  --f-mono: "Geist Mono", ui-monospace, Menlo, Consolas, monospace;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #11181a; --panel: #182225; --panel-2: #1f2c30; --ink: #e6ecea; --muted: #93a3a6; --line: #2c3c40;
-    --warp: #5fc4bc; --warp-soft: #17383a; --weft: #f0955a; --weft-soft: #3b2a1e;
+    --warp: #7fd6a8; --warp-soft: #17332a; --weft: #4fc3b5; --weft-soft: #16342f;
     --human: #a0a5f0; --human-soft: #24274a; --ok: #6cc77a; --warn: #e0b24a; color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
   --bg: #11181a; --panel: #182225; --panel-2: #1f2c30; --ink: #e6ecea; --muted: #93a3a6; --line: #2c3c40;
-  --warp: #5fc4bc; --warp-soft: #17383a; --weft: #f0955a; --weft-soft: #3b2a1e;
+  --warp: #7fd6a8; --warp-soft: #17332a; --weft: #4fc3b5; --weft-soft: #16342f;
   --human: #a0a5f0; --human-soft: #24274a; --ok: #6cc77a; --warn: #e0b24a; color-scheme: dark;
 }
 * { box-sizing: border-box; }
@@ -50,6 +51,7 @@ code, .mono { font-family: var(--f-mono); font-size: 0.85em; }
 .eyebrow { font-family: var(--f-mono); font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
 .lede { color: var(--muted); max-width: 62ch; font-size: 1.1rem; }
 header { display: flex; flex-direction: column; gap: 14px; }
+.brandrow { display: inline-flex; align-items: center; gap: 12px; font-family: var(--f-display); font-weight: 620; font-size: 22px; letter-spacing: -0.02em; color: var(--ink); text-decoration: none; }
 .legend { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 0.85rem; color: var(--muted); }
 .legend span { display: inline-flex; align-items: center; gap: 7px; }
 .sw { width: 14px; height: 14px; border-radius: 3px; display: inline-block; }
@@ -179,7 +181,8 @@ footer { color: var(--muted); font-size: 0.85rem; border-top: 1px solid var(--li
 
 <div class="wrap">
 <header>
-  <div class="eyebrow">Handloom · hl · open source, self-hosted</div>
+  <a class="brandrow" href="https://handloom.example.com" aria-label="Handloom"><img src="brand/mark.svg" alt="" width="40" height="40"><span>Handloom</span></a>
+  <div class="eyebrow">Your agents, on your machines · open source, self-hosted</div>
   <h1>One hub. Many devices. Agents that hand work to each other and show their proof.</h1>
   <p class="lede">You describe a job. A lead agent plans it and starts workers on your machines. Each worker gets its own copy of the repository. The device that holds the files checks the work, and only you decide it is finished.</p>
   <div class="legend">

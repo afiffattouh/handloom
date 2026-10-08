@@ -37,7 +37,7 @@ An **H** made of two upright threads and one thread carried across. The crossing
 | Ink | `#14201e` | Text on light. |
 | Paper | `#f7f8f7` | The page. |
 
-The interface's own tokens (`internal/hub/web/static/app.css`, `docs/design-principles.md`) are the working palette: primary teal `#0f766e` on light, `#4fc3b5` on dark, neutrals with a slight green cast. Colour in the product means something (act here, wrong, fine, waiting); the brand colours are for the mark, not for decoration.
+The interface's own tokens (`internal/hub/web/static/app.css`, `docs/design-principles.md`) are the working palette: the primary is Loom green `#1f5f4a` on light and Thread teal `#4fc3b5` on dark, with neutrals that have a slight green cast. The terminal console, the overview page and the README banner use the same two colours. Colour in the product means something (act here, wrong, fine, waiting); the brand colours are for the mark, not for decoration.
 
 ## Type
 
@@ -49,4 +49,4 @@ Calm, plain, specific. Short sentences. The person's words ("question", "work to
 
 ## Where it appears
 
-The web UI (favicon, sidebar, sign-in), the README banner, the published overview page, release notes, and the terminal console's header text. In the terminal the mark is not drawn; the name is.
+The web UI (favicon, sidebar, sign-in, the primary colour of every button and link), the README banner, the overview page, the container image's title and description, the systemd unit descriptions, phone notifications (they carry the hub's icon), and the terminal console, whose header shows the weave as `┃━┃ Handloom` in the brand green.

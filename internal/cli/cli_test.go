@@ -436,7 +436,7 @@ func TestMCPThroughRealHub(t *testing.T) {
 }
 
 func TestServiceUnit(t *testing.T) {
-	s := service{name: "handloom-link", description: "handloom link (device daemon)", args: []string{"link", "run"},
+	s := service{name: "handloom-link", description: "Handloom link (device daemon)", args: []string{"link", "run"},
 		env: map[string]string{"HANDLOOM_HOME": "/home/a b/.config/handloom"}}
 	unit := s.unitText("/usr/local/bin/handloom", "/root", "/usr/bin:/bin", true)
 	for _, want := range []string{
@@ -451,7 +451,7 @@ func TestServiceUnit(t *testing.T) {
 			t.Errorf("system unit lacks %q:\n%s", want, unit)
 		}
 	}
-	hub := service{name: "handloom-hub", description: "handloom hub", args: []string{"hub", "serve", "--data", "/var/lib/handloom", "--addr", "100.1.2.3:7420"}}
+	hub := service{name: "handloom-hub", description: "Handloom hub", args: []string{"hub", "serve", "--data", "/var/lib/handloom", "--addr", "100.1.2.3:7420"}}
 	unit = hub.unitText("/home/u/.local/bin/handloom", "/home/u", "/usr/bin", false)
 	if !strings.Contains(unit, "ExecStart=/home/u/.local/bin/handloom hub serve --data /var/lib/handloom --addr 100.1.2.3:7420\n") ||
 		!strings.Contains(unit, "WantedBy=default.target\n") {

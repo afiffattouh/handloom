@@ -78,6 +78,10 @@ func (n *Ntfy) Notify(ctx context.Context, nf Notification) error {
 	req.Header.Set("Tags", "speech_balloon")
 	if nf.Link != "" {
 		req.Header.Set("Click", nf.Link)
+		// the hub's own icon, from the same address the link points at
+		if u, err := url.Parse(nf.Link); err == nil && u.Scheme != "" && u.Host != "" {
+			req.Header.Set("Icon", u.Scheme+"://"+u.Host+"/static/apple-touch-icon.png")
+		}
 	}
 	if n.Token != "" {
 		req.Header.Set("Authorization", "Bearer "+n.Token)

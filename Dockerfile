@@ -16,6 +16,9 @@ RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \
 RUN mkdir -p /out/data && chown 65532:65532 /out/data && chmod 700 /out/data
 
 FROM gcr.io/distroless/static-debian12:nonroot
+LABEL org.opencontainers.image.title="Handloom" \
+      org.opencontainers.image.description="Your agents, on your machines: open-source, self-hosted coordination of coding agents across devices." \
+      org.opencontainers.image.licenses="Apache-2.0"
 COPY --from=build /out/handloom /handloom
 COPY --from=build --chown=65532:65532 /out/data /data
 ENV HANDLOOM_DATA=/data HANDLOOM_ADDR=0.0.0.0:7420

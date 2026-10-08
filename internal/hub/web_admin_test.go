@@ -151,7 +151,7 @@ func TestMembersAndInvites(t *testing.T) {
 	if done.status != 303 || done.cookie == nil {
 		t.Fatalf("accept invite: %d %s", done.status, done.body)
 	}
-	if r := e.req("GET", "/inbox", nil, done.cookie, nil); !strings.Contains(r.body, "mia<br><span class=\"muted\">member") {
+	if r := e.req("GET", "/inbox", nil, done.cookie, nil); !strings.Contains(r.body, "<strong>mia</strong><div class=\"desc\">member</div>") {
 		t.Fatalf("mia's inbox: %s", r.body)
 	}
 	if r := e.req("GET", "/invite/"+inv[1], nil, nil, nil); r.status != 404 {

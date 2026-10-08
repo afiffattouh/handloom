@@ -19,6 +19,7 @@ import (
 	"strings"
 	"time"
 
+	"handloom/internal/api"
 	"handloom/internal/store"
 )
 
@@ -51,7 +52,17 @@ type pageData struct {
 	Nav     navCounts
 	Initial string // first letter of the person's name
 	Narrow  bool   // forms and text pages are narrower than dashboards
+	Crumbs  []crumb
+	Proto   string
 }
+
+// crumb is one step of the path shown in the header; the last has no link.
+type crumb struct{ Label, Href string }
+
+// sections are the menu items as the header's path names them.
+var sections = map[string]crumb{"command": {"Command center", "/command"}, "inbox": {"Inbox", "/inbox"}, "jobs": {"Jobs", "/jobs"},
+	"agents": {"Agents", "/agents"}, "profiles": {"Profiles", "/profiles"}, "devices": {"Machines", "/devices"},
+	"settings": {"Settings", "/settings"}, "connect": {"Connect an AI app", "/connect"}}
 
 // navCounts are the small numbers beside the menu items.
 type navCounts struct{ Needs, Jobs, Agents, Devices int }
@@ -486,6 +497,16 @@ func (q *webReq) page(status int, page string, d pageData) {
 	if q.human != nil {
 		d.Initial = strings.ToUpper(string([]rune(q.human.Name)[:1]))
 		d.Nav = q.navCounts()
+		d.Crumbs, d.Proto = []crumb{{"Handloom", "/"}}, api.Version
+		if s, ok := sections[d.Active]; ok {
+			d.Crumbs = append(d.Crumbs, s)
+			if d.Title != "" && d.Title != s.Label {
+				d.Crumbs = append(d.Crumbs, crumb{d.Title, ""})
+			}
+		} else if d.Title != "" {
+			d.Crumbs = append(d.Crumbs, crumb{d.Title, ""})
+		}
+		d.Crumbs[len(d.Crumbs)-1].Href = ""
 	}
 	q.c.h.render(q.w, status, page, d)
 }

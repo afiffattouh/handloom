@@ -1,9 +1,10 @@
 // Theme: follows the system unless the person chose light or dark here. The
-// choice is kept in this browser only. Runs before the page paints so there is
+// choice is kept in this browser only, as is whether the menu is folded to icons. Runs before the page paints so there is
 // no flash; the page works without it.
 (function () {
   var key = 'handloom-theme', root = document.documentElement;
   try { var saved = localStorage.getItem(key); if (saved === 'light' || saved === 'dark') root.setAttribute('data-theme', saved); } catch (e) {}
+  try { if (localStorage.getItem('handloom-sidebar') === 'collapsed') root.setAttribute('data-sidebar', 'collapsed'); } catch (e) {}
   document.addEventListener('DOMContentLoaded', function () {
     var cur = root.getAttribute('data-theme') || 'auto';
     var btns = document.querySelectorAll('[data-theme-set]');

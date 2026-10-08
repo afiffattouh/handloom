@@ -9,44 +9,76 @@
 <link rel="preload" href="/static/fonts/Geist-Variable.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/static/app.css">
 <script src="/static/theme.js"></script>
+<script src="/static/shell.js" defer></script>
 </head>
 <body>
 {{template "icons"}}
 {{if .Human}}
-<div class="shell">
-  <aside class="sidebar" aria-label="Main">
-    <a class="brand" href="/"><img src="/static/favicon.svg" alt="" width="22" height="22">Handloom</a>
-    <nav class="menu">
-      <a href="/command"{{if eq .Active "command"}} aria-current="page"{{end}}><svg class="icon"><use href="#i-layout-dashboard"/></svg>Command center</a>
-      <a href="/inbox"{{if eq .Active "inbox"}} aria-current="page"{{end}}><svg class="icon"><use href="#i-inbox"/></svg>Inbox{{if .Nav.Needs}} <span class="count hot">{{.Nav.Needs}}</span>{{end}}</a>
-      <a href="/jobs"{{if eq .Active "jobs"}} aria-current="page"{{end}}><svg class="icon"><use href="#i-briefcase"/></svg>Jobs{{if .Nav.Jobs}} <span class="count">{{.Nav.Jobs}}</span>{{end}}</a>
-      <a href="/agents"{{if eq .Active "agents"}} aria-current="page"{{end}}><svg class="icon"><use href="#i-bot"/></svg>Agents{{if .Nav.Agents}} <span class="count">{{.Nav.Agents}}</span>{{end}}</a>
-      <div class="grp">Library</div>
-      <a href="/profiles"{{if eq .Active "profiles"}} aria-current="page"{{end}}><svg class="icon"><use href="#i-file-user"/></svg>Profiles</a>
-      <div class="grp">Admin</div>
-      <a href="/devices"{{if eq .Active "devices"}} aria-current="page"{{end}}><svg class="icon"><use href="#i-server"/></svg>Machines{{if .Nav.Devices}} <span class="count">{{.Nav.Devices}}</span>{{end}}</a>
-      {{if ne .Human.Role "viewer"}}<a href="/connect"{{if eq .Active "connect"}} aria-current="page"{{end}}><svg class="icon"><use href="#i-plug"/></svg>Connect an AI app</a>{{end}}
-      {{if eq .Human.Role "owner"}}<a href="/settings"{{if eq .Active "settings"}} aria-current="page"{{end}}><svg class="icon"><use href="#i-settings"/></svg>Settings</a>{{end}}
+<div class="app">
+  <aside class="sidebar" id="sidebar" aria-label="Main">
+    <div class="sb-head"><a class="brand" href="/"><img src="/static/favicon.svg" alt="" width="22" height="22"><span>Handloom</span></a></div>
+    <nav class="sb-content">
+      <div class="sb-group"><ul class="sb-menu">
+        <li><a class="sb-btn" href="/command" title="Command center"{{if eq .Active "command"}} aria-current="page"{{end}}><svg class="icon"><use href="#i-layout-dashboard"/></svg><span>Command center</span></a></li>
+        <li><a class="sb-btn" href="/inbox" title="Inbox"{{if eq .Active "inbox"}} aria-current="page"{{end}}><svg class="icon"><use href="#i-inbox"/></svg><span>Inbox</span>{{if .Nav.Needs}}<span class="sb-badge hot" aria-label="{{.Nav.Needs}} need you">{{.Nav.Needs}}</span>{{end}}</a></li>
+      </ul></div>
+      <div class="sb-group"><div class="sb-label">Work</div><ul class="sb-menu">
+        <li><a class="sb-btn" href="/jobs" title="Jobs"{{if eq .Active "jobs"}} aria-current="page"{{end}}><svg class="icon"><use href="#i-briefcase"/></svg><span>Jobs</span>{{if .Nav.Jobs}}<span class="sb-badge">{{.Nav.Jobs}}</span>{{end}}</a></li>
+        <li><a class="sb-btn" href="/agents" title="Agents"{{if eq .Active "agents"}} aria-current="page"{{end}}><svg class="icon"><use href="#i-bot"/></svg><span>Agents</span>{{if .Nav.Agents}}<span class="sb-badge">{{.Nav.Agents}}</span>{{end}}</a></li>
+      </ul></div>
+      <div class="sb-group"><div class="sb-label">Library</div><ul class="sb-menu">
+        <li><a class="sb-btn" href="/profiles" title="Profiles"{{if eq .Active "profiles"}} aria-current="page"{{end}}><svg class="icon"><use href="#i-file-user"/></svg><span>Profiles</span></a></li>
+      </ul></div>
+      <div class="sb-group"><div class="sb-label">Admin</div><ul class="sb-menu">
+        <li><a class="sb-btn" href="/devices" title="Machines"{{if eq .Active "devices"}} aria-current="page"{{end}}><svg class="icon"><use href="#i-server"/></svg><span>Machines</span>{{if .Nav.Devices}}<span class="sb-badge">{{.Nav.Devices}}</span>{{end}}</a></li>
+        {{if ne .Human.Role "viewer"}}<li><a class="sb-btn" href="/connect" title="Connect an AI app"{{if eq .Active "connect"}} aria-current="page"{{end}}><svg class="icon"><use href="#i-plug"/></svg><span>Connect an AI app</span></a></li>{{end}}
+        {{if eq .Human.Role "owner"}}<li><a class="sb-btn" href="/settings" title="Settings"{{if eq .Active "settings"}} aria-current="page"{{end}}><svg class="icon"><use href="#i-settings"/></svg><span>Settings</span></a></li>{{end}}
+      </ul></div>
     </nav>
-    <div class="foot">
-      <div class="tabs" role="group" aria-label="Theme"><button type="button" data-theme-set="auto" aria-pressed="true">Auto</button><button type="button" data-theme-set="light" aria-pressed="false">Light</button><button type="button" data-theme-set="dark" aria-pressed="false">Dark</button></div>
-      <form method="post" action="/logout" class="you">
-        <input type="hidden" name="csrf" value="{{.CSRF}}">
-        <span class="av" aria-hidden="true">{{.Initial}}</span>
-        <span>{{.Human.Name}}<br><span class="muted">{{.Human.Role}}</span></span>
-        <button type="submit" class="link">Sign out</button>
-      </form>
-    </div>
   </aside>
-  <div>
-    <header class="header">
-      <div class="crumb"><span>Handloom</span><span aria-hidden="true">/</span><b>{{.Title}}</b></div>
+  <div class="scrim" data-sidebar-close hidden></div>
+  <div class="frame">
+    <header class="topbar">
+      <div class="tb">
+        <div class="tb-left">
+          <button type="button" class="icon-btn" data-sidebar-toggle aria-controls="sidebar" aria-label="Toggle the menu" title="Toggle the menu (Ctrl+B)"><svg class="icon"><use href="#i-panel-left"/></svg></button>
+          <span class="vsep" aria-hidden="true"></span>
+          <nav class="breadcrumb" aria-label="Where you are"><ol>{{range $i, $c := .Crumbs}}{{if $i}}<li class="sep" aria-hidden="true"><svg class="icon"><use href="#i-chevron-right"/></svg></li>{{end}}<li>{{if $c.Href}}<a href="{{$c.Href}}">{{$c.Label}}</a>{{else}}<span aria-current="page">{{$c.Label}}</span>{{end}}</li>{{end}}</ol></nav>
+        </div>
+        <div class="tb-right">
+          <details class="dd">
+            <summary class="icon-btn" aria-label="Theme" title="Theme"><svg class="icon"><use href="#i-sun-moon"/></svg></summary>
+            <div class="dd-menu" role="group" aria-label="Theme">
+              <div class="dd-label">Theme</div>
+              <button type="button" class="dd-item" data-theme-set="auto" aria-pressed="true"><span>Match my system</span><svg class="icon tick"><use href="#i-check"/></svg></button>
+              <button type="button" class="dd-item" data-theme-set="light" aria-pressed="false"><span>Light</span><svg class="icon tick"><use href="#i-check"/></svg></button>
+              <button type="button" class="dd-item" data-theme-set="dark" aria-pressed="false"><span>Dark</span><svg class="icon tick"><use href="#i-check"/></svg></button>
+            </div>
+          </details>
+          <details class="dd">
+            <summary class="avatar-btn" aria-label="Your account" title="{{.Human.Name}}"><span class="av">{{.Initial}}</span></summary>
+            <div class="dd-menu wide">
+              <div class="dd-who"><span class="av lg" aria-hidden="true">{{.Initial}}</span><div><strong>{{.Human.Name}}</strong><div class="desc">{{.Human.Role}}</div></div></div>
+              <div class="dd-sep"></div>
+              {{if eq .Human.Role "owner"}}<a class="dd-item" href="/settings"><svg class="icon"><use href="#i-settings"/></svg><span>Settings</span></a>{{end}}
+              {{if ne .Human.Role "viewer"}}<a class="dd-item" href="/connect"><svg class="icon"><use href="#i-plug"/></svg><span>Connect an AI app</span></a>{{end}}
+              <a class="dd-item" href="/devices"><svg class="icon"><use href="#i-server"/></svg><span>Machines</span></a>
+              <div class="dd-sep"></div>
+              <form method="post" action="/logout" class="dd-form">
+                <input type="hidden" name="csrf" value="{{.CSRF}}">
+                <button type="submit" class="dd-item"><svg class="icon"><use href="#i-log-out"/></svg><span>Sign out</span></button>
+              </form>
+            </div>
+          </details>
+        </div>
+      </div>
     </header>
     <main class="main{{if .Narrow}} narrow{{end}}">
       {{if .Notice}}<p class="notice" role="status"><svg class="icon"><use href="#i-circle-check"/></svg>{{.Notice}}</p>{{end}}
       {{if .Error}}<p class="error" role="alert"><svg class="icon"><use href="#i-circle-alert"/></svg>{{.Error}}</p>{{end}}
       {{template "content" .}}
     </main>
+    <footer class="footer"><div class="tb"><span>Handloom · your agents, on your machines</span><span class="mono">{{.Proto}}</span></div></footer>
   </div>
 </div>
 {{else}}

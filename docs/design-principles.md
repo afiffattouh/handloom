@@ -23,7 +23,7 @@ A calm, dense, neutral console: hairlines and whitespace do the structure, one a
    - Tabs: a muted track with a raised active tab.
    - Alert and Insight: full hairline, an icon, a title and a description.
    - Progress, Separator, Kbd, Empty state, Sidebar item.
-9. **Navigation shows the active item with a filled row**, not a side bar.
+9. **Navigation shows the active item with a filled row**, not a side bar. The frame is the shadcn/studio application shell: a 16rem sidebar with a brand, grouped menu items (Work, Library, Admin) and small count badges, a sticky top bar (menu toggle, a hairline separator, a breadcrumb, a theme menu and an account menu), content centred at 80rem, and a footer line. The menu folds to icons (Ctrl/Cmd+B or the toggle; remembered in this browser) and becomes an off-canvas sheet on a phone. Menus are plain `details` elements that a small script closes. No new class may reuse a name the page content already uses (`.inset`, `.bar`).
 10. **Icons are one stroke family** (Lucide, 1.5px stroke look), 16px in controls. No emoji and no text glyphs standing in for icons.
 11. **Charts:** one hue per series, faint dashed gridlines, a few ticks, direct values where they fit. No rainbow, no 3D, no decoration.
 12. **Motion** only to show a change (a state turning over, a toast). Nothing pulses by default. `prefers-reduced-motion` turns it all off.

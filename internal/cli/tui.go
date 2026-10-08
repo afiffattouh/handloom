@@ -8,20 +8,19 @@ import (
 	"github.com/mattn/go-isatty"
 
 	"handloom/internal/client"
-	"handloom/internal/setting"
 	"handloom/internal/tui"
 )
 
 // tui opens the full-screen console for the person whose token is in
-// HANDLOOM_TOKEN. It never uses the link: the console is for people.
+// HANDLOOM_TOKEN or was saved by `handloom login`. It never uses the link: the console is for people.
 func (e *env) tui(args []string) error {
 	fs := e.flags("tui")
 	if _, err := fs.need(args, 0, 0, "tui"); err != nil {
 		return err
 	}
-	hub, tok := setting.Get("HUB"), setting.Get("TOKEN")
+	hub, tok := consoleLogin()
 	if hub == "" || tok == "" {
-		return fmt.Errorf("the console needs the hub address and your token: set HANDLOOM_HUB and HANDLOOM_TOKEN (make a token with `handloom token new`, or in the web UI under Settings)")
+		return fmt.Errorf("the console needs to know who you are: run `handloom login https://your-hub` and paste your personal token (Settings in the web UI, then \"Create a new token\"), or set HANDLOOM_HUB and HANDLOOM_TOKEN")
 	}
 	if !isatty.IsTerminal(os.Stdin.Fd()) || !isatty.IsTerminal(os.Stdout.Fd()) {
 		return fmt.Errorf("the console needs a terminal; for scripts use the commands (handloom digest, handloom metrics, ...)")
@@ -35,6 +34,9 @@ func (e *env) tui(args []string) error {
 // who has set up a hub and a token; everyone else still gets the usage text.
 func wantsConsole(stdout any) bool {
 	f, ok := stdout.(*os.File)
-	return ok && isatty.IsTerminal(f.Fd()) && isatty.IsTerminal(os.Stdin.Fd()) &&
-		setting.Get("HUB") != "" && setting.Get("TOKEN") != ""
+	if !ok || !isatty.IsTerminal(f.Fd()) || !isatty.IsTerminal(os.Stdin.Fd()) {
+		return false
+	}
+	hub, tok := consoleLogin()
+	return hub != "" && tok != ""
 }

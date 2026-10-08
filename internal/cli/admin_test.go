@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -71,5 +73,43 @@ func TestAProfileInPlainWords(t *testing.T) {
 	}
 	if show := r.as(r.admin, "profile", "show", "builder"); !strings.Contains(show, "asked in its instructions") && !strings.Contains(show, "rm, sudo") {
 		t.Fatalf("show: %s", show)
+	}
+}
+
+func TestLoginSavesAPersonsTokenForTheConsoleOnly(t *testing.T) {
+	r := newRig(t)
+	file := filepath.Join(t.TempDir(), "cfg", "human.env")
+	t.Setenv("HANDLOOM_HUMAN_ENV", file)
+	// an admin token is not a person's
+	t.Setenv("HANDLOOM_TOKEN", r.admin)
+	if code, _, errs := r.exec("login", r.hubURL); code == 0 || !strings.Contains(errs, "needs a person's token") {
+		t.Fatalf("admin token: %d %s", code, errs)
+	}
+	t.Setenv("HANDLOOM_TOKEN", "hvh_nonsense")
+	if code, _, errs := r.exec("login", r.hubURL); code == 0 || !strings.Contains(errs, "did not accept") {
+		t.Fatalf("bad token: %d %s", code, errs)
+	}
+	t.Setenv("HANDLOOM_TOKEN", r.human)
+	out := r.run("login", r.hubURL)
+	if !strings.Contains(out, "Signed in to "+r.hubURL+" as afif") {
+		t.Fatalf("login: %s", out)
+	}
+	if st, err := os.Stat(file); err != nil || st.Mode().Perm() != 0o600 {
+		t.Fatalf("file: %v %v", st, err)
+	}
+	// the console finds it with nothing in the environment; an agent's shell does not
+	t.Setenv("HANDLOOM_TOKEN", "")
+	t.Setenv("HANDLOOM_HUB", "")
+	if hub, tok := consoleLogin(); hub != r.hubURL || tok != r.human {
+		t.Fatalf("console login: %q %q", hub, tok)
+	}
+	t.Setenv("HANDLOOM_AGENT", "worker-1")
+	if hub, tok := consoleLogin(); hub != "" || tok != "" {
+		t.Fatalf("an agent's shell picked up a person's saved token: %q %q", hub, tok)
+	}
+	t.Setenv("HANDLOOM_AGENT", "")
+	r.run("logout")
+	if _, err := os.Stat(file); err == nil {
+		t.Fatal("logout left the file")
 	}
 }

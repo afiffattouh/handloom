@@ -775,6 +775,5 @@ func (e *env) run(args []string) error {
 		return err
 	}
 	os.Setenv("HANDLOOM_AGENT", name)
-	os.Setenv("HANDLOOM_AGENT", name) // an old hook or script in the agent still reads the old name
 	return execFn(path, command, os.Environ())
 }

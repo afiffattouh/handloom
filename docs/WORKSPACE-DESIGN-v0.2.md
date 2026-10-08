@@ -2,7 +2,6 @@
 
 Status: draft, 2026-10-06. Supersedes `WORKSPACE-DESIGN.md` (v0.1, kept for reference). Built on DESIGN.md; M0–M2 are done.
 
-> **Naming (2026-10-06):** the product is **Handloom**, short command **`hl`** (long form `handloom`). The code was renamed from handloom in one commit; the old names (`handloom` command, `HANDLOOM_*` settings, `Handloom-Agent` header, `.handloom/agent`, `handloom.db`, `~/.config/handloom`, `handloom_*` MCP tools) are still accepted and the new ones win. Where this document says `handloom` in a command, read `handloom`. Domain registration is deferred.
 
 Six reviewers (build feasibility, UX, memory, scenarios, security/ops, product skeptic) went through v0.1. Their finding: the direction is right, the scope was about 1.5× too big, and eight things would have broken mid-build. This version is the cut-down, buildable one.
 

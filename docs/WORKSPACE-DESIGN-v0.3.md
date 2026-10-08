@@ -2,7 +2,6 @@
 
 Status: draft, 2026-10-06. This is a delta on `WORKSPACE-DESIGN-v0.2.md`. Anything not mentioned here is unchanged from v0.2. Where v0.2 and this file disagree, this file wins.
 
-> **Naming (2026-10-06):** the product is **Handloom**, short command **`hl`** (long form `handloom`). The code was renamed from handloom in one commit; the old names (`handloom` command, `HANDLOOM_*` settings, `Handloom-Agent` header, `.handloom/agent`, `handloom.db`, `~/.config/handloom`, `handloom_*` MCP tools) are still accepted and the new ones win. Where this document says `handloom` in a command, read `handloom`. Domain registration is deferred.
 
 ## 0. What the owner changed
 

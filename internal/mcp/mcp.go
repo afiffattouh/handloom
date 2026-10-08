@@ -339,10 +339,6 @@ func call(name string, a args, run Run, tools []tool) map[string]any {
 	result := func(text string, isError bool) map[string]any {
 		return map[string]any{"content": []any{map[string]any{"type": "text", "text": text}}, "isError": isError}
 	}
-	// Agents configured under the old name still call handloom_*.
-	if strings.HasPrefix(name, "handloom_") {
-		name = "handloom_" + strings.TrimPrefix(name, "handloom_")
-	}
 	for _, t := range tools {
 		if t.Name != name {
 			continue

@@ -1158,21 +1158,3 @@ func TestEscalationNotifiesWithoutContent(t *testing.T) {
 	case <-time.After(200 * time.Millisecond):
 	}
 }
-
-// A client built before the rename sends Handloom-Agent; the hub still understands it.
-func TestLegacyAgentHeader(t *testing.T) {
-	e := newEnv(t)
-	req, _ := http.NewRequest("GET", e.srv.URL+"/v1/whoami", nil)
-	req.Header.Set("Authorization", "Bearer "+e.d1)
-	req.Header.Set(api.LegacyAgentHeader, "worker")
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer resp.Body.Close()
-	var who api.WhoAmI
-	json.NewDecoder(resp.Body).Decode(&who)
-	if resp.StatusCode != 200 || who.Agent == nil || who.Agent.Name != "worker" {
-		t.Fatalf("whoami with the old header: %d %+v", resp.StatusCode, who)
-	}
-}

@@ -1,6 +1,5 @@
 # Decisions
 
-> **Naming:** this file was written when the project was called handloom. The product is now **Handloom** (command `handloom`, short alias `hl`). In the code, the wire and the settings, `handloom` still works: `HANDLOOM_*` environment variables, the `Handloom-Agent` header, `.handloom/agent`, `handloom.db`, `~/.config/handloom`, the `handloom_*` MCP tool names and a `handloom` symlink to the binary are all accepted, and the new names win. Read `handloom` below as `handloom`.
 
 Choices made while building M0 and M1, and places where the design was unclear or did not match what the machines do. Each entry says what the design or brief said, what was found, and what was done.
 
@@ -86,7 +85,7 @@ Checked against the installed CLI (2.1.288 on GB10) with a logging hook, and aga
 
 **D20. One hub holds several projects; the CLI defaults to `default`.** (Open question 2.) Agent names are unique per hub, so an agent's project is known from its name.
 
-**D21. Module path is `handloom`.** A working name. Rename with the project.
+**D21. Module path is `handloom`.**
 
 ## Dependencies
 
@@ -192,9 +191,9 @@ Checked against the installed CLI (2.1.288 on GB10) with a logging hook, and aga
 
 **D47. Milestone A check: `test/e2e/a.sh`.** One machine, about 25 seconds: builds the image, runs the hub in a container with its own volume, sets up the owner through the form (including a refused post without an Origin and a closed setup page afterwards), adds a device from the web UI, joins and starts a link, has the lead ask a question, checks the push reached a fake ntfy server with a link and without the question, answers by clicking in real Chromium, checks that a second question appears in the open page with no reload, checks the lead's inbox shows the answer from `human:afif` and that the audit log has every step, then backs up and restores the container's data. It cleans up everything it made (names `hltest-a-*`). Screenshots land in `test/e2e/out/a/shots`. Not covered: Dokploy itself (the Mantis VPS does not run it), a real ntfy server and phone, and the agent scenarios `m1.sh` and `m2.sh` (real Claude, Codex and Pi agents), which were not re-run after the escalation, auth and migration changes. `m0.sh` (GB10 plus Mantis, handloom commands only) was re-run on the new binary and passes.
 
-## Rename to Handloom
+## Names
 
-**D48. The code is renamed from handloom to Handloom in one commit, with the old names still accepted.** Module `handloom`, binary `handloom` (`cmd/handloom`), short alias `hl`, MCP tools `handloom_*`, header `Handloom-Agent`, protocol id `handloom/1`, `HANDLOOM_*` settings, `.handloom/agent`, `handloom.db`, `~/.config/handloom`, service units `handloom-hub` and `handloom-link`, adapter shims `handloom.ts` and `handloom.js`. Nothing that exists in the field breaks: `HANDLOOM_*` settings are read when `HANDLOOM_*` is not set (`internal/setting`); the hub reads `Handloom-Agent` and clients send both headers; `.handloom/agent`, `handloom.db`, `handloom-data` and `~/.config/handloom` are used when the new name does not exist yet; the `handloom_*` MCP tool names still resolve; children of the link get both spellings of the settings. `adapter install` removes the old identity file and shim, and a `handloom` hook command keeps working because `scripts/setup.sh` installs a `handloom` symlink to the binary; `hl` is installed only if no other `hl` exists (Homebrew has a log viewer of that name). `hub install` and `link install` replace a service installed under the old name instead of running two. `docs/protocol.md` and the README use the new names; DESIGN, BRIEF, REPORT and DECISIONS keep their history with a note on top. Checked: Go tests (new tests for each compatibility path), `a.sh`, `m0.sh` (GB10 plus Mantis), and a real headless Claude Code turn that read its inbox with `handloom inbox` under the installed adapter. Not run: `m1.sh` and `m2.sh`, because Claude Code on Mantis is not logged in (`ssh -t mantis claude`, then `/login`); the Mantis binary in `/root/hltest/bin` was not touched.
+**D48. One set of names.** Module `handloom`, binary `handloom` (`cmd/handloom`), short alias `hl`, MCP tools `handloom_*`, header `Handloom-Agent`, protocol id `handloom/1`, `HANDLOOM_*` settings, `.handloom/agent`, `handloom.db`, `~/.config/handloom`, service units `handloom-hub` and `handloom-link`, adapter shims `handloom.ts` and `handloom.js`. There are no alternative spellings to read: the code accepts only these.
 
 ## Dokploy deployment
 

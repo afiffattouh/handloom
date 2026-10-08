@@ -126,13 +126,3 @@ func TestToolCallsBecomeCommandLines(t *testing.T) {
 		t.Fatalf("unknown tool: %v", r)
 	}
 }
-
-// An agent configured before the rename still calls handloom_* tools.
-func TestOldToolNamesStillWork(t *testing.T) {
-	var got []string
-	run := func(args []string) (string, string, int) { got = args; return "ok", "", 0 }
-	res := call("handloom_inbox", args{}, run, Tools)
-	if res["isError"] == true || len(got) == 0 || got[0] != "inbox" {
-		t.Fatalf("handloom_inbox: %v %v", res, got)
-	}
-}

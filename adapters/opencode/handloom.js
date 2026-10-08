@@ -4,7 +4,7 @@
 // must be handed over. It never sends message content anywhere.
 import { spawn } from "node:child_process";
 
-const HANDLOOM_BIN = {{handloom}};
+const HANDLOOM = {{handloom}};
 const ENV = {{env}};
 
 function hook(event, sessionID, directory) {
@@ -18,7 +18,7 @@ function hook(event, sessionID, directory) {
       }
     };
     try {
-      const child = spawn(HANDLOOM_BIN, ["hook", "opencode"], {
+      const child = spawn(HANDLOOM, ["hook", "opencode"], {
         stdio: ["pipe", "pipe", "ignore"],
         env: { ...process.env, ...ENV },
       });

@@ -310,10 +310,8 @@ func AgentName(dir string) string {
 		dir, _ = os.Getwd()
 	}
 	for dir != "" {
-		for _, d := range []string{".handloom", ".handloom"} { // the old directory still identifies old installs
-			if b, err := os.ReadFile(filepath.Join(dir, d, "agent")); err == nil {
-				return strings.TrimSpace(string(b))
-			}
+		if b, err := os.ReadFile(filepath.Join(dir, ".handloom", "agent")); err == nil {
+			return strings.TrimSpace(string(b))
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {

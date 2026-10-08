@@ -2,7 +2,6 @@
 
 Status: draft, 2026-10-06. Delta on `WORKSPACE-DESIGN-v0.3.md`; where they disagree, this file wins. Three reviewers (public-hub security, web/deploy engineering, agent-CLI integration) checked v0.3 against the code and the installed CLIs. Nothing is built.
 
-> **Naming (2026-10-06):** the product is **Handloom**, short command **`hl`** (long form `handloom`). The code was renamed from handloom in one commit; the old names (`handloom` command, `HANDLOOM_*` settings, `Handloom-Agent` header, `.handloom/agent`, `handloom.db`, `~/.config/handloom`, `handloom_*` MCP tools) are still accepted and the new ones win. Where this document says `handloom` in a command, read `handloom`. Domain registration is deferred.
 
 ## 1. Corrections to v0.3
 
@@ -137,4 +136,4 @@ Dokploy template format, Traefik and Dokploy timeouts and compression settings, 
 
 ## 7. Name (decided)
 
-**Handloom** (owner decision, 2026-10-06). A loom worked by hand: the human at the loom, agents weaving, and "hand" for handoff. Chosen from a shortlist checked against npm, PyPI, GitHub and DNS: free on npm, PyPI, `.dev` and `.sh`; the top GitHub repo is a 24-star unrelated ML project. `.ai` and `.io` are taken. Short command: **`hl`**. Known clash: Homebrew has a formula `hl` (pamburus/hl, a Rust log viewer, about 41 installs in 30 days); no `hl` binary on this box or in apt. Mitigation: ship `handloom` as the real binary and install `hl` as an optional alias that the installer skips when `hl` already exists. Deferred by the owner: domain registration. Still to do: trademark check. Runners-up: Loomwright, Weftwright. Rejected: Weaver (TaskWeaver, Service Weaver, OpenTelemetry `weaver`), Heddle and Weft (agent tools use them), Treadle, Muster, Bobbin, Skein, Hivemaster.
+**Handloom** (owner decision, 2026-10-06). A loom worked by hand: the human at the loom, agents weaving, and "hand" for handoff. Chosen from a shortlist checked against npm, PyPI, GitHub and DNS: free on npm, PyPI, `.dev` and `.sh`; the top GitHub repo is a 24-star unrelated ML project. `.ai` and `.io` are taken. Short command: **`hl`**. Known clash: Homebrew has a formula `hl` (pamburus/hl, a Rust log viewer, about 41 installs in 30 days); no `hl` binary on this box or in apt. Mitigation: ship `handloom` as the real binary and install `hl` as an optional alias that the installer skips when `hl` already exists. Deferred by the owner: domain registration. Still to do: trademark check. Runners-up: Loomwright, Weftwright. Rejected: Weaver (TaskWeaver, Service Weaver, OpenTelemetry `weaver`), Heddle and Weft (agent tools use them), Treadle, Muster, Bobbin, Skein.

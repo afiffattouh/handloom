@@ -76,7 +76,6 @@ func (c *Client) Do(ctx context.Context, method, path string, body, out any) err
 	}
 	if c.Agent != "" {
 		req.Header.Set(api.AgentHeader, c.Agent)
-		req.Header.Set(api.LegacyAgentHeader, c.Agent) // an older hub reads only this one
 	}
 	if c.RunToken != "" {
 		req.Header.Set(api.RunTokenHeader, c.RunToken)
@@ -125,12 +124,6 @@ func Home() string {
 	dir, err := os.UserHomeDir()
 	if err != nil {
 		dir = "."
-	}
-	// Existing installs keep their credential where the old name put it.
-	if _, err := os.Stat(filepath.Join(dir, ".config", "handloom")); err != nil {
-		if _, oldErr := os.Stat(filepath.Join(dir, ".config", "handloom")); oldErr == nil {
-			return filepath.Join(dir, ".config", "handloom")
-		}
 	}
 	return filepath.Join(dir, ".config", "handloom")
 }

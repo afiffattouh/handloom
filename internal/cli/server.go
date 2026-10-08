@@ -29,24 +29,11 @@ func dataDir(flagValue string) string {
 	if d := setting.Get("DATA"); d != "" {
 		return d
 	}
-	if _, err := os.Stat("handloom-data"); err != nil {
-		if _, oldErr := os.Stat("handloom-data"); oldErr == nil {
-			return "handloom-data" // a data directory made under the old name
-		}
-	}
 	return "handloom-data"
 }
 
-// dbFile is the database in dir. A hub created under the old name has
-// handloom.db; it keeps using it. New hubs get handloom.db.
-func dbFile(dir string) string {
-	if _, err := os.Stat(filepath.Join(dir, "handloom.db")); err != nil {
-		if _, oldErr := os.Stat(filepath.Join(dir, "handloom.db")); oldErr == nil {
-			return filepath.Join(dir, "handloom.db")
-		}
-	}
-	return filepath.Join(dir, "handloom.db")
-}
+// dbFile is the database in dir.
+func dbFile(dir string) string { return filepath.Join(dir, "handloom.db") }
 
 func (e *env) hub(args []string) error {
 	sub := "serve"

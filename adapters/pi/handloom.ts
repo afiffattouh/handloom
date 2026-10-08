@@ -5,7 +5,7 @@
 // @ts-nocheck
 import { spawn } from "node:child_process";
 
-const HANDLOOM_BIN = {{handloom}};
+const HANDLOOM = {{handloom}};
 const KIND = "{{kind}}";
 const ENV = {{env}};
 
@@ -28,7 +28,7 @@ function hook(event, ctx) {
       }
     };
     try {
-      const child = spawn(HANDLOOM_BIN, ["hook", KIND], {
+      const child = spawn(HANDLOOM, ["hook", KIND], {
         stdio: ["pipe", "pipe", "ignore"],
         env: { ...process.env, ...ENV },
       });

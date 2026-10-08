@@ -9,8 +9,8 @@ import (
 func TestTuiNeedsAHubAndAToken(t *testing.T) {
 	for _, k := range []string{"HUB", "TOKEN"} {
 		t.Setenv("HANDLOOM_"+k, "")
-		t.Setenv("HANDLOOM_"+k, "")
 	}
+	t.Setenv("HANDLOOM_HUMAN_ENV", t.TempDir()+"/none.env") // not the real one on this machine
 	var out, errb bytes.Buffer
 	if code := Main([]string{"tui"}, &out, &errb); code != 1 || !strings.Contains(errb.String(), "HANDLOOM_HUB and HANDLOOM_TOKEN") {
 		t.Fatalf("code %d, stderr %q", code, errb.String())

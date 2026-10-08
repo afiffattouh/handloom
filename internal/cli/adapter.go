@@ -161,7 +161,6 @@ func (e *env) installAdapter(kind string, spec *adapterSpec, root, name, project
 	if err := os.WriteFile(filepath.Join(root, ".handloom", "agent"), []byte(name+"\n"), 0o644); err != nil {
 		return err
 	}
-	removeLegacy(root, spec) // files an install under the old name left behind
 	fmt.Fprintf(e.out, "%s adapter installed in %s for %s (%s, project %s).\n", kind, root, a.Name, a.Role, a.Project)
 	fmt.Fprintf(e.out, "  identity:     %s\n", filepath.Join(root, ".handloom", "agent"))
 	fmt.Fprintf(e.out, "  run token:    %s (mode 0600)\n", filepath.Join(root, ".handloom", "tokens", name))
@@ -267,7 +266,6 @@ func (e *env) removeAdapter(kind string, spec *adapterSpec, root string) error {
 	}
 	os.Remove(filepath.Join(root, ".handloom", "agent"))
 	os.Remove(filepath.Join(root, ".handloom"))
-	removeLegacy(root, spec)
 	fmt.Fprintf(e.out, "%s adapter removed from %s. The agent stays registered on the hub.\n", kind, root)
 	return nil
 }
@@ -406,18 +404,4 @@ func shellQuote(s string) string {
 		return s
 	}
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
-}
-
-// removeLegacy deletes what an adapter install under the product's old name
-// (handloom) wrote: the identity file and the shim. Left in place they would load
-// next to the new ones; the hook entries are rewritten by editJSON.
-func removeLegacy(root string, spec *adapterSpec) {
-	os.Remove(filepath.Join(root, ".handloom", "agent"))
-	if spec.shimPath != "" {
-		old := strings.ReplaceAll(spec.shimPath, "handloom", "handloom")
-		if old != spec.shimPath {
-			os.Remove(filepath.Join(root, old))
-		}
-	}
-	os.Remove(filepath.Join(root, ".handloom")) // only succeeds when empty
 }

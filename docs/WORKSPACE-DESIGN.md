@@ -2,7 +2,6 @@
 
 Status: draft v0.1, 2026-10-06. Builds on DESIGN.md (coordination layer, M0–M2 done). Nothing here is built yet.
 
-> **Naming (2026-10-06):** the product is **Handloom**, short command **`hl`** (long form `handloom`). The code was renamed from handloom in one commit; the old names (`handloom` command, `HANDLOOM_*` settings, `Handloom-Agent` header, `.handloom/agent`, `handloom.db`, `~/.config/handloom`, `handloom_*` MCP tools) are still accepted and the new ones win. Where this document says `handloom` in a command, read `handloom`. Domain registration is deferred.
 
 ## 1. What changes
 

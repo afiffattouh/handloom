@@ -1,6 +1,5 @@
 # handloom: design
 
-> **Naming:** this file was written when the project was called handloom. The product is now **Handloom** (command `handloom`, short alias `hl`). In the code, the wire and the settings, `handloom` still works: `HANDLOOM_*` environment variables, the `Handloom-Agent` header, `.handloom/agent`, `handloom.db`, `~/.config/handloom`, the `handloom_*` MCP tool names and a `handloom` symlink to the binary are all accepted, and the new names win. Read `handloom` below as `handloom`.
 
 Status: draft v0.1, 2026-10-03. "handloom" is a working name. Check for name clashes before the repo goes public.
 

@@ -69,11 +69,11 @@ func (e *env) hub(args []string) error {
 	to := fs.String("to", "", "backup: file to write")
 	from := fs.String("from", "", "restore: backup file to restore")
 	force := fs.Bool("force", false, "restore: replace an existing database (stop the hub first)")
-	pos, err := fs.need(args, 0, 1, "hub init|serve|backup|restore|reset-password|install|uninstall [--data DIR] [--addr A] [--lease D]")
+	pos, err := fs.need(args, 0, 1, "hub init|serve|backup|restore|reset-password|create-owner|install|uninstall [--data DIR] [--addr A] [--lease D]")
 	if err != nil {
 		return err
 	}
-	if len(pos) > 0 && sub != "reset-password" {
+	if len(pos) > 0 && sub != "reset-password" && sub != "create-owner" {
 		return usageErr("usage: handloom hub %s takes no arguments", sub)
 	}
 	dir := dataDir(*data)
@@ -122,6 +122,21 @@ func (e *env) hub(args []string) error {
 			return err
 		}
 		fmt.Fprintf(e.out, "Backup written to %s (mode 0600). It holds hashed tokens and all hub data: keep it private.\n", *to)
+		return nil
+	case "create-owner":
+		if len(pos) != 1 {
+			return usageErr("usage: handloom hub create-owner <name> [--data DIR]   (prints the password once; only when the hub has no owner yet)")
+		}
+		db, err := store.Open(dbPath)
+		if err != nil {
+			return err
+		}
+		defer db.Close()
+		pw, err := hub.CreateOwner(db, pos[0], time.Now())
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(e.out, "Owner %s created. Password (shown once):\n%s\nSign in at the hub's address, then change it in Settings if you like.\n", pos[0], pw)
 		return nil
 	case "reset-password":
 		// Local recovery: whoever can read the database may set a password.

@@ -67,6 +67,7 @@ Device:
 Hub and administration (HANDLOOM_HUB and HANDLOOM_TOKEN set to the hub URL and a token):
   handloom hub init [--data DIR]                      create the database, print the admin token once
   handloom hub serve [--data DIR] [--addr A] [--lease 15m] [--auto-init]
+  handloom hub create-owner <name> [--data DIR]       make the first owner without the web setup page (prints the password once)
   handloom hub backup --to FILE [--data DIR]          consistent copy while the hub runs
   handloom hub restore --from FILE [--data DIR] [--force]    hub must be stopped
   handloom healthcheck [--addr A]                     exit 0 if the hub answers /healthz (for containers)
@@ -76,6 +77,12 @@ Hub and administration (HANDLOOM_HUB and HANDLOOM_TOKEN set to the hub URL and a
   handloom project add <name> | list                  (admin)
   handloom agent role <name> <lead|worker|observer>   (admin, human)
   handloom agent job <name> <job id | 0>              move an agent into a job (admin, human)
+  handloom people [add <name> [--role R] | invite <name> | role <name> --role R]   (owner) who can sign in; invite links
+  handloom prices [set <model> --input N --output N | remove <model>]              (owner) what models cost, for usage figures
+  handloom notifications [set --url U --topic T | test]                             (owner) phone push through ntfy
+  handloom token new                                  a new personal API token (the one you use stops working)
+  handloom screen <agent>                             the end of an agent's terminal (held in memory for a minute)
+  handloom metrics [--range 7d]                       the command center's numbers
   handloom starters [name]                        the starter library: ready-made profiles; add one with: handloom profile add <name> --kind K --runtime R
   handloom profiles                               the library: what an agent may do and know
   handloom profile new <dir> | check <dir> | show <name> | export <name> <dir> | versions <name>   (new: owner)
@@ -145,6 +152,18 @@ func Main(args []string, stdout, stderr io.Writer) int {
 		err = e.profiles(rest)
 	case "starters":
 		err = e.starters(rest)
+	case "prices":
+		err = e.prices(rest)
+	case "people":
+		err = e.people(rest)
+	case "notifications":
+		err = e.notifications(rest)
+	case "token":
+		err = e.token(rest)
+	case "screen":
+		err = e.screen(rest)
+	case "metrics":
+		err = e.metrics(rest)
 	case "spawn":
 		err = e.spawn(rest)
 	case "spawns":

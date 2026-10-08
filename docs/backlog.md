@@ -16,7 +16,7 @@ Already done: a guided form with quick settings and "Check before saving", the s
 
 ## CLI parity
 
-Everything an agent or a job does is in the CLI. These are web-only or missing a command: model prices (also no API), people (invite links, roles, listing), notification settings, creating your personal API token, creating the owner at first start, the terminal view, a command for `GET /v1/metrics`. Closing them means an API endpoint where there is none and a verb for each.
+Done: everything the web UI does is also an API call and a command: `handloom prices`, `people`, `notifications`, `token new`, `screen <agent>`, `metrics`, and `hub create-owner` for the first owner without the web setup page. The web pages and the commands share the same rules (owner only, the same checks). Only the web's sign-in itself (password, cookie) stays web-only.
 
 ## Using Handloom from an agent app through MCP
 

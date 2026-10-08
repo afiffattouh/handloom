@@ -512,6 +512,47 @@ type TailReq struct {
 	Text string `json:"text"`
 }
 
+// Price is what a model costs, in US dollars per million tokens.
+type Price struct {
+	Model      string  `json:"model"`
+	Input      float64 `json:"input"`
+	Output     float64 `json:"output"`
+	CacheRead  float64 `json:"cache_read,omitempty"`
+	CacheWrite float64 `json:"cache_write,omitempty"`
+}
+
+// Person is somebody who can sign in to the hub.
+type Person struct {
+	Name     string `json:"name"`
+	Role     string `json:"role"` // owner | member | viewer
+	WebLogin bool   `json:"web_login"`
+}
+
+type PersonReq struct {
+	Name string `json:"name,omitempty"`
+	Role string `json:"role,omitempty"`
+}
+
+type PersonResp struct {
+	Name      string `json:"name"`
+	Role      string `json:"role"`
+	InviteURL string `json:"invite_url"` // shown once; works once, for a limited time
+}
+
+// Notifications are the owner's phone-push settings (the access token is only ever set in the hub's environment).
+type Notifications struct {
+	NtfyURL         string `json:"ntfy_url"`
+	NtfyTopic       string `json:"ntfy_topic"`
+	FromEnvironment bool   `json:"from_environment,omitempty"`
+}
+
+// Screen is the end of an agent's terminal, as last read by its machine.
+type Screen struct {
+	Text       string `json:"text,omitempty"`
+	AgeSeconds int    `json:"age_seconds,omitempty"`
+	Pending    bool   `json:"pending,omitempty"` // asked for; the machine has not answered yet
+}
+
 // StarterInfo is one entry of the starter library, and whether this hub already has a profile of that name.
 type StarterInfo struct {
 	Name             string   `json:"name"`

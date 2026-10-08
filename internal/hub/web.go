@@ -746,3 +746,42 @@ func (t *trackWriter) Flush() {
 		f.Flush()
 	}
 }
+
+// CreateOwner makes the first owner from the command line, on the hub's own
+// machine, without the web setup page: whoever can open the database may do
+// it, as with ResetPassword. It fails when an owner already exists.
+func CreateOwner(db *sql.DB, name string, now time.Time) (string, error) {
+	if err := checkName("owner", name); err != nil {
+		return "", err
+	}
+	tx, err := db.Begin()
+	if err != nil {
+		return "", err
+	}
+	defer tx.Rollback()
+	if exists, err := store.OwnerExists(tx); err != nil {
+		return "", err
+	} else if exists {
+		return "", fmt.Errorf("this hub already has an owner")
+	}
+	raw := make([]byte, 20)
+	if _, err := rand.Read(raw); err != nil {
+		return "", err
+	}
+	pw := make([]byte, 20)
+	for i, b := range raw {
+		pw[i] = setupAlphabet[int(b)%len(setupAlphabet)]
+	}
+	hash, err := HashPassword(string(pw))
+	if err != nil {
+		return "", err
+	}
+	if _, err := store.CreateWebHuman(tx, name, store.RoleOwner, hash, store.Millis(now)); err != nil {
+		return "", fmt.Errorf("could not create %q: %w", name, err)
+	}
+	if _, err := tx.Exec(`INSERT INTO audit(actor, action, target, payload, created_at) VALUES ('admin', 'human.owner.created', ?, '{}', ?)`,
+		"human:"+name, store.Millis(now)); err != nil {
+		return "", err
+	}
+	return string(pw), tx.Commit()
+}

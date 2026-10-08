@@ -13,3 +13,8 @@ Done: everything the web UI does is also an API call and a command: `handloom pr
 ## Using Handloom from an agent app through MCP
 
 Done over stdio: `handloom mcp --operator` for a person's own app, and `handloom mcp` with a pull agent for an app session that takes part (docs/mcp.md). Still open: a remote MCP endpoint on the hub for connector-style clients (needs OAuth), The token limited to the operator tools exists (`handloom token new --app`, the "Connect an AI app" page).
+
+## Future plan
+
+- **Remote MCP endpoint on the hub** (decided 2026-10-08: skip for now). Lets connector-style clients (the Claude web or phone app, "add a custom connector by URL") use Handloom without a local `handloom` program. Start with the operator tools served over HTTP with the app token (`hvo_`) as a bearer header, for clients that accept one; OAuth (consent page, token issue and refresh, client registration, revocation) second. Build it only when someone needs Handloom from the web or phone app. The local `handloom mcp --operator` and the "Connect an AI app" page cover Claude Code, Claude Desktop and Codex.
+

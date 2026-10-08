@@ -251,3 +251,21 @@ func TestWhoamiTellsAPersonTheirRole(t *testing.T) {
 		t.Fatalf("whoami: %+v", w)
 	}
 }
+
+func TestAHumanTokenCanBeResetOnTheHubsMachine(t *testing.T) {
+	e := newWebEnv(t, Options{})
+	old := e.humanAPI()
+	tok, err := ResetHumanToken(e.hub.db, "apiuser", time.Unix(5, 0))
+	if err != nil || !strings.HasPrefix(tok, store.PrefixHuman) || tok == old {
+		t.Fatalf("reset: %q %v", tok, err)
+	}
+	if code := e.status(old, "GET", "/v1/jobs", nil); code != 401 {
+		t.Fatalf("the old token: %d", code)
+	}
+	if code := e.status(tok, "GET", "/v1/jobs", nil); code != 200 {
+		t.Fatalf("the new token: %d", code)
+	}
+	if _, err := ResetHumanToken(e.hub.db, "nobody", time.Unix(6, 0)); err == nil {
+		t.Fatal("an unknown person")
+	}
+}

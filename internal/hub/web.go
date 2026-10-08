@@ -809,3 +809,30 @@ func CreateOwner(db *sql.DB, name string, now time.Time) (string, error) {
 	}
 	return string(pw), tx.Commit()
 }
+
+// ResetHumanToken gives a person a new personal API token and returns it. It
+// is for the hub's own machine, like ResetPassword: whoever can open the
+// database can run it, and the old token stops working.
+func ResetHumanToken(db *sql.DB, name string, now time.Time) (string, error) {
+	tx, err := db.Begin()
+	if err != nil {
+		return "", err
+	}
+	defer tx.Rollback()
+	human, err := store.HumanByName(tx, name)
+	if err != nil {
+		return "", err
+	}
+	if human == nil {
+		return "", fmt.Errorf("no human named %q", name)
+	}
+	tok := store.NewToken(store.PrefixHuman)
+	if err := store.ReplaceHumanToken(tx, human.ID, store.HashToken(tok)); err != nil {
+		return "", err
+	}
+	if _, err := tx.Exec(`INSERT INTO audit(actor, action, target, payload, created_at) VALUES ('admin', 'human.token.reset', ?, '{}', ?)`,
+		"human:"+name, store.Millis(now)); err != nil {
+		return "", err
+	}
+	return tok, tx.Commit()
+}

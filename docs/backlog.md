@@ -32,3 +32,12 @@ The planned work is tracked as GitHub issues: https://github.com/afiffattouh/han
 - #12 Web UI: tables on a phone, and a review with real data
 - #13 Teams: per-person alerts and isolation inside one hub
 - #14 Profile creation: more help, and whether to add a test run
+
+Context that survives a change of device, agent or person (tracking issue #20):
+
+- #15 A handoff note for every task, so any agent on any machine can pick it up
+- #16 Durability tests: crash, late submit, stuck agent, restore, upgrade in flight
+- #17 Find and reuse knowledge: search across a client's notes and past jobs
+- #18 Let a finished job teach: reviewed lessons become notes and skills
+- #19 Join a machine in one step
+

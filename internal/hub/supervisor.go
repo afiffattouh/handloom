@@ -3,6 +3,7 @@ package hub
 import (
 	"database/sql"
 	"fmt"
+	"time"
 
 	"handloom/internal/api"
 	"handloom/internal/notify"
@@ -212,4 +213,48 @@ func (c *call) forwardUnread(from, to *agentRow) (int, error) {
 		return 0, err
 	}
 	return len(ms), nil
+}
+
+// reportStuck tells the lead (or, for a lead, the human) about an agent that
+// has said it is working for a long time and holds no task. A task has a lease
+// that its owner's activity renews, so work on a task is covered; this covers
+// the agent that is hung before it claims anything, or never claims. Once per
+// stretch of "working": the state's own timestamp starts a new stretch.
+func (c *call) reportStuck() error {
+	after := c.h.opt.StuckAfter
+	if after <= 0 {
+		return nil
+	}
+	rows, err := c.agents(`WHERE a.state = 'working' AND a.state_at <= ?
+		AND NOT EXISTS (SELECT 1 FROM task t WHERE t.owner_agent_id = a.id AND t.status = 'claimed')`, store.Millis(c.now.Add(-after)))
+	if err != nil {
+		return err
+	}
+	for _, a := range rows {
+		var n int
+		if err := c.tx.QueryRow(`SELECT count(*) FROM audit WHERE action = 'agent.stuck' AND target = ? AND created_at >= ?`, "agent:"+a.name, a.stateAt).Scan(&n); err != nil {
+			return err
+		}
+		if n > 0 {
+			continue
+		}
+		mins := int(c.now.Sub(time.UnixMilli(a.stateAt)) / time.Minute)
+		if err := c.record(a.projectID, 0, "agent.stuck", "agent:"+a.name, map[string]any{"minutes": mins, "role": a.role}); err != nil {
+			return err
+		}
+		lead, err := c.leadOf(a)
+		if err != nil {
+			return err
+		}
+		if lead != nil && lead.id != a.id {
+			body := fmt.Sprintf("%s has said it is working for %d minutes and holds no task, so nothing else would notice if it is stuck. Look at its terminal, message it, or give its work to someone else.", a.name, mins)
+			if _, err := c.insertMessage("hub", lead, lead.name, nil, body); err != nil {
+				return err
+			}
+			continue
+		}
+		c.tell(notify.Notification{Kind: notify.KindStuck, Title: "Handloom: an agent may be stuck",
+			Text: fmt.Sprintf("%s has said it is working for %d minutes and holds no task. Look at its terminal in the web UI.", a.name, mins)})
+	}
+	return nil
 }

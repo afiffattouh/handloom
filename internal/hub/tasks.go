@@ -176,31 +176,66 @@ func (c *call) expireLeases() error {
 		return err
 	}
 	for _, t := range expired {
-		if err := c.touch(t, `status = 'open', owner_agent_id = NULL, lease_expires_at = NULL, blocked_reason = ''`); err != nil {
+		body := fmt.Sprintf("Task #%d (%s): the lease held by %s expired. The task is open again.", t.id, t.title, t.ownerName)
+		if err := c.reopenClaimed(t, "task.lease_expired", body); err != nil {
 			return err
 		}
-		if err := c.markClaimable(t); err != nil {
+	}
+	return c.expireOverTime()
+}
+
+// expireOverTime reopens a claimed task that has been held longer than the
+// hub's time limit, however busy its owner is: a lease only measures silence,
+// and an agent that loops keeps renewing it. Off unless Options.MaxTaskTime is set.
+func (c *call) expireOverTime() error {
+	max := c.h.opt.MaxTaskTime
+	if max <= 0 {
+		return nil
+	}
+	claimed, err := c.tasks(`WHERE t.status = 'claimed'`)
+	if err != nil {
+		return err
+	}
+	for _, t := range claimed {
+		var since sql.NullInt64
+		if err := c.tx.QueryRow(`SELECT max(created_at) FROM audit WHERE action = 'task.claim' AND target = ?`, t.target()).Scan(&since); err != nil {
 			return err
 		}
-		payload := map[string]any{"owner": t.ownerName}
-		b := marshal(payload)
-		// The hub is the actor here, whoever's request triggered the check.
-		if _, err := c.tx.Exec(`INSERT INTO audit(actor, action, target, payload, created_at) VALUES ('hub', 'task.lease_expired', ?, ?, ?)`,
-			t.target(), string(b), store.Millis(c.now)); err != nil {
+		if !since.Valid || since.Int64 > store.Millis(c.now.Add(-max)) {
+			continue
+		}
+		body := fmt.Sprintf("Task #%d (%s): %s has held it for more than %s, the time limit, so it was taken back and is open again. Check its work, then reassign it or split it.", t.id, t.title, t.ownerName, max)
+		if err := c.reopenClaimed(t, "task.time_limit", body); err != nil {
 			return err
 		}
-		if err := c.emit(t.projectID, 0, "task.lease_expired", map[string]any{"target": t.target(), "detail": payload}); err != nil {
+	}
+	return nil
+}
+
+// reopenClaimed takes a claimed task back from its owner, records why, and tells the lead.
+func (c *call) reopenClaimed(t *taskRow, action, body string) error {
+	if err := c.touch(t, `status = 'open', owner_agent_id = NULL, lease_expires_at = NULL, blocked_reason = ''`); err != nil {
+		return err
+	}
+	if err := c.markClaimable(t); err != nil {
+		return err
+	}
+	payload := map[string]any{"owner": t.ownerName}
+	// The hub is the actor here, whoever's request triggered the check.
+	if _, err := c.tx.Exec(`INSERT INTO audit(actor, action, target, payload, created_at) VALUES ('hub', ?, ?, ?, ?)`,
+		action, t.target(), string(marshal(payload)), store.Millis(c.now)); err != nil {
+		return err
+	}
+	if err := c.emit(t.projectID, 0, action, map[string]any{"target": t.target(), "detail": payload}); err != nil {
+		return err
+	}
+	lead, err := c.leadFor(t.projectID, t.jobID)
+	if err != nil {
+		return err
+	}
+	if lead != nil {
+		if _, err := c.insertMessage("hub", lead, lead.name, &t.id, body); err != nil {
 			return err
-		}
-		lead, err := c.leadFor(t.projectID, t.jobID)
-		if err != nil {
-			return err
-		}
-		if lead != nil {
-			body := fmt.Sprintf("Task #%d (%s): the lease held by %s expired. The task is open again.", t.id, t.title, t.ownerName)
-			if _, err := c.insertMessage("hub", lead, lead.name, &t.id, body); err != nil {
-				return err
-			}
 		}
 	}
 	return nil

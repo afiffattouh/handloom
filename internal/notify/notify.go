@@ -20,6 +20,7 @@ import (
 const (
 	KindEscalation = "escalation" // the lead asked the human a question
 	KindLeadLost   = "lead-lost"  // a lead went offline with work unfinished
+	KindStuck      = "stuck"      // an agent has said it is working for a long time and holds no task
 )
 
 type Notification struct {

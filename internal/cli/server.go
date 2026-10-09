@@ -50,6 +50,8 @@ func (e *env) hub(args []string) error {
 	lease := fs.Duration("lease", 15*time.Minute, "task lease")
 	sweep := fs.Duration("sweep", 5*time.Second, "how often expired leases are collected")
 	unclaimed := fs.Duration("unclaimed", 10*time.Minute, "tell the lead when an assigned task stays unclaimed this long")
+	maxTaskTime := fs.Duration("max-task-time", 0, "take back a task held longer than this, however active its owner is (0: no limit)")
+	stuckAfter := fs.Duration("stuck-after", 45*time.Minute, "tell the lead when an agent has said it is working this long and holds no task (negative: off)")
 	maxJobAgents := fs.Int("max-job-agents", 0, "agents a job may have running or starting at once (default 5); 1 makes workers take turns, for one local model")
 	agentLease := fs.Duration("agent-lease", 90*time.Second, "mark an agent with a terminal offline when its link has not vouched for it this long")
 	autoInit := fs.Bool("auto-init", false, "serve: create the database on first start and print the admin token to the log (containers)")
@@ -218,7 +220,7 @@ func (e *env) hub(args []string) error {
 		}
 		h := hub.New(db, hub.Options{Lease: *lease, Sweep: *sweep, Unclaimed: *unclaimed, Log: logger,
 			Notifier: notifier, BaseURL: setting.Get("BASE_URL"),
-			Insecure: setting.Bool("INSECURE"), TrustProxy: setting.Bool("TRUST_PROXY"), NtfyToken: setting.Get("NTFY_TOKEN"), AllowConfidential: setting.Bool("ALLOW_CONFIDENTIAL"), RequireRunToken: setting.Bool("REQUIRE_RUN_TOKEN"), AgentLease: *agentLease, MaxSpawns: *maxJobAgents})
+			Insecure: setting.Bool("INSECURE"), TrustProxy: setting.Bool("TRUST_PROXY"), NtfyToken: setting.Get("NTFY_TOKEN"), AllowConfidential: setting.Bool("ALLOW_CONFIDENTIAL"), RequireRunToken: setting.Bool("REQUIRE_RUN_TOKEN"), AgentLease: *agentLease, StuckAfter: *stuckAfter, MaxTaskTime: *maxTaskTime, MaxSpawns: *maxJobAgents})
 		if ok, why := h.WebEnabled(); !ok {
 			logger.Printf("web UI is off: %s", why)
 		} else if code, err := h.PrepareSetup(); err != nil {

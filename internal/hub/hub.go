@@ -41,6 +41,8 @@ type Options struct {
 	RequireRunToken   bool             // refuse agent requests that carry only the device credential and a claimed name
 	MaxSpawns         int              // agents a job may have running or starting at once; default 5
 	SpawnTimeout      time.Duration    // a spawn request not finished by then fails; default 90s
+	MaxTaskTime       time.Duration    // take back a task held longer than this, however active its owner is; 0 (the default) is off
+	StuckAfter        time.Duration    // report an agent that has said "working" this long with no task claimed; default 45 minutes, negative turns it off
 	AgentLease        time.Duration    // how long an agent with a terminal stays "alive" after its link last vouched for it; default 90s
 	JoinTTL           time.Duration    // how long a device join token works; default 15 minutes
 	InviteTTL         time.Duration    // how long a member invite link works; default 7 days
@@ -79,6 +81,9 @@ func New(db *sql.DB, opt Options) *Hub {
 	}
 	if opt.SpawnTimeout <= 0 {
 		opt.SpawnTimeout = 90 * time.Second
+	}
+	if opt.StuckAfter == 0 {
+		opt.StuckAfter = 45 * time.Minute
 	}
 	if opt.AgentLease <= 0 {
 		opt.AgentLease = 90 * time.Second
@@ -142,6 +147,9 @@ func (h *Hub) Sweep() error {
 		return err
 	}
 	if err := c.expireAgentLeases(); err != nil {
+		return err
+	}
+	if err := c.reportStuck(); err != nil {
 		return err
 	}
 	if err := c.expireSpawns(); err != nil {

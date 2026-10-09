@@ -907,6 +907,18 @@ func TestARepoJobStartsItsOwnLeadInAWorktree(t *testing.T) {
 		t.Fatalf("spawn: %+v", s)
 	}
 	work := filepath.Join(client.Home(), "work", "job-1", "lead-1")
+	// "launching" means the link has claimed the request, not that it has finished making the worktree
+	for i := 0; ; i++ {
+		_, errGit := os.Stat(filepath.Join(work, ".git"))
+		_, errScope := os.Stat(filepath.Join(client.Home(), "scopes", "lead-1.json"))
+		if errGit == nil && errScope == nil {
+			break
+		}
+		if i > 500 {
+			t.Fatalf("the worktree was not made (git: %v, scope: %v)", errGit, errScope)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
 	if got := gitOut(t, work, "rev-parse", "--abbrev-ref", "HEAD"); got != "job/1/lead-1" {
 		t.Fatalf("the lead's worktree is on %q", got)
 	}

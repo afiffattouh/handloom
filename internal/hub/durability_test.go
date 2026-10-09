@@ -415,7 +415,7 @@ func TestATaskHeldLongerThanTheTimeLimitIsTakenBackEvenIfItsOwnerIsBusy(t *testi
 	if got := e.task(task.ID); got.Status != "claimed" {
 		t.Fatalf("taken back too early: %+v", got)
 	}
-	e.clock.advance(11 * time.Minute) // past an hour since the claim
+	e.clock.advance(11 * time.Minute)                                    // past an hour since the claim
 	e.fail(403, e.worker(), "POST", taskPath(task.ID, "heartbeat"), nil) // the owner's next sign of life is refused
 	e.sweep()                                                            // (the timer stores the take-back; a refused request cannot)
 	if got := e.task(task.ID); got.Status != "open" {

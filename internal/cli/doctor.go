@@ -76,7 +76,7 @@ func runDoctor(look func(string) (string, error), linkStatus func() (map[string]
 
 	if st, err := linkStatus(); err != nil {
 		add("link", "fail", "the link is not running on this machine ("+client.SocketPath()+")",
-			"join this machine: handloom link join <hub-url> <join-token> (the Devices page makes the command), then handloom link install")
+			"join this machine: handloom link join <hub-url> <join-token> (the web UI makes the command: Machines, Add a machine), then handloom link install")
 	} else {
 		add("link", "ok", fmt.Sprintf("running: device %v, hub %v", st["device"], st["hub"]), "")
 	}

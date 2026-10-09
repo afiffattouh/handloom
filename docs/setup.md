@@ -68,7 +68,7 @@ handloom link install
 handloom doctor
 ```
 
-It checks the link and hub connection, git, tmux, and each agent CLI (installed, logged in), and prints one fix per problem. Fix what it says until the last line is "This machine is ready." The device now shows as connected in the Devices page.
+It checks the link and hub connection, git, tmux, and each agent CLI (installed, logged in), and prints one fix per problem. Fix what it says until the last line is "This machine is ready." The device now shows as connected in the Machines page.
 
 ## Stage 3: profiles (in the web UI)
 
@@ -94,7 +94,7 @@ You will see five kinds of secret. Almost all of them are created and handled fo
 | Setup code | `YDJU-GMEG-RS3C` | the hub, at first start | Making the owner account, once. |
 | Owner password | your choice | you | Signing in to the web UI. Also asked again for risky actions. |
 | Admin token | `hva_...` | the hub, at first start, shown once | Emergency command-line access. Not needed day to day. |
-| Join token | `hvj_...` | the Devices page | Joining one machine, once. It expires. |
+| Join token | `hvj_...` | Machines, Add a machine | Joining one machine, once. It expires. |
 | API token | `hvh_...` | Settings, if you want the CLI | Using `handloom` as yourself from a terminal. |
 
 Behind the scenes the device keeps its own credential (`hvd_...`, in `~/.config/handloom`) and each agent gets a one-run token (`hvr_...`). Agents never see the device credential, and you never type either one.

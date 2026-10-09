@@ -297,7 +297,8 @@ For a CLI that cannot refuse commands, "never run risky commands" becomes a stan
 Handloom is used for real work by its author and is pre-1.0. Honest about what is and is not proven:
 
 - **Proven with real agents:** Claude Code, Codex, OMP, Pi and OpenCode as workers; Claude Code and OMP as leads; parallel workers; a forced merge conflict resolved by a lead; fully local jobs on a local model. Evidence is in [docs/evidence](docs/evidence) and [DECISIONS.md](DECISIONS.md).
-- **Not proven yet:** phone push against a real ntfy topic; a clean install on a fresh machine; macOS (the link needs tmux and is only run on Linux so far); Windows is not supported.
+- **Proven on a clean machine:** a Linux amd64 VPS with nothing of Handloom on it: install from a release, join, run the link as a service, register an agent, then `handloom uninstall --purge` left the machine identical to before.
+- **Not proven yet:** phone push against a real ntfy topic; macOS (the link needs tmux and has only been run on Linux so far); the Windows build (command line, console and MCP only) has not been run on Windows.
 - **Planned, tracked as [issues](https://github.com/afiffattouh/handloom/issues):** published binaries and an install script, a remote MCP endpoint, container isolation, schedules and a knowledge librarian.
 
 ## Documentation

@@ -198,7 +198,7 @@ footer { color: var(--muted); font-size: 0.85rem; border-top: 1px solid var(--li
   <p class="lede">You need a server with Docker, a domain name, and one or more machines with git, tmux and a logged-in agent CLI. Four stages, each done once. After stage 1 you work in the web UI, and the inbox keeps a "Get started" checklist until all four are done.</p>
   <div class="note-row">
     <div class="note"><b>The domain</b><p>Add a DNS <b>A record</b> (for example <code>handloom.example.com</code>) pointing at your server's IP and open ports 80 and 443. The included Caddy file then gets and renews the https certificate by itself.</p></div>
-    <div class="note"><b>The tokens</b><p>You handle almost none. A <b>setup code</b> (from the log, once) makes your owner account. A <b>join command</b> (copied from the Devices page) joins each machine. The <b>admin token</b> is an emergency key: save it, ignore it.</p></div>
+    <div class="note"><b>The tokens</b><p>You handle almost none. A <b>setup code</b> (from the log, once) makes your owner account. A <b>join command</b> (copied from the Machines page) joins each machine. The <b>admin token</b> is an emergency key: save it, ignore it.</p></div>
     <div class="note"><b>No domain?</b><p>On a private network (Tailscale, WireGuard, home LAN) skip it: use plain http at the private address with <code>HANDLOOM_INSECURE=1</code>. Never on the open internet.</p></div>
   </div>
   <div class="stages">

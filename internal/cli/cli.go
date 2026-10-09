@@ -103,6 +103,7 @@ Hub and administration (HANDLOOM_HUB and HANDLOOM_TOKEN set to the hub URL and a
   handloom spawn <name> [--profile P] [--kind claude] [--model M] [--device D] [--job N]   start an agent in a terminal the link owns (lead, human)
   handloom spawns                                 list spawn requests and how they went
   handloom digest                                 what needs you, what waits for review, what runs
+  handloom uninstall [--purge] [--yes] [--dry-run]    remove the services and the program from this machine (--purge: also the link folder and agents)
   handloom login [HUB_URL] | logout                  save (or forget) your personal token on this machine, for the console
   handloom tui                                    the full-screen console: overview, inbox, jobs, agents, library (what a bare "handloom" opens in a terminal once you have run handloom login)
   handloom escalations [--status open|answered|all]   list the lead's questions (human)
@@ -192,6 +193,8 @@ func Main(args []string, stdout, stderr io.Writer) int {
 		err = e.spawnExec(rest)
 	case "tui":
 		err = e.tui(rest)
+	case "uninstall":
+		err = e.uninstall(rest)
 	case "login":
 		err = e.login(rest)
 	case "logout":

@@ -17,6 +17,8 @@ depends: []
 recommends:
   - git
   - tmux
+scripts:
+  preremove: ${ROOT}/packaging/preremove.sh
 contents:
   - src: ${BINARY}
     dst: /usr/bin/handloom

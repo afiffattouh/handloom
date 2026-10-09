@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
@@ -111,5 +112,82 @@ func TestLoginSavesAPersonsTokenForTheConsoleOnly(t *testing.T) {
 	r.run("logout")
 	if _, err := os.Stat(file); err == nil {
 		t.Fatal("logout left the file")
+	}
+}
+
+func TestUninstallRemovesOnlyWhatItShouldAndSaysSoFirst(t *testing.T) {
+	dir := t.TempDir()
+	exe := filepath.Join(dir, "bin", "handloom")
+	os.MkdirAll(filepath.Dir(exe), 0o755)
+	os.WriteFile(exe, []byte("x"), 0o755)
+	os.Symlink("handloom", filepath.Join(dir, "bin", "hl"))
+	other := filepath.Join(dir, "bin", "other-tool")
+	os.WriteFile(other, []byte("keep"), 0o755)
+	home := filepath.Join(dir, "cfg", "handloom")
+	os.MkdirAll(filepath.Join(home, "work"), 0o755)
+	os.WriteFile(filepath.Join(home, "link.json"), []byte("{}"), 0o600)
+	repo := filepath.Join(dir, "repo", ".handloom")
+	os.MkdirAll(repo, 0o755)
+	t.Setenv("HANDLOOM_HOME", home)
+
+	e := &env{out: &bytes.Buffer{}, err: &bytes.Buffer{}}
+	plain := e.uninstallPlan(exe, home, false)
+	var text []string
+	for _, s := range plain {
+		text = append(text, s.what)
+	}
+	if strings.Contains(strings.Join(text, "\n"), home) {
+		t.Fatalf("a plain uninstall must not touch the link folder: %v", text)
+	}
+	for _, s := range plain {
+		s.do()
+	}
+	if _, err := os.Stat(exe); err == nil {
+		t.Fatal("the program was not removed")
+	}
+	if _, err := os.Lstat(filepath.Join(dir, "bin", "hl")); err == nil {
+		t.Fatal("the hl link was not removed")
+	}
+	if _, err := os.Stat(other); err != nil {
+		t.Fatal("another program in the same folder was removed")
+	}
+	if _, err := os.Stat(filepath.Join(home, "link.json")); err != nil {
+		t.Fatal("the credential was removed without --purge")
+	}
+	purged := e.uninstallPlan(exe, home, true)
+	for _, s := range purged {
+		s.do()
+	}
+	if _, err := os.Stat(home); err == nil {
+		t.Fatal("--purge left the link folder")
+	}
+	if _, err := os.Stat(repo); err != nil {
+		t.Fatal("a project's .handloom folder was removed")
+	}
+	// not a folder it made: never deleted
+	for _, bad := range []string{"", "/", t.TempDir()} {
+		if safeToPurge(bad) {
+			t.Fatalf("safeToPurge(%q)", bad)
+		}
+	}
+	// a package manager's files are left to the package manager
+	if got := managedBy("/usr/bin/handloom"); !strings.Contains(got, "apt remove") {
+		t.Fatalf("managedBy: %q", got)
+	}
+	if managedBy("/usr/local/bin/handloom") != "" || managedBy("/home/u/.local/bin/handloom") != "" {
+		t.Fatal("a script install is ours to remove")
+	}
+}
+
+func TestUninstallNeedsYesWithoutATerminalAndDryRunChangesNothing(t *testing.T) {
+	t.Setenv("HANDLOOM_HOME", t.TempDir()+"/none")
+	var out, errb bytes.Buffer
+	if code := Main([]string{"uninstall", "--dry-run"}, &out, &errb); code != 0 || !strings.Contains(out.String(), "dry run") {
+		t.Fatalf("dry run: %d %s %s", code, out.String(), errb.String())
+	}
+	out.Reset()
+	errb.Reset()
+	if code := Main([]string{"uninstall"}, &out, &errb); code == 0 || !strings.Contains(errb.String(), "--yes") {
+		t.Fatalf("without a terminal or --yes: %d %s", code, errb.String())
 	}
 }

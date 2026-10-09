@@ -17,7 +17,7 @@
 
 ## Contents
 
-[What you get](#what-you-get) · [How it works](#how-it-works) · [Quick start](#quick-start) · [Install](#install) · [Ways to use it](#ways-to-use-it) · [Teams](#teams) · [Client knowledge](#client-knowledge) · [Agent CLIs](#agent-clis) · [Guard rails](#guard-rails) · [Run it yourself](#run-it-yourself) · [Status](#status) · [Documentation](#documentation) · [Contributing](#contributing)
+[What you get](#what-you-get) · [How it works](#how-it-works) · [Quick start](#quick-start) · [Install](#install) · [Uninstall](#uninstall) · [Ways to use it](#ways-to-use-it) · [Teams](#teams) · [Client knowledge](#client-knowledge) · [Agent CLIs](#agent-clis) · [Guard rails](#guard-rails) · [Run it yourself](#run-it-yourself) · [Status](#status) · [Documentation](#documentation) · [Contributing](#contributing)
 
 ## What you get
 
@@ -157,6 +157,16 @@ cosign verify-blob --bundle checksums.txt.sigstore.json \
 sha256sum -c checksums.txt --ignore-missing
 gh attestation verify handloom_<version>_linux_amd64.tar.gz -R afiffattouh/handloom
 ```
+
+## Uninstall
+
+```bash
+handloom uninstall --dry-run        # says exactly what it would remove
+handloom uninstall                  # stops and removes the link and hub services and the program
+handloom uninstall --purge          # also deletes the link's folder (its credential, work trees, logs, your saved console sign-in) and stops the agents' tmux server
+```
+
+It never touches a hub's data folder or backups, your repositories, or the `.handloom` folders agents' adapters wrote into projects. If the machine was joined to a hub, also revoke it there (web UI: Machines, Revoke) so its credential stops working. A program installed by Homebrew or a package is left for its package manager (`brew uninstall handloom`, `apt remove handloom`, `dnf remove handloom`); removing the `.deb` or `.rpm` also stops and removes the services `handloom link install` wrote. To remove the hub's container: `docker compose down` (add `-v` only if you want the data gone).
 
 ## Ways to use it
 

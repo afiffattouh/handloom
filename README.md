@@ -311,6 +311,7 @@ Handloom is used for real work by its author and is pre-1.0. Honest about what i
 | [docs/protocol.md](docs/protocol.md) | The API, version `handloom/1` |
 | [docs/deploy.md](docs/deploy.md) · [docs/isolation.md](docs/isolation.md) | Deploying · the container-mode design |
 | [docs/design-principles.md](docs/design-principles.md) · [docs/brand.md](docs/brand.md) | The UI's rules · the name, logo, colours and voice |
+| [docs/direction](docs/direction/README.md) | Where Handloom goes for teams and enterprises: the research, the review committee and the proposed bets |
 | [DECISIONS.md](DECISIONS.md) | Every choice made, with what was and was not tested |
 
 ```

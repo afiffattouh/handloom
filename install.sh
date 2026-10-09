@@ -28,7 +28,7 @@ base="${HANDLOOM_RELEASE_URL:-}"   # a mirror, or a test server; default is GitH
 if [ -z "$base" ]; then
   if [ "$version" = latest ]; then
     version="$(final_url "https://github.com/$REPO/releases/latest" | sed 's#.*/tag/##')"
-    case "$version" in v*) ;; *) die "could not find the latest release (is there one yet?). Try HANDLOOM_VERSION=v0.1.0, or build from source." ;; esac
+    case "$version" in v*) ;; *) die "there is no full release yet (a pre-release does not count as the latest). Pick one from https://github.com/$REPO/releases and run again with HANDLOOM_VERSION=<tag>, or build from source." ;; esac
   fi
   base="https://github.com/$REPO/releases/download/$version"
 elif [ "$version" = latest ]; then

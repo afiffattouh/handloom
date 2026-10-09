@@ -1,0 +1,35 @@
+# Linux packages (.deb and .rpm), built by scripts/package-linux.sh with nfpm.
+name: handloom
+arch: ${ARCH}
+platform: linux
+version: ${VERSION}
+version_schema: semver
+section: devel
+priority: optional
+maintainer: Handloom <noreply@github.com>
+description: |
+  Run a team of coding agents on your own machines.
+  A lead plans, workers build in their own git worktrees, your machine checks, you approve.
+vendor: Handloom
+homepage: https://github.com/afiffattouh/handloom
+license: Apache-2.0
+depends: []
+recommends:
+  - git
+  - tmux
+contents:
+  - src: ${BINARY}
+    dst: /usr/bin/handloom
+    file_info:
+      mode: 0755
+  - src: /usr/bin/handloom
+    dst: /usr/bin/hl
+    type: symlink
+  - src: ${ROOT}/LICENSE
+    dst: /usr/share/doc/handloom/LICENSE
+    file_info:
+      mode: 0644
+  - src: ${ROOT}/README.md
+    dst: /usr/share/doc/handloom/README.md
+    file_info:
+      mode: 0644

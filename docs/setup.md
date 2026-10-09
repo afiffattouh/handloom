@@ -46,7 +46,7 @@ Do this on every machine. Nothing needs to be open on these machines: they only 
 
 ### 2a. Install the program
 
-On a machine with Go: `go build -o handloom ./cmd/handloom`, then put the binary in your PATH (`sudo install handloom /usr/local/bin/`). Or from the repository, over ssh: `scripts/setup.sh device <ssh-name> --hub https://handloom.example.com` builds it for that machine, copies it and installs the link service (it needs the admin token in `HANDLOOM_TOKEN`).
+Easiest: `curl -fsSL https://raw.githubusercontent.com/afiffattouh/handloom/main/install.sh | sh` (Linux and macOS; it checks the download and never uses sudo). Other routes are in the README under [Install](../README.md#install): Homebrew, `.deb` and `.rpm` packages, a tarball, or a container image for the hub. On a machine with Go you can also build it: `go build -o handloom ./cmd/handloom`, then put the binary in your PATH (`sudo install handloom /usr/local/bin/`). Or from the repository, over ssh: `scripts/setup.sh device <ssh-name> --hub https://handloom.example.com` builds it for that machine, copies it and installs the link service (it needs the admin token in `HANDLOOM_TOKEN`).
 
 ### 2b. Join it to the hub
 

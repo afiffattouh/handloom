@@ -17,7 +17,7 @@
 
 ## Contents
 
-[What you get](#what-you-get) · [How it works](#how-it-works) · [Quick start](#quick-start) · [Ways to use it](#ways-to-use-it) · [Teams](#teams) · [Client knowledge](#client-knowledge) · [Agent CLIs](#agent-clis) · [Guard rails](#guard-rails) · [Run it yourself](#run-it-yourself) · [Status](#status) · [Documentation](#documentation) · [Contributing](#contributing)
+[What you get](#what-you-get) · [How it works](#how-it-works) · [Quick start](#quick-start) · [Install](#install) · [Ways to use it](#ways-to-use-it) · [Teams](#teams) · [Client knowledge](#client-knowledge) · [Agent CLIs](#agent-clis) · [Guard rails](#guard-rails) · [Run it yourself](#run-it-yourself) · [Status](#status) · [Documentation](#documentation) · [Contributing](#contributing)
 
 ## What you get
 
@@ -101,14 +101,25 @@ docker compose -f docker-compose.caddy.yml logs handloom | grep -E "Admin token|
 
 Open `https://handloom.example.com/setup`, enter the setup code and make your owner account. Keep the admin token somewhere safe. On Dokploy, see [docs/deploy.md](docs/deploy.md).
 
-**2. Join each machine** that will run agents. It needs `git`, `tmux` and at least one logged-in agent CLI.
+**2. Join each machine** that will run agents. It needs `git`, `tmux` and at least one logged-in agent CLI. First install the program (one static binary), by whichever route suits the machine:
 
 ```bash
-go build -o handloom ./cmd/handloom && sudo install handloom /usr/local/bin/   # or: scripts/setup.sh device <ssh-name> --hub <url>
+curl -fsSL https://raw.githubusercontent.com/afiffattouh/handloom/main/install.sh | sh   # Linux and macOS; checks the download
+brew tap afiffattouh/handloom https://github.com/afiffattouh/handloom && brew install handloom
+sudo dpkg -i handloom_<version>_linux_amd64.deb      # or the .rpm; from the release page
+docker run ghcr.io/afiffattouh/handloom:latest       # the hub, as a container
+go build -o handloom ./cmd/handloom                  # from source
+```
+
+Then join it to the hub:
+
+```bash
 handloom link join https://handloom.example.com <join-token>   # copy it from the web UI: Machines, Add a machine
 handloom link install                                          # starts at boot
 handloom doctor                                                # says what is missing, one fix per problem
 ```
+
+See [Install](#install) for every route and how to verify a download.
 
 **3. Add profiles.** In the web UI: Profiles, Starter library, add a lead and a worker and choose their CLI. Or from the command line:
 
@@ -121,6 +132,31 @@ handloom profile make scout --can research --kind omp --runtime local --model <y
 **4. Start a job.** Jobs, New job: a title, a brief, the machine, the repository and check command, and the lead's profile. The lead starts the workers. The inbox shows a Get started checklist until all four stages are done.
 
 > **Security.** Anyone who can post to your hub can in effect run code on every connected machine, and agents often run without approval prompts. Use https or a private network, a strong owner password, and revoke machines you no longer use. See [SECURITY.md](SECURITY.md).
+
+## Install
+
+Every release has binaries, packages and a signed checksum file on the [releases page](https://github.com/afiffattouh/handloom/releases).
+
+| Route | Platforms | Notes |
+| --- | --- | --- |
+| `install.sh` | Linux, macOS (amd64, arm64) | Checks the download against `checksums.txt` (and its Sigstore signature if `cosign` is installed). Installs to `/usr/local/bin` if you can write there, else `~/.local/bin`. Never uses sudo. |
+| Homebrew | macOS, Linux | `brew tap afiffattouh/handloom https://github.com/afiffattouh/handloom && brew install handloom` |
+| `.deb`, `.rpm` | Linux (amd64, arm64) | Installs `handloom` and `hl` in `/usr/bin`. |
+| Tarball or zip | Linux, macOS, Windows | Unpack and put `handloom` on your PATH. |
+| Container image | Linux (amd64, arm64) | `ghcr.io/afiffattouh/handloom`, for the hub. |
+| From source | anywhere Go runs | `go build -o handloom ./cmd/handloom` |
+
+**Windows** gets the command line, the terminal console (`handloom tui`) and the MCP server, to use a hub that runs elsewhere. The link (the part that starts agents) needs tmux and is not supported on Windows. The Windows build has not been tried on a Windows machine.
+
+**Verifying a download.** The checksums are signed by the release workflow with Sigstore, and every file has a build provenance attestation:
+
+```bash
+cosign verify-blob --bundle checksums.txt.sigstore.json \
+  --certificate-identity-regexp '^https://github.com/afiffattouh/handloom/.github/workflows/release.yml@refs/' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com checksums.txt
+sha256sum -c checksums.txt --ignore-missing
+gh attestation verify handloom_<version>_linux_amd64.tar.gz -R afiffattouh/handloom
+```
 
 ## Ways to use it
 

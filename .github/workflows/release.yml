@@ -1,7 +1,11 @@
 name: release
-# Pushing a tag such as v0.1.0 builds the binaries and publishes a GitHub release.
-# Running it by hand (Actions, release, Run workflow) builds the same files and keeps them as a
-# workflow artifact without publishing anything, so the pipeline can be tried safely.
+# Pushing a tag such as v0.1.0 (or v0.1.0-rc1 for a pre-release) builds everything and publishes:
+#   - a GitHub release with tarballs (Linux, macOS), zips (Windows), .deb and .rpm packages,
+#     checksums.txt, a Sigstore signature of it, and install.sh
+#   - the container image ghcr.io/<owner>/handloom (linux/amd64 and linux/arm64)
+#   - (full releases only) the Homebrew formula in Formula/handloom.rb
+# Running it by hand (Actions, release, Run workflow) builds and signs the same files and keeps them as
+# a workflow artifact, builds the image without pushing it, and publishes nothing.
 on:
   push:
     tags: ["v*"]
@@ -11,7 +15,12 @@ on:
         description: "Version to stamp into the build (not published)"
         default: "v0.0.0-test"
 permissions:
-  contents: write
+  contents: write      # the release, and the Homebrew formula
+  packages: write      # the container image
+  id-token: write      # keyless signing
+  attestations: write  # build provenance
+env:
+  VERSION: ${{ github.event_name == 'push' && github.ref_name || inputs.version }}
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -22,25 +31,80 @@ jobs:
           go-version-file: go.mod
       - name: Test
         run: go vet ./... && go test ./...
-      - name: Build every platform
-        run: scripts/release-build.sh "${VERSION}" dist
-        env:
-          VERSION: ${{ github.event_name == 'push' && github.ref_name || inputs.version }}
+      - name: Install nfpm (for the .deb and .rpm packages)
+        run: go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.41.1
+      - name: Build every platform and package
+        run: PACKAGES=1 scripts/release-build.sh "$VERSION" dist
       - name: The linux/amd64 binary runs and reports its version
         run: |
-          tar -xzf dist/handloom_${VERSION}_linux_amd64.tar.gz -C /tmp handloom
+          tar -xzf "dist/handloom_${VERSION}_linux_amd64.tar.gz" -C /tmp handloom
           /tmp/handloom version | tee /dev/stderr | grep -q "$VERSION"
-        env:
-          VERSION: ${{ github.event_name == 'push' && github.ref_name || inputs.version }}
+      - name: The .deb installs, runs and removes cleanly
+        run: |
+          sudo dpkg -i "dist/handloom_${VERSION}_linux_amd64.deb"
+          handloom version | grep -q "$VERSION" && hl version >/dev/null
+          sudo dpkg -r handloom
+      - uses: sigstore/cosign-installer@v3
+      - name: Sign checksums.txt (keyless, Sigstore)
+        run: cosign sign-blob --yes --bundle dist/checksums.txt.sigstore.json dist/checksums.txt
+      - name: Record build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/*.deb
+            dist/*.rpm
+            dist/checksums.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: handloom-${{ github.event_name == 'push' && github.ref_name || inputs.version }}
+          name: handloom-${{ env.VERSION }}
           path: dist/*
       - name: Publish the release
         if: github.event_name == 'push'
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.ref_name }}
         run: |
-          flags=""; case "$TAG" in *-*) flags="--prerelease";; esac
-          gh release create "$TAG" dist/* --title "Handloom $TAG" --generate-notes $flags
+          flags=""; case "$VERSION" in *-*) flags="--prerelease";; esac
+          gh release create "$VERSION" dist/* --title "Handloom $VERSION" --generate-notes $flags
+      - name: Update the Homebrew formula (full releases only)
+        if: github.event_name == 'push' && !contains(github.ref_name, '-')
+        run: |
+          git fetch origin main && git checkout -B main origin/main
+          scripts/make-formula.sh "$VERSION" dist/checksums.txt > Formula/handloom.rb
+          git add Formula/handloom.rb
+          if ! git diff --cached --quiet; then
+            git -c user.name="Handloom release" -c user.email="release@handloom.invalid" commit -m "Homebrew formula for $VERSION"
+            git push origin main
+          fi
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Log in to the GitHub container registry
+        if: github.event_name == 'push'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Tags
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}},enable=${{ !contains(github.ref_name, '-') }}
+            type=raw,value=latest,enable=${{ github.event_name == 'push' && !contains(github.ref_name, '-') }}
+            type=raw,value=test,enable=${{ github.event_name != 'push' }}
+      - name: Build (and push, for a tag)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: ${{ github.event_name == 'push' && 'linux/amd64,linux/arm64' || 'linux/amd64' }}
+          push: ${{ github.event_name == 'push' }}
+          build-args: VERSION=${{ github.event_name == 'push' && github.ref_name || inputs.version }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}

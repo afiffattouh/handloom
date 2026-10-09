@@ -10,7 +10,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"time"
 
 	"handloom/internal/api"
@@ -47,8 +46,7 @@ func (l *Link) execVerify(dir, command, logName string) verifyResult {
 	cmd := exec.CommandContext(ctx, "sh", "-c", command)
 	cmd.Dir = dir
 	cmd.Env = verifyEnv()
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true} // so a timeout stops the whole tree
-	cmd.Cancel = func() error { return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL) }
+	inOwnGroup(cmd) // so a timeout stops the whole tree
 	cmd.WaitDelay = 2 * time.Second
 	var out bytes.Buffer
 	cmd.Stdout = &limited{w: &out, left: maxVerifyLog}

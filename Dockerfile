@@ -18,7 +18,8 @@ RUN mkdir -p /out/data && chown 65532:65532 /out/data && chmod 700 /out/data
 FROM gcr.io/distroless/static-debian12:nonroot
 LABEL org.opencontainers.image.title="Handloom" \
       org.opencontainers.image.description="Run a team of coding agents on your own machines. A lead plans, workers build, your machine checks, you approve." \
-      org.opencontainers.image.licenses="Apache-2.0"
+      org.opencontainers.image.licenses="Apache-2.0" \
+      org.opencontainers.image.source="https://github.com/afiffattouh/handloom"
 COPY --from=build /out/handloom /handloom
 COPY --from=build --chown=65532:65532 /out/data /data
 ENV HANDLOOM_DATA=/data HANDLOOM_ADDR=0.0.0.0:7420

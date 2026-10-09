@@ -41,6 +41,19 @@ say "Downloading handloom $version for $os/$arch ..."
 fetch "$base/$asset" "$tmp/$asset" || die "could not download $base/$asset"
 fetch "$base/checksums.txt" "$tmp/checksums.txt" || die "could not download the checksums"
 
+# If cosign is installed, the checksums themselves are checked against their Sigstore signature first.
+if command -v cosign >/dev/null 2>&1 && [ -z "${HANDLOOM_SKIP_SIGNATURE:-}" ] && [ -z "${HANDLOOM_RELEASE_URL:-}" ]; then
+  if fetch "$base/checksums.txt.sigstore.json" "$tmp/checksums.txt.sigstore.json" 2>/dev/null; then
+    cosign verify-blob --bundle "$tmp/checksums.txt.sigstore.json" \
+      --certificate-identity-regexp "^https://github.com/$REPO/.github/workflows/release.yml@refs/" \
+      --certificate-oidc-issuer https://token.actions.githubusercontent.com "$tmp/checksums.txt" >/dev/null 2>&1 \
+      || die "the signature on checksums.txt does not verify. Nothing was installed."
+    say "Signature ok (Sigstore)."
+  else
+    say "Note: this release has no signature file; checking the checksum only."
+  fi
+fi
+
 want="$(awk -v f="$asset" '$2 == f || $2 == "*" f {print $1}' "$tmp/checksums.txt")"
 [ -n "$want" ] || die "$asset is not listed in checksums.txt"
 if command -v sha256sum >/dev/null 2>&1; then got="$(sha256sum "$tmp/$asset" | awk '{print $1}')"

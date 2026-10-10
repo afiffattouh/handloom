@@ -26,6 +26,7 @@
         <tr>
           <td><span class="mono muted">#{{.ID}}</span> {{.Title}}{{if .DependsOn}} <span class="desc">after {{range .DependsOn}}#{{.}} {{end}}</span>{{end}}
             {{if .Evidence}}<div class="desc text">{{range $i, $e := .Evidence}}{{if $i}}; {{end}}{{$e}}{{end}}</div>{{end}}
+            {{with .Handoff}}<div class="desc text"><strong>Handoff</strong> ({{.Kind}}, {{.Author}}): {{.Done}}{{if .Next}} <strong>Next:</strong> {{.Next}}{{end}}{{if .Verify}} <strong>Check:</strong> {{.Verify}}{{end}}</div>{{end}}
             {{if and .Check (not .CheckOK) .Check.Tail}}<div class="inset wrap">{{.Check.Tail}}</div>{{end}}
             {{with .Merge}}{{if and (ne .Status "merged") (ne .Status "pending") .Detail}}<div class="desc text sev-bad">{{.Detail}}</div>{{end}}{{end}}</td>
           <td class="nw">{{if .Owner}}{{.Owner}}{{else}}<span class="muted">unclaimed</span>{{end}}</td>

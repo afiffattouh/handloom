@@ -215,6 +215,9 @@ func (q *webReq) jobPage(status int, errMsg string, id int64) error {
 		if tv.Merge, err = q.c.mergeOf(tk.id); err != nil {
 			return err
 		}
+		if tv.Handoff, err = q.c.latestHandoff(tk.id); err != nil {
+			return err
+		}
 		v.Tasks = append(v.Tasks, tv)
 		targets = append(targets, tk.target())
 	}

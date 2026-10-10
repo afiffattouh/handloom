@@ -293,3 +293,21 @@ func TestTheJobFormTakesAKnowledgeRepositoryAndABase(t *testing.T) {
 		t.Fatalf("job page: %s", page)
 	}
 }
+
+func TestTheJobPageShowsEachTasksLatestHandoffNote(t *testing.T) {
+	e := newWebEnv(t, Options{})
+	ag := e.agents()
+	c, _ := e.owner()
+	var j api.Job
+	e.apiOK(e.humanAPI(), "", "POST", "/v1/jobs", api.JobNewReq{Title: "Notes", Lead: "lead"}, &j)
+	var task api.Task
+	e.apiOK(e.humanAPI(), "", "POST", "/v1/tasks", api.TaskCreateReq{Title: "migrate", Job: j.ID, AssignedTo: "worker"}, &task)
+	ag.worker("POST", fmt.Sprintf("/v1/tasks/%d/claim", task.ID), nil, nil)
+	ag.worker("POST", fmt.Sprintf("/v1/tasks/%d/handoff", task.ID), api.HandoffReq{Done: "tables created", Next: "backfill in batches", Verify: "select count(*)"}, nil)
+	page := e.req("GET", fmt.Sprintf("/jobs/%d", j.ID), nil, c, nil).body
+	for _, want := range []string{"Handoff", "tables created", "backfill in batches", "select count(*)"} {
+		if !strings.Contains(page, want) {
+			t.Errorf("job page lacks %q", want)
+		}
+	}
+}

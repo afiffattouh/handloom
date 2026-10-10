@@ -18,7 +18,7 @@ Done over stdio: `handloom mcp --operator` for a person's own app, and `handloom
 
 The planned work is tracked as GitHub issues: https://github.com/afiffattouh/handloom/issues (label `planned`):
 
-- #1 Published binaries and a one-line install script
+- #1 Published binaries and a one-line install script (done, v0.1.0)
 - #2 Console login with name and password
 - #3 Get started checklist: console, AI app, and recovery docs
 - #4 Remote MCP endpoint for connector-style clients
@@ -35,7 +35,7 @@ The planned work is tracked as GitHub issues: https://github.com/afiffattouh/han
 
 Context that survives a change of device, agent or person (tracking issue #20):
 
-- #15 A handoff note for every task, so any agent on any machine can pick it up
+- #15 A handoff note for every task, so any agent on any machine can pick it up (done, v0.1.0)
 - #16 Durability tests: crash, late submit, stuck agent, restore, upgrade in flight
 - #17 Find and reuse knowledge: search across a client's notes and past jobs
 - #18 Let a finished job teach: reviewed lessons become notes and skills

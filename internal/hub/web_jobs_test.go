@@ -299,9 +299,10 @@ func TestTheJobPageShowsEachTasksLatestHandoffNote(t *testing.T) {
 	ag := e.agents()
 	c, _ := e.owner()
 	var j api.Job
-	e.apiOK(e.humanAPI(), "", "POST", "/v1/jobs", api.JobNewReq{Title: "Notes", Lead: "lead"}, &j)
+	person := e.humanAPI()
+	e.apiOK(person, "", "POST", "/v1/jobs", api.JobNewReq{Title: "Notes", Lead: "lead"}, &j)
 	var task api.Task
-	e.apiOK(e.humanAPI(), "", "POST", "/v1/tasks", api.TaskCreateReq{Title: "migrate", Job: j.ID, AssignedTo: "worker"}, &task)
+	e.apiOK(person, "", "POST", "/v1/tasks", api.TaskCreateReq{Title: "migrate", Job: j.ID, AssignedTo: "worker"}, &task)
 	ag.worker("POST", fmt.Sprintf("/v1/tasks/%d/claim", task.ID), nil, nil)
 	ag.worker("POST", fmt.Sprintf("/v1/tasks/%d/handoff", task.ID), api.HandoffReq{Done: "tables created", Next: "backfill in batches", Verify: "select count(*)"}, nil)
 	page := e.req("GET", fmt.Sprintf("/jobs/%d", j.ID), nil, c, nil).body

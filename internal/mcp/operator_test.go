@@ -115,3 +115,49 @@ func TestOperatorInstructionsSayWhatItCannotDo(t *testing.T) {
 		t.Fatalf("instructions: %s", ins)
 	}
 }
+
+func TestHandoffToolsRunTheMatchingCommands(t *testing.T) {
+	var got [][]string
+	run := func(argv []string) (string, string, int) { got = append(got, argv); return "ok", "", 0 }
+	for _, c := range []string{
+		`{"name":"handloom_task_handoff","arguments":{"id":4,"done":"half","tried":"a","next":"b","verify":"c"}}`,
+		`{"name":"handloom_task_release","arguments":{"id":4,"done":"stopping","next":"resume at step 2"}}`,
+		`{"name":"handloom_task_submit","arguments":{"id":4,"evidence":["commit:abc"],"note":"did it","how_to_check":"run it"}}`,
+	} {
+		call(callName(c), callArgs(c), run, Tools)
+	}
+	want := []string{
+		"task handoff 4 --done half --tried a --next b --verify c",
+		"task release 4 --done stopping --next resume at step 2",
+		"task submit 4 --evidence commit:abc --note did it --how-to-check run it",
+	}
+	for i, w := range want {
+		if i >= len(got) || strings.Join(got[i], " ") != w {
+			t.Errorf("command %d: %v, want %q", i, got, w)
+		}
+	}
+	names := names2(Tools)
+	for _, n := range []string{"handloom_task_handoff", "handloom_task_release"} {
+		if !names[n] {
+			t.Errorf("%s is not offered to agents", n)
+		}
+	}
+}
+
+func callName(s string) string {
+	var m map[string]any
+	json.Unmarshal([]byte(s), &m)
+	return m["name"].(string)
+}
+func callArgs(s string) args {
+	var m struct{ Arguments args }
+	json.Unmarshal([]byte(strings.Replace(s, `"arguments"`, `"Arguments"`, 1)), &m)
+	return m.Arguments
+}
+func names2(ts []tool) map[string]bool {
+	m := map[string]bool{}
+	for _, t := range ts {
+		m[t.Name] = true
+	}
+	return m
+}

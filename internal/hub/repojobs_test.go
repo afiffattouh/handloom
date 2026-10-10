@@ -160,7 +160,7 @@ func TestVerificationReportsComeOnlyFromTheDeviceForSubmittedWork(t *testing.T) 
 	path := fmt.Sprintf("/v1/tasks/%d/verify", task.ID)
 	e.fail(403, e.afif(), "POST", path, req)
 	e.fail(409, caller{e.d1, ""}, "POST", path, req) // not submitted yet
-	e.ok(e.worker(), "POST", taskPath(task.ID, "submit"), api.SubmitReq{Evidence: []string{"file:x"}}, nil)
+	e.ok(e.worker(), "POST", taskPath(task.ID, "submit"), api.SubmitReq{Evidence: []string{"file:x"}, Note: "done"}, nil)
 	e.fail(403, caller{e.d2, ""}, "POST", path, req)                                                          // not the agent's device
 	e.fail(403, caller{e.d1, ""}, "POST", path, api.TaskCheckReq{Agent: "observer", Command: "./check.sh"})   // not the task's owner
 	e.fail(409, caller{e.d1, ""}, "POST", path, api.TaskCheckReq{Agent: "worker", Command: "something else"}) // not the job's command
@@ -177,7 +177,7 @@ func TestVerificationReportsComeOnlyFromTheDeviceForSubmittedWork(t *testing.T) 
 func TestTheLeadCannotAcceptUnverifiedOrFailedWork(t *testing.T) {
 	e := newEnv(t)
 	_, task := e.verifiedSetup()
-	e.ok(e.worker(), "POST", taskPath(task.ID, "submit"), api.SubmitReq{Evidence: []string{"file:x"}}, nil)
+	e.ok(e.worker(), "POST", taskPath(task.ID, "submit"), api.SubmitReq{Evidence: []string{"file:x"}, Note: "done"}, nil)
 	acc := taskPath(task.ID, "accept")
 	if msg := e.fail(409, e.lead(), "POST", acc, nil); !strings.Contains(msg, "not been verified") {
 		t.Fatalf("before the check: %s", msg)
@@ -188,7 +188,7 @@ func TestTheLeadCannotAcceptUnverifiedOrFailedWork(t *testing.T) {
 	}
 	// A new submission starts from nothing.
 	e.ok(e.lead(), "POST", taskPath(task.ID, "reject"), api.ReasonReq{Reason: "fix"}, nil)
-	e.ok(e.worker(), "POST", taskPath(task.ID, "submit"), api.SubmitReq{Evidence: []string{"file:y"}}, nil)
+	e.ok(e.worker(), "POST", taskPath(task.ID, "submit"), api.SubmitReq{Evidence: []string{"file:y"}, Note: "done"}, nil)
 	if got := e.task(task.ID); got.Check != nil {
 		t.Fatalf("a new submission inherited the old check: %+v", got.Check)
 	}
@@ -199,7 +199,7 @@ func TestTheLeadCannotAcceptUnverifiedOrFailedWork(t *testing.T) {
 func TestAHumanMayAcceptDespiteAFailedCheckAndJobsWithoutVerifyAreUnchanged(t *testing.T) {
 	e := newEnv(t)
 	_, task := e.verifiedSetup()
-	e.ok(e.worker(), "POST", taskPath(task.ID, "submit"), api.SubmitReq{Evidence: []string{"file:x"}}, nil)
+	e.ok(e.worker(), "POST", taskPath(task.ID, "submit"), api.SubmitReq{Evidence: []string{"file:x"}, Note: "done"}, nil)
 	e.ok(caller{e.d1, ""}, "POST", fmt.Sprintf("/v1/tasks/%d/verify", task.ID), api.TaskCheckReq{Agent: "worker", Command: "./check.sh", ExitCode: 1}, nil)
 	e.ok(e.afif(), "POST", taskPath(task.ID, "accept"), nil, nil)
 
@@ -207,14 +207,14 @@ func TestAHumanMayAcceptDespiteAFailedCheckAndJobsWithoutVerifyAreUnchanged(t *t
 	var plain api.Task
 	e.ok(e.afif(), "POST", "/v1/tasks", api.TaskCreateReq{Title: "plain", AssignedTo: "worker2"}, &plain)
 	e.ok(e.worker2(), "POST", taskPath(plain.ID, "claim"), nil, nil)
-	e.ok(e.worker2(), "POST", taskPath(plain.ID, "submit"), api.SubmitReq{Evidence: []string{"file:x"}}, nil)
+	e.ok(e.worker2(), "POST", taskPath(plain.ID, "submit"), api.SubmitReq{Evidence: []string{"file:x"}, Note: "done"}, nil)
 	e.ok(e.afif(), "POST", taskPath(plain.ID, "accept"), nil, nil)
 }
 
 func TestTheInboxShowsWhatTheDeviceFound(t *testing.T) {
 	e := newEnv(t)
 	_, task := e.verifiedSetup()
-	e.ok(e.worker(), "POST", taskPath(task.ID, "submit"), api.SubmitReq{Evidence: []string{"file:x"}}, nil)
+	e.ok(e.worker(), "POST", taskPath(task.ID, "submit"), api.SubmitReq{Evidence: []string{"file:x"}, Note: "done"}, nil)
 	var d api.Digest
 	e.ok(e.afif(), "GET", "/v1/digest", nil, &d)
 	if len(d.ToReview) != 1 || !strings.Contains(d.ToReview[0].Detail, "verification pending") {

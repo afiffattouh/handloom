@@ -59,9 +59,11 @@ Agent verbs (run inside an agent's shell, through the local link):
   handloom task create <title> [--body B] [--assign A] [--depends 1,2]      (lead, human)
   handloom task assign <id> <agent>                                         (lead, human)
   handloom task accept <id> | reject <id> --reason R | cancel <id>          (lead, human)
-  handloom task claim <id> | heartbeat <id> | release <id>                  (lead, worker)
+  handloom task claim <id> | heartbeat <id>                                (lead, worker)
+  handloom task release <id> --done D [--next N] [--tried T] [--verify V]   a handoff note is required (lead, worker)
   handloom task block <id> --reason R | block <id> --clear                  (lead, worker)
-  handloom task submit <id> --evidence E [--evidence E ...] [--note N]      (lead, worker)
+  handloom task submit <id> --evidence E [--evidence E ...] --note N [--how-to-check H]   (lead, worker)
+  handloom task handoff <id> --done D [--tried T] [--next N] [--verify V]  leave a note for whoever picks the task up (lead, worker)
   handloom ask <question> [--option A --option B] [--task N] [--wait 10m]   (lead) ask the human; the answer arrives as a message
   handloom state <idle|working|blocked|offline>       report agent state (adapters do this)
 

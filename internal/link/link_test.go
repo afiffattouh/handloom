@@ -873,7 +873,7 @@ func (f *fixture) scopedAgentVerify(write []string, verify string) (*client.Clie
 }
 
 func (f *fixture) submit(ac *client.Client, task api.Task) error {
-	return ac.Post(fmt.Sprintf("/v1/tasks/%d/submit", task.ID), api.SubmitReq{Evidence: []string{"file:x"}}, nil)
+	return ac.Post(fmt.Sprintf("/v1/tasks/%d/submit", task.ID), api.SubmitReq{Evidence: []string{"file:x"}, Note: "done"}, nil)
 }
 
 func TestSubmitIsRefusedForFilesOutsideTheProfilesScope(t *testing.T) {
@@ -958,7 +958,7 @@ func TestTheScopeCheckFailsClosedAndSparesOthers(t *testing.T) {
 	var plain api.Task
 	f.must(f.human.Post("/v1/tasks", api.TaskCreateReq{Title: "plain", AssignedTo: "worker"}, &plain))
 	f.must(f.worker.Post(fmt.Sprintf("/v1/tasks/%d/claim", plain.ID), nil, nil))
-	if err := f.worker.Post(fmt.Sprintf("/v1/tasks/%d/submit", plain.ID), api.SubmitReq{Evidence: []string{"file:x"}}, nil); err != nil {
+	if err := f.worker.Post(fmt.Sprintf("/v1/tasks/%d/submit", plain.ID), api.SubmitReq{Evidence: []string{"file:x"}, Note: "done"}, nil); err != nil {
 		t.Fatalf("an agent without a scope: %v", err)
 	}
 }
@@ -1056,7 +1056,7 @@ func TestAFailedVerificationBlocksTheLeadButNotAHuman(t *testing.T) {
 	if f.task(task.ID).Check != nil {
 		t.Fatal("the check of rejected work is still there")
 	}
-	f.must(ac.Post(fmt.Sprintf("/v1/tasks/%d/submit", task.ID), api.SubmitReq{Evidence: []string{"file:x"}}, nil))
+	f.must(ac.Post(fmt.Sprintf("/v1/tasks/%d/submit", task.ID), api.SubmitReq{Evidence: []string{"file:x"}, Note: "done"}, nil))
 	f.waitCheck(task.ID)
 	f.must(f.human.Post(fmt.Sprintf("/v1/tasks/%d/accept", task.ID), nil, nil))
 }

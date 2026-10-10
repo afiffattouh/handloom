@@ -317,6 +317,23 @@ CREATE TABLE operator_token (
   token_hash TEXT NOT NULL UNIQUE,
   created_at INTEGER NOT NULL
 );
+`, `
+-- What a task's owner leaves for whoever picks the task up next: where it got to, what was tried, the next step, how to verify.
+-- Append-only: the latest row is the current note.
+CREATE TABLE handoff (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  task_id    INTEGER NOT NULL REFERENCES task(id),
+  author     TEXT NOT NULL,
+  kind       TEXT NOT NULL,           -- checkpoint | submit | release
+  done       TEXT NOT NULL,
+  tried      TEXT NOT NULL DEFAULT '',
+  next       TEXT NOT NULL DEFAULT '',
+  verify     TEXT NOT NULL DEFAULT '',
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX handoff_task ON handoff(task_id, id);
+CREATE TRIGGER handoff_no_update BEFORE UPDATE ON handoff BEGIN SELECT RAISE(ABORT, 'handoff is append-only'); END;
+CREATE TRIGGER handoff_no_delete BEFORE DELETE ON handoff BEGIN SELECT RAISE(ABORT, 'handoff is append-only'); END;
 `}
 
 // Open opens (and migrates) the database at path. Use ":memory:" in tests.

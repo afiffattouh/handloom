@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -396,7 +397,12 @@ func (e *env) task(args []string) error {
 	job := fs.Int64("job", 0, "job (humans: the job a new task belongs to; list: only that job's tasks)")
 	reason := fs.String("reason", "", "reason")
 	clear := fs.Bool("clear", false, "clear the blocked flag")
-	note := fs.String("note", "", "free-text note for the lead")
+	note := fs.String("note", "", "submit: what was done (required)")
+	done := fs.String("done", "", "handoff, release: where the work got to")
+	tried := fs.String("tried", "", "handoff, release: what you tried, including what did not work")
+	next := fs.String("next", "", "handoff, release: the next step")
+	verify := fs.String("verify", "", "handoff, release: how to check the state of things")
+	howTo := fs.String("how-to-check", "", "submit: how a reviewer can check the work")
 	var evidence listFlag
 	fs.Var(&evidence, "evidence", "evidence item; repeat for more")
 	pos, err := fs.parse(args)
@@ -428,7 +434,12 @@ func (e *env) task(args []string) error {
 		if err := c.Post(fmt.Sprintf("/v1/tasks/%d/%s", tid, verb), req, &t); err != nil {
 			return err
 		}
-		e.print(t, func() { fmt.Fprintln(e.out, taskLine(t)) })
+		e.print(t, func() {
+			fmt.Fprintln(e.out, taskLine(t))
+			if verb == "claim" {
+				e.afterClaim(t)
+			}
+		})
 		return nil
 	}
 
@@ -493,8 +504,18 @@ func (e *env) task(args []string) error {
 			return err
 		}
 		e.print(t, func() { fmt.Fprintln(e.out, taskLine(t)) })
-	case "claim", "heartbeat", "release", "accept", "cancel":
+	case "claim", "heartbeat", "accept", "cancel":
 		return act(sub+" <id>", sub, nil)
+	case "release":
+		if *done == "" {
+			return usageErr("a task cannot be released without a handoff note: handloom task release <id> --done \"where it got to\" [--tried ...] [--next ...] [--verify ...]")
+		}
+		return act("release <id> --done D [--tried T] [--next N] [--verify V]", "release", api.HandoffReq{Done: *done, Tried: *tried, Next: *next, Verify: *verify})
+	case "handoff":
+		if *done == "" {
+			return usageErr("usage: handloom task handoff <id> --done \"where the work got to\" [--tried \"what you tried\"] [--next \"the next step\"] [--verify \"how to check\"]")
+		}
+		return act("handoff <id> --done D [--tried T] [--next N] [--verify V]", "handoff", api.HandoffReq{Done: *done, Tried: *tried, Next: *next, Verify: *verify})
 	case "block":
 		if (*reason == "") == !*clear {
 			return usageErr("usage: handloom task block <id> --reason R | --clear")
@@ -507,10 +528,13 @@ func (e *env) task(args []string) error {
 		return act("reject <id> --reason R", "reject", api.ReasonReq{Reason: *reason})
 	case "submit":
 		if len(evidence) == 0 {
-			return usageErr("evidence is required: handloom task submit <id> --evidence \"commit:<sha>\" [--evidence ...] [--note N]\n" +
+			return usageErr("evidence is required: handloom task submit <id> --evidence \"commit:<sha>\" [--evidence ...] --note N\n" +
 				"  typed items: commit:<sha>  pr:<url>  file:<path>  test:<command> -> <result>")
 		}
-		return act("submit <id> --evidence E [--note N]", "submit", api.SubmitReq{Evidence: evidence, Note: *note})
+		if strings.TrimSpace(*note) == "" {
+			return usageErr("a task cannot be submitted without a note saying what was done: handloom task submit <id> --evidence E --note \"what you did\" [--how-to-check \"...\"]")
+		}
+		return act("submit <id> --evidence E --note N [--how-to-check H]", "submit", api.SubmitReq{Evidence: evidence, Note: *note, HowToCheck: *howTo})
 	default:
 		return usageErr("unknown task verb %q", sub)
 	}
@@ -702,6 +726,7 @@ func (e *env) taskDetail(t api.Task) {
 	if t.Note != "" {
 		fmt.Fprintf(e.out, "Note: %s\n", t.Note)
 	}
+	e.printHandoff(t.Handoff)
 	if ck := t.Check; ck != nil {
 		result := "passed"
 		switch {
@@ -776,4 +801,39 @@ func (e *env) run(args []string) error {
 	}
 	os.Setenv("HANDLOOM_AGENT", name)
 	return execFn(path, command, os.Environ())
+}
+
+// printHandoff shows the latest note left on a task.
+func (e *env) printHandoff(h *api.Handoff) {
+	if h == nil {
+		return
+	}
+	fmt.Fprintf(e.out, "\nHandoff note (%s, %s, %s):\n  done:   %s\n", h.Author, h.Kind, ago(h.At), h.Done)
+	for _, f := range [][2]string{{"tried", h.Tried}, {"next", h.Next}, {"verify", h.Verify}} {
+		if f[1] != "" {
+			fmt.Fprintf(e.out, "  %s:%s %s\n", f[0], strings.Repeat(" ", 7-len(f[0])), f[1])
+		}
+	}
+}
+
+// afterClaim tells an agent that picks up an interrupted task what to do first,
+// and leaves the handoff note in its work folder where it can read it again.
+func (e *env) afterClaim(t api.Task) {
+	if t.Resume != "" {
+		fmt.Fprintf(e.out, "\n%s\n", t.Resume)
+	}
+	e.printHandoff(t.Handoff)
+	if t.Handoff == nil {
+		return
+	}
+	dir := ".handloom"
+	if st, err := os.Stat(dir); err != nil || !st.IsDir() {
+		return
+	}
+	h := t.Handoff
+	body := fmt.Sprintf("# Handoff for task #%d: %s\n\nLeft by %s (%s) at %s.\n\n## Done\n%s\n\n## Tried\n%s\n\n## Next\n%s\n\n## How to check\n%s\n",
+		t.ID, t.Title, h.Author, h.Kind, h.At.Format("2006-01-02 15:04 MST"), h.Done, h.Tried, h.Next, h.Verify)
+	if err := os.WriteFile(filepath.Join(dir, "handoff.md"), []byte(body), 0o644); err == nil {
+		fmt.Fprintf(e.out, "(also saved in %s)\n", filepath.Join(dir, "handoff.md"))
+	}
 }

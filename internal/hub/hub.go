@@ -286,6 +286,7 @@ func (h *Hub) Handler() http.Handler {
 	v1("POST /tasks/{id}/claim", taskClaim)
 	v1("POST /tasks/{id}/heartbeat", taskHeartbeat)
 	v1("POST /tasks/{id}/release", taskRelease)
+	v1("POST /tasks/{id}/handoff", taskHandoff)
 	v1("POST /tasks/{id}/block", taskBlock)
 	v1("POST /tasks/{id}/submit", taskSubmit)
 	v1("POST /tasks/{id}/accept", taskAccept)

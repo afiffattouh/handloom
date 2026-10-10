@@ -181,7 +181,7 @@ func TestResumeAJobWithANewLead(t *testing.T) {
 	e.ok(old, "POST", "/v1/tasks", api.TaskCreateReq{Title: "done already", AssignedTo: "w1"}, &t1)
 	e.ok(old, "POST", "/v1/tasks", api.TaskCreateReq{Title: "still to do", DependsOn: []int64{t1.ID}}, &t2)
 	e.ok(w, "POST", taskPath(t1.ID, "claim"), nil, nil)
-	e.ok(w, "POST", taskPath(t1.ID, "submit"), api.SubmitReq{Evidence: []string{"file:a"}}, nil) // mail for lead1, unread
+	e.ok(w, "POST", taskPath(t1.ID, "submit"), api.SubmitReq{Evidence: []string{"file:a"}, Note: "done"}, nil) // mail for lead1, unread
 	e.ok(w, "POST", "/v1/messages", api.SendReq{To: "role:lead", Body: "please look at the evidence"}, nil)
 
 	// Not for agents, not for a bad target.

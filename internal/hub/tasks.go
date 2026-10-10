@@ -176,7 +176,11 @@ func (c *call) expireLeases() error {
 		return err
 	}
 	for _, t := range expired {
-		body := fmt.Sprintf("Task #%d (%s): the lease held by %s expired. The task is open again.", t.id, t.title, t.ownerName)
+		h, err := c.latestHandoff(t.id)
+		if err != nil {
+			return err
+		}
+		body := fmt.Sprintf("Task #%d (%s): the lease held by %s expired. The task is open again. %s", t.id, t.title, t.ownerName, handoffLine(h))
 		if err := c.reopenClaimed(t, "task.lease_expired", body); err != nil {
 			return err
 		}
@@ -204,7 +208,11 @@ func (c *call) expireOverTime() error {
 		if !since.Valid || since.Int64 > store.Millis(c.now.Add(-max)) {
 			continue
 		}
-		body := fmt.Sprintf("Task #%d (%s): %s has held it for more than %s, the time limit, so it was taken back and is open again. Check its work, then reassign it or split it.", t.id, t.title, t.ownerName, max)
+		h, err := c.latestHandoff(t.id)
+		if err != nil {
+			return err
+		}
+		body := fmt.Sprintf("Task #%d (%s): %s has held it for more than %s, the time limit, so it was taken back and is open again. Check its work, then reassign it or split it. %s", t.id, t.title, t.ownerName, max, handoffLine(h))
 		if err := c.reopenClaimed(t, "task.time_limit", body); err != nil {
 			return err
 		}
@@ -690,10 +698,20 @@ func taskClaim(c *call) (any, error) {
 	if err := c.touch(t, `status = 'claimed', owner_agent_id = ?, lease_expires_at = ?, blocked_reason = ''`, a.id, c.leaseUntil()); err != nil {
 		return nil, err
 	}
+	hand, err := c.latestHandoff(t.id)
+	if err != nil {
+		return nil, err
+	}
+	notice, err := c.resumeNotice(t, hand) // before this claim is recorded
+	if err != nil {
+		return nil, err
+	}
 	if err := c.record(t.projectID, 0, "task.claim", t.target(), map[string]any{"owner": a.name}); err != nil {
 		return nil, err
 	}
-	return c.reload(t)
+	out, err := c.reloadWithHandoff(t.id)
+	out.Resume = notice
+	return out, err
 }
 
 func taskHeartbeat(c *call) (any, error) {
@@ -715,6 +733,16 @@ func taskRelease(c *call) (any, error) {
 	if err != nil {
 		return nil, err
 	}
+	var req api.HandoffReq
+	if err := c.decode(&req); err != nil {
+		return nil, err
+	}
+	if req, err = cleanHandoff(req, "a task cannot be released without a handoff note: say where the work got to (done), what you tried, the next step and how to check it. The next agent starts from the note, not from your memory"); err != nil {
+		return nil, err
+	}
+	if err := c.addHandoff(t.id, "release", req); err != nil {
+		return nil, err
+	}
 	if err := c.touch(t, `status = 'open', owner_agent_id = NULL, lease_expires_at = NULL, blocked_reason = ''`); err != nil {
 		return nil, err
 	}
@@ -728,7 +756,7 @@ func taskRelease(c *call) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := c.hubMessage(lead, &t.id, fmt.Sprintf("Task #%d (%s) was released by %s. It is open again.", t.id, t.title, a.name)); err != nil {
+	if err := c.hubMessage(lead, &t.id, fmt.Sprintf("Task #%d (%s) was released by %s. It is open again. %s", t.id, t.title, a.name, handoffLine(&api.Handoff{Author: a.name, Kind: "release", Done: req.Done, Next: req.Next}))); err != nil {
 		return nil, err
 	}
 	return c.reload(t)
@@ -781,6 +809,13 @@ func taskSubmit(c *call) (any, error) {
 	if len(evidence) == 0 {
 		return nil, badRequest("evidence is required: commit:<sha>, pr:<url>, file:<path>, test:<command> -> <result>, or free text")
 	}
+	hand, err := cleanHandoff(api.HandoffReq{Done: req.Note, Verify: req.HowToCheck}, "a task cannot be submitted without a note saying what was done (note): it is the handoff for the reviewer and for whoever works on this next")
+	if err != nil {
+		return nil, err
+	}
+	if err := c.addHandoff(t.id, "submit", hand); err != nil {
+		return nil, err
+	}
 	evJSON, _ := json.Marshal(evidence)
 	if err := c.touch(t, `status = 'submitted', evidence = ?, note = ?, lease_expires_at = NULL, blocked_reason = '', reject_reason = ''`,
 		string(evJSON), req.Note); err != nil {
@@ -817,6 +852,9 @@ func taskGet(c *call) (any, error) {
 	}
 	out := t.api()
 	if out.Merge, err = c.mergeOf(t.id); err != nil {
+		return nil, err
+	}
+	if out.Handoff, err = c.latestHandoff(t.id); err != nil {
 		return nil, err
 	}
 	return out, nil

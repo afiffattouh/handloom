@@ -110,7 +110,7 @@ func TestTheJobPageShowsTasksChecksAndTheTeam(t *testing.T) {
 	ag.lead("POST", "/v1/tasks", api.TaskCreateReq{Title: "first " + evil, AssignedTo: "worker"}, &t1)
 	ag.lead("POST", "/v1/tasks", api.TaskCreateReq{Title: "second", DependsOn: []int64{t1.ID}}, &t2)
 	ag.worker("POST", fmt.Sprintf("/v1/tasks/%d/claim", t1.ID), nil, nil)
-	ag.worker("POST", fmt.Sprintf("/v1/tasks/%d/submit", t1.ID), api.SubmitReq{Evidence: []string{"commit:abc " + evil}}, nil)
+	ag.worker("POST", fmt.Sprintf("/v1/tasks/%d/submit", t1.ID), api.SubmitReq{Evidence: []string{"commit:abc " + evil}, Note: "done"}, nil)
 	e.apiOK(ag.device, "", "POST", fmt.Sprintf("/v1/tasks/%d/verify", t1.ID), api.TaskCheckReq{Agent: "worker", Command: "./check.sh", ExitCode: 2, Tail: "FAIL " + evil}, nil)
 
 	page := e.req("GET", fmt.Sprintf("/jobs/%d", j.ID), nil, c, nil).body
@@ -131,11 +131,11 @@ func TestTheJobPageShowsTasksChecksAndTheTeam(t *testing.T) {
 
 	// Everything done: the job asks to be closed, in the job page and in the inbox.
 	ag.lead("POST", fmt.Sprintf("/v1/tasks/%d/reject", t1.ID), api.ReasonReq{Reason: "fix the test"}, nil)
-	ag.worker("POST", fmt.Sprintf("/v1/tasks/%d/submit", t1.ID), api.SubmitReq{Evidence: []string{"commit:def"}}, nil)
+	ag.worker("POST", fmt.Sprintf("/v1/tasks/%d/submit", t1.ID), api.SubmitReq{Evidence: []string{"commit:def"}, Note: "done"}, nil)
 	e.apiOK(ag.device, "", "POST", fmt.Sprintf("/v1/tasks/%d/verify", t1.ID), api.TaskCheckReq{Agent: "worker", Command: "./check.sh", ExitCode: 0}, nil)
 	ag.lead("POST", fmt.Sprintf("/v1/tasks/%d/accept", t1.ID), nil, nil)
 	ag.worker("POST", fmt.Sprintf("/v1/tasks/%d/claim", t2.ID), nil, nil)
-	ag.worker("POST", fmt.Sprintf("/v1/tasks/%d/submit", t2.ID), api.SubmitReq{Evidence: []string{"commit:ghi"}}, nil)
+	ag.worker("POST", fmt.Sprintf("/v1/tasks/%d/submit", t2.ID), api.SubmitReq{Evidence: []string{"commit:ghi"}, Note: "done"}, nil)
 	e.apiOK(ag.device, "", "POST", fmt.Sprintf("/v1/tasks/%d/verify", t2.ID), api.TaskCheckReq{Agent: "worker", Command: "./check.sh", ExitCode: 0}, nil)
 	ag.lead("POST", fmt.Sprintf("/v1/tasks/%d/accept", t2.ID), nil, nil)
 	page = e.req("GET", fmt.Sprintf("/jobs/%d", j.ID), nil, c, nil).body

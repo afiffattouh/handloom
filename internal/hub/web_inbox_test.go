@@ -197,7 +197,7 @@ func TestReviewFromTheWeb(t *testing.T) {
 		var task api.Task
 		ag.lead("POST", "/v1/tasks", api.TaskCreateReq{Title: title, AssignedTo: "worker"}, &task)
 		ag.worker("POST", fmt.Sprintf("/v1/tasks/%d/claim", task.ID), nil, nil)
-		ag.worker("POST", fmt.Sprintf("/v1/tasks/%d/submit", task.ID), api.SubmitReq{Evidence: []string{"commit:abc"}}, nil)
+		ag.worker("POST", fmt.Sprintf("/v1/tasks/%d/submit", task.ID), api.SubmitReq{Evidence: []string{"commit:abc"}, Note: "done"}, nil)
 		return task.ID
 	}
 	a, b := submit("one"), submit("two")

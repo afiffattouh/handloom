@@ -27,7 +27,7 @@ func TestTheCommandCenterShowsTheRecordInWordsAndCharts(t *testing.T) {
 	var t1 api.Task
 	ag.lead("POST", "/v1/tasks", api.TaskCreateReq{Title: "first <b>task</b>", AssignedTo: "worker"}, &t1)
 	ag.worker("POST", fmt.Sprintf("/v1/tasks/%d/claim", t1.ID), nil, nil)
-	ag.worker("POST", fmt.Sprintf("/v1/tasks/%d/submit", t1.ID), api.SubmitReq{Evidence: []string{"commit:abc"}}, nil)
+	ag.worker("POST", fmt.Sprintf("/v1/tasks/%d/submit", t1.ID), api.SubmitReq{Evidence: []string{"commit:abc"}, Note: "done"}, nil)
 	e.apiOK(ag.device, "", "POST", fmt.Sprintf("/v1/tasks/%d/verify", t1.ID), api.TaskCheckReq{Agent: "worker", Command: "./check.sh", ExitCode: 0}, nil)
 	ag.lead("POST", fmt.Sprintf("/v1/tasks/%d/accept", t1.ID), nil, nil)
 
@@ -171,7 +171,7 @@ func TestTheActivityTellsWhatTheDeviceAndTheAgentsDid(t *testing.T) {
 	ag.lead("POST", "/v1/tasks", api.TaskCreateReq{Title: "one", AssignedTo: "worker"}, &t1)
 	ag.worker("POST", "/v1/agents/worker/state", api.StateReq{State: "working"}, nil)
 	ag.worker("POST", fmt.Sprintf("/v1/tasks/%d/claim", t1.ID), nil, nil)
-	ag.worker("POST", fmt.Sprintf("/v1/tasks/%d/submit", t1.ID), api.SubmitReq{Evidence: []string{"commit:abc"}}, nil)
+	ag.worker("POST", fmt.Sprintf("/v1/tasks/%d/submit", t1.ID), api.SubmitReq{Evidence: []string{"commit:abc"}, Note: "done"}, nil)
 	e.apiOK(ag.device, "", "POST", fmt.Sprintf("/v1/tasks/%d/verify", t1.ID), api.TaskCheckReq{Agent: "worker", Command: "./check.sh", ExitCode: 1}, nil)
 	body := e.req("GET", "/command", nil, c, nil).body
 	for _, want := range []string{"started job", "Fix the parser", "worker started working", "the device checked task", "failed (exit 1)"} {
@@ -206,7 +206,7 @@ func TestTheCommandCenterListsTheJobsAndWhereEachStands(t *testing.T) {
 		t.Fatalf("a job with one open task should show 0/1 and running")
 	}
 	ag.worker("POST", fmt.Sprintf("/v1/tasks/%d/claim", t1.ID), nil, nil)
-	ag.worker("POST", fmt.Sprintf("/v1/tasks/%d/submit", t1.ID), api.SubmitReq{Evidence: []string{"commit:abc"}}, nil)
+	ag.worker("POST", fmt.Sprintf("/v1/tasks/%d/submit", t1.ID), api.SubmitReq{Evidence: []string{"commit:abc"}, Note: "done"}, nil)
 	e.apiOK(ag.device, "", "POST", fmt.Sprintf("/v1/tasks/%d/verify", t1.ID), api.TaskCheckReq{Agent: "worker", Command: "./check.sh", ExitCode: 0}, nil)
 	ag.lead("POST", fmt.Sprintf("/v1/tasks/%d/accept", t1.ID), nil, nil)
 	if body := e.req("GET", "/command", nil, c, nil).body; !strings.Contains(body, "ready to close") || !strings.Contains(body, "1/1") {

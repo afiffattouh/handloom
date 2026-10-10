@@ -113,8 +113,10 @@ type Task struct {
 	DependsOn      []int64    `json:"depends_on"`
 	Evidence       []string   `json:"evidence"`
 	Note           string     `json:"note,omitempty"`
-	Check          *TaskCheck `json:"check,omitempty"` // the device's verification of the current submission
-	Merge          *TaskMerge `json:"merge,omitempty"` // what became of its branch after it was accepted
+	Check          *TaskCheck `json:"check,omitempty"`   // the device's verification of the current submission
+	Merge          *TaskMerge `json:"merge,omitempty"`   // what became of its branch after it was accepted
+	Handoff        *Handoff   `json:"handoff,omitempty"` // the latest note left for whoever picks the task up
+	Resume         string     `json:"resume,omitempty"`  // on a claim: this task was started before; what to do first
 	BlockedReason  string     `json:"blocked_reason,omitempty"`
 	RejectReason   string     `json:"reject_reason,omitempty"`
 	CreatedBy      string     `json:"created_by"`
@@ -442,8 +444,29 @@ type AssignReq struct {
 }
 
 type SubmitReq struct {
-	Evidence []string `json:"evidence"`
-	Note     string   `json:"note,omitempty"`
+	Evidence   []string `json:"evidence"`
+	Note       string   `json:"note"`                   // what was done; required, it is the task's handoff note
+	HowToCheck string   `json:"how_to_check,omitempty"` // how a reviewer or the next agent can verify it
+}
+
+// HandoffReq is what a task's owner writes for whoever picks the task up next.
+type HandoffReq struct {
+	Done   string `json:"done"`             // where the work got to
+	Tried  string `json:"tried,omitempty"`  // what was tried, including what did not work
+	Next   string `json:"next,omitempty"`   // the next step
+	Verify string `json:"verify,omitempty"` // how to check the state of things
+}
+
+// Handoff is a stored note on a task.
+type Handoff struct {
+	ID     int64     `json:"id"`
+	Author string    `json:"author"`
+	Kind   string    `json:"kind"` // checkpoint | submit | release
+	Done   string    `json:"done"`
+	Tried  string    `json:"tried,omitempty"`
+	Next   string    `json:"next,omitempty"`
+	Verify string    `json:"verify,omitempty"`
+	At     time.Time `json:"at"`
 }
 
 type ReasonReq struct {

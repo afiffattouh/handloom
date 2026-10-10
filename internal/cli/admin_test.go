@@ -191,3 +191,46 @@ func TestUninstallNeedsYesWithoutATerminalAndDryRunChangesNothing(t *testing.T) 
 		t.Fatalf("without a terminal or --yes: %d %s", code, errb.String())
 	}
 }
+
+func TestHandoffNotesThroughTheCLI(t *testing.T) {
+	r := newRig(t)
+	r.run("register", "lead", "--kind", "shell")
+	r.run("register", "--kind", "shell", "worker")
+	r.run("register", "--kind", "shell", "worker2")
+	r.as(r.admin, "agent", "role", "lead", "lead")
+	r.agentOK("lead", "task", "create", "Migrate", "--assign", "worker")
+	r.agentOK("worker", "task", "claim", "1")
+
+	// a release without a note is refused in words
+	if code, _, errs := r.agent("worker", "task", "release", "1"); code != 2 || !strings.Contains(errs, "handoff note") {
+		t.Fatalf("release without a note: %d %s", code, errs)
+	}
+	if code, _, errs := r.agent("worker", "task", "submit", "1", "--evidence", "file:x"); code != 2 || !strings.Contains(errs, "note") {
+		t.Fatalf("submit without a note: %d %s", code, errs)
+	}
+	out := r.agentOK("worker", "task", "handoff", "1", "--done", "tables created", "--tried", "one big ALTER: timed out", "--next", "backfill in batches", "--verify", "select count(*)")
+	if !strings.Contains(out, "#1") {
+		t.Fatalf("handoff: %s", out)
+	}
+	r.agentOK("worker", "task", "release", "1", "--done", "stopping for the day", "--next", "backfill in batches")
+
+	// the next owner, in its own folder, is told what to do first and gets the note saved
+	work := t.TempDir()
+	os.MkdirAll(filepath.Join(work, ".handloom"), 0o755)
+	t.Chdir(work)
+	r.agentOK("lead", "task", "assign", "1", "worker2")
+	out = r.agentOK("worker2", "task", "claim", "1")
+	for _, want := range []string{"started before", "check the git history", "Handoff note", "stopping for the day", "backfill in batches", "handoff.md"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("claim output lacks %q:\n%s", want, out)
+		}
+	}
+	b, err := os.ReadFile(filepath.Join(work, ".handloom", "handoff.md"))
+	if err != nil || !strings.Contains(string(b), "Handoff for task #1: Migrate") || !strings.Contains(string(b), "backfill in batches") {
+		t.Fatalf("saved handoff: %v %s", err, b)
+	}
+	if show := r.agentOK("lead", "task", "show", "1"); !strings.Contains(show, "Handoff note") || !strings.Contains(show, "stopping for the day") {
+		t.Fatalf("show: %s", show)
+	}
+	r.agentOK("worker2", "task", "submit", "1", "--evidence", "test:go test -> ok", "--note", "backfilled", "--how-to-check", "go test ./migrate")
+}

@@ -76,7 +76,7 @@ func TestTwoJobsTwoLeads(t *testing.T) {
 	e.inbox(lead2)
 	e.inbox(e.lead())
 	e.ok(w1, "POST", taskPath(t1.ID, "claim"), nil, nil)
-	e.ok(w1, "POST", taskPath(t1.ID, "submit"), api.SubmitReq{Evidence: []string{"file:a"}}, nil)
+	e.ok(w1, "POST", taskPath(t1.ID, "submit"), api.SubmitReq{Evidence: []string{"file:a"}, Note: "done"}, nil)
 	if got := e.inboxBodies(lead1); !strings.Contains(got, "submitted by w1") {
 		t.Fatalf("lead1 inbox: %q", got)
 	}
@@ -158,7 +158,7 @@ func TestJobFinishesWhenTasksAreDone(t *testing.T) {
 	e.ok(lead, "POST", "/v1/tasks", api.TaskCreateReq{Title: "one", AssignedTo: "w1"}, &task)
 	w1 := caller{e.d1, "w1"}
 	e.ok(w1, "POST", taskPath(task.ID, "claim"), nil, nil)
-	e.ok(w1, "POST", taskPath(task.ID, "submit"), api.SubmitReq{Evidence: []string{"file:x"}}, nil)
+	e.ok(w1, "POST", taskPath(task.ID, "submit"), api.SubmitReq{Evidence: []string{"file:x"}, Note: "done"}, nil)
 	e.ok(lead, "POST", taskPath(task.ID, "accept"), nil, nil)
 	var got api.Job
 	e.ok(e.afif(), "POST", fmt.Sprintf("/v1/jobs/%d/close", j.ID), nil, &got)
@@ -178,7 +178,7 @@ func TestMovingAgentsBetweenJobs(t *testing.T) {
 	e.ok(e.afif(), "POST", "/v1/tasks", api.TaskCreateReq{Title: "t", Job: j2.ID, AssignedTo: "w"}, &task)
 	e.inbox(e.lead())
 	e.ok(w, "POST", taskPath(task.ID, "claim"), nil, nil)
-	e.ok(w, "POST", taskPath(task.ID, "submit"), api.SubmitReq{Evidence: []string{"file:x"}}, nil)
+	e.ok(w, "POST", taskPath(task.ID, "submit"), api.SubmitReq{Evidence: []string{"file:x"}, Note: "done"}, nil)
 	if !strings.Contains(e.inboxBodies(e.lead()), "submitted by w") {
 		t.Fatal("a job without a lead should fall back to the project lead")
 	}

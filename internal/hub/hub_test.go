@@ -216,6 +216,8 @@ func taskPath(id int64, verb string) string { return fmt.Sprintf("/v1/tasks/%d/%
 
 var evidence = api.SubmitReq{Evidence: []string{"test:go test ./... -> ok"}, Note: "done"}
 
+var handoffBody = api.HandoffReq{Done: "got as far as the parser", Next: "write the tests"}
+
 // ---- scope table: DESIGN.md section 6 ----
 
 // scopeCase is one verb of the scope table. run performs it as the given
@@ -332,7 +334,7 @@ var scopeCases = []scopeCase{
 		allowed: map[string]bool{"lead": true, "worker": true},
 		run: func(e *env, s string) (int, []byte) {
 			t, _ := claimedFor(e, s, false)
-			return e.do(e.subject(s), "POST", taskPath(t.ID, "release"), nil)
+			return e.do(e.subject(s), "POST", taskPath(t.ID, "release"), handoffBody)
 		},
 	},
 	{
@@ -450,7 +452,7 @@ func TestScopeTableMatchesDesign(t *testing.T) {
 func TestOnlyOwnerWorksOnTask(t *testing.T) {
 	e := newEnv(t)
 	task, _ := claimedFor(e, "", false) // owned by worker2
-	for verb, body := range map[string]any{"heartbeat": nil, "release": nil, "submit": evidence, "block": api.BlockReq{Reason: "x"}} {
+	for verb, body := range map[string]any{"heartbeat": nil, "release": handoffBody, "submit": evidence, "block": api.BlockReq{Reason: "x"}} {
 		for _, c := range []caller{e.worker(), e.lead()} {
 			e.fail(403, c, "POST", taskPath(task.ID, verb), body)
 		}
@@ -576,7 +578,7 @@ func TestTaskLifecycle(t *testing.T) {
 
 	// Evidence is required.
 	e.fail(400, e.worker(), "POST", taskPath(task.ID, "submit"), api.SubmitReq{Note: "trust me"})
-	e.fail(400, e.worker(), "POST", taskPath(task.ID, "submit"), api.SubmitReq{Evidence: []string{"  "}})
+	e.fail(400, e.worker(), "POST", taskPath(task.ID, "submit"), api.SubmitReq{Evidence: []string{"  "}, Note: "done"})
 	got = e.act(e.worker(), task.ID, "submit", evidence)
 	if got.Status != api.StatusSubmitted || len(got.Evidence) != 1 || got.LeaseExpiresAt != nil {
 		t.Fatalf("submitted: %+v", got)
@@ -703,7 +705,7 @@ func TestReleaseBlockCancel(t *testing.T) {
 	if got.Status != api.StatusClaimed || got.BlockedReason != "need access" {
 		t.Fatalf("blocked is a flag on a claimed task: %+v", got)
 	}
-	got = e.act(e.worker(), task.ID, "release", nil)
+	got = e.act(e.worker(), task.ID, "release", handoffBody)
 	if got.Status != api.StatusOpen || got.Owner != "" || got.BlockedReason != "" {
 		t.Fatalf("released: %+v", got)
 	}
@@ -1012,7 +1014,7 @@ func TestUnclaimedAssignedTaskIsReported(t *testing.T) {
 	}
 	// A claimed task is the lease's business, not this check's.
 	e.ok(e.worker2(), "POST", taskPath(t2.ID, "claim"), nil, nil)
-	e.ok(e.worker2(), "POST", taskPath(t2.ID, "release"), nil, nil)
+	e.ok(e.worker2(), "POST", taskPath(t2.ID, "release"), handoffBody, nil)
 	e.inbox(e.lead())
 	e.clock.advance(11 * time.Minute)
 	if m := sweep(); len(m) != 1 || !strings.Contains(m[0].Body, "has not been claimed") {

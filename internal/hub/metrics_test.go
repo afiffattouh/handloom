@@ -20,7 +20,7 @@ func TestMetricsComeFromTheRecordAndSayHowManyRecordsBackThem(t *testing.T) {
 	ag.lead("POST", "/v1/tasks", api.TaskCreateReq{Title: "two", AssignedTo: "worker"}, &t2)
 	step := func(id int64, exit int, accept bool) {
 		ag.worker("POST", fmt.Sprintf("/v1/tasks/%d/claim", id), nil, nil)
-		ag.worker("POST", fmt.Sprintf("/v1/tasks/%d/submit", id), api.SubmitReq{Evidence: []string{"commit:abc"}}, nil)
+		ag.worker("POST", fmt.Sprintf("/v1/tasks/%d/submit", id), api.SubmitReq{Evidence: []string{"commit:abc"}, Note: "done"}, nil)
 		e.apiOK(ag.device, "", "POST", fmt.Sprintf("/v1/tasks/%d/verify", id), api.TaskCheckReq{Agent: "worker", Command: "./check.sh", ExitCode: exit}, nil)
 		if accept {
 			ag.lead("POST", fmt.Sprintf("/v1/tasks/%d/accept", id), nil, nil)
@@ -31,7 +31,7 @@ func TestMetricsComeFromTheRecordAndSayHowManyRecordsBackThem(t *testing.T) {
 	step(t1.ID, 0, true)  // accepted first time, check passed
 	step(t2.ID, 1, false) // check failed, sent back
 	e.clock.advance(5 * time.Minute)
-	ag.worker("POST", fmt.Sprintf("/v1/tasks/%d/submit", t2.ID), api.SubmitReq{Evidence: []string{"commit:def"}}, nil)
+	ag.worker("POST", fmt.Sprintf("/v1/tasks/%d/submit", t2.ID), api.SubmitReq{Evidence: []string{"commit:def"}, Note: "done"}, nil)
 	e.apiOK(ag.device, "", "POST", fmt.Sprintf("/v1/tasks/%d/verify", t2.ID), api.TaskCheckReq{Agent: "worker", Command: "./check.sh", ExitCode: 0}, nil)
 	ag.lead("POST", fmt.Sprintf("/v1/tasks/%d/accept", t2.ID), nil, nil)
 
@@ -76,7 +76,7 @@ func TestInsightsStateOnlyWhatTheRecordShows(t *testing.T) {
 	var t1 api.Task
 	ag.lead("POST", "/v1/tasks", api.TaskCreateReq{Title: "one", AssignedTo: "worker"}, &t1)
 	ag.worker("POST", fmt.Sprintf("/v1/tasks/%d/claim", t1.ID), nil, nil)
-	ag.worker("POST", fmt.Sprintf("/v1/tasks/%d/submit", t1.ID), api.SubmitReq{Evidence: []string{"commit:abc"}}, nil)
+	ag.worker("POST", fmt.Sprintf("/v1/tasks/%d/submit", t1.ID), api.SubmitReq{Evidence: []string{"commit:abc"}, Note: "done"}, nil)
 	e.apiOK(ag.device, "", "POST", fmt.Sprintf("/v1/tasks/%d/verify", t1.ID), api.TaskCheckReq{Agent: "worker", Command: "./check.sh", ExitCode: 1, Tail: "FAIL"}, nil)
 	ag.worker("POST", "/v1/agents/worker/state", api.StateReq{State: "blocked"}, nil)
 	ag.lead("POST", "/v1/escalations", api.AskReq{Question: "Which one?"}, nil)

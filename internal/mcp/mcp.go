@@ -121,6 +121,27 @@ func simple(name, verb, desc string) tool {
 		}}
 }
 
+// handoffTool is a task verb that takes a handoff note.
+func handoffTool(name, verb, desc string) tool {
+	return tool{Name: name, Description: desc,
+		InputSchema: schema([]string{"id", "done"}, map[string]any{"id": prop("integer", "task number"),
+			"done": prop("string", "where the work got to"), "tried": prop("string", "what you tried, including what did not work"),
+			"next": prop("string", "the next step"), "verify": prop("string", "how to check the state of things")}),
+		argv: func(a args) ([]string, error) {
+			id, err := a.id()
+			if err != nil {
+				return nil, err
+			}
+			out := []string{"task", verb, id}
+			for _, f := range []string{"done", "tried", "next", "verify"} {
+				if v := a.str(f); v != "" {
+					out = append(out, "--"+f, v)
+				}
+			}
+			return out, nil
+		}}
+}
+
 // Tools is the list offered to the agent. Names are prefixed so they cannot
 // clash with another server's tools.
 var Tools = []tool{
@@ -187,7 +208,8 @@ var Tools = []tool{
 	simple("handloom_task_show", "show", "Show one task: description, owner, dependencies, evidence."),
 	simple("handloom_task_claim", "claim", "Claim a task before working on it. Fails if it is assigned to someone else or a dependency is not done."),
 	simple("handloom_task_heartbeat", "heartbeat", "Extend the lease on a task you own."),
-	simple("handloom_task_release", "release", "Give up a task you own. It becomes open again."),
+	handoffTool("handloom_task_release", "release", "Give up a task you own; it becomes open again. A handoff note is required: say where the work got to (done), what you tried, the next step and how to check, because the next agent starts from your note, not from your memory."),
+	handoffTool("handloom_task_handoff", "handoff", "Leave a handoff note on a task you own without stopping: where the work got to (done), what you tried, the next step, how to check. Do this after each meaningful step and before anything that could cut you off, so another agent on another machine can pick the task up."),
 	{Name: "handloom_task_block", Description: "Mark a task you own as blocked, with the reason. The lead is told. Pass an empty reason to clear the flag.",
 		InputSchema: schema([]string{"id"}, map[string]any{"id": prop("integer", "task number"), "reason": prop("string", "why you are blocked; empty clears")}),
 		argv: func(a args) ([]string, error) {
@@ -201,8 +223,9 @@ var Tools = []tool{
 			return []string{"task", "block", id, "--clear"}, nil
 		}},
 	{Name: "handloom_task_submit", Description: "Submit a task you own for review. Evidence is required: commit:<sha>, pr:<url>, file:<path>, test:<command> -> <result>, or free text.",
-		InputSchema: schema([]string{"id", "evidence"}, map[string]any{
-			"id": prop("integer", "task number"), "evidence": stringsT, "note": prop("string", "note for the lead")}),
+		InputSchema: schema([]string{"id", "evidence", "note"}, map[string]any{
+			"id": prop("integer", "task number"), "evidence": stringsT, "note": prop("string", "what you did; required, it becomes the task's handoff note"),
+			"how_to_check": prop("string", "how the reviewer can check the work")}),
 		argv: func(a args) ([]string, error) {
 			id, err := a.id()
 			if err != nil {
@@ -214,6 +237,9 @@ var Tools = []tool{
 			}
 			if n := a.str("note"); n != "" {
 				out = append(out, "--note", n)
+			}
+			if h := a.str("how_to_check"); h != "" {
+				out = append(out, "--how-to-check", h)
 			}
 			return out, nil
 		}},

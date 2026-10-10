@@ -39,5 +39,5 @@ Context that survives a change of device, agent or person (tracking issue #20):
 - #16 Durability tests: crash, late submit, stuck agent, restore, upgrade in flight
 - #17 Find and reuse knowledge: search across a client's notes and past jobs
 - #18 Let a finished job teach: reviewed lessons become notes and skills
-- #19 Join a machine in one step
+- #19 Join a machine in one step (done, v0.1.1)
 

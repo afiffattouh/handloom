@@ -29,7 +29,7 @@
 | **Proof, not claims** | A task is submitted with evidence. The device runs the job's check, refuses edits outside the profile's paths, merges accepted work into an integration branch and re-checks it. A lead cannot accept failed work. |
 | **Only people approve** | Starting and closing jobs, answering questions and writing profiles need a signed-in person. Agents, devices and AI apps cannot. |
 | **Web, terminal, CLI, MCP** | A server-rendered web UI, a full-screen terminal console, every action as a command, and an MCP server so your own AI app can look at your work and start jobs. |
-| **Client knowledge** | A knowledge repository per client that agents read first; what they learn comes back as a proposal on a branch that only you merge. |
+| **Client knowledge** | A knowledge repository per client that agents read first; what they learn comes back as a proposal on a branch that only you merge. `handloom search` finds notes and earlier jobs' work so the next job reuses them. |
 
 <table>
   <tr>
@@ -166,7 +166,7 @@ It never touches a hub's data folder or backups, your repositories, or the `.han
     </td>
     <td width="50%" valign="top">
       <b>Terminal console</b><br>
-      <code>handloom login https://your-hub</code> once, then <code>handloom tui</code>: overview, inbox (accept, send back, answer, each after a y/n), jobs with a new-job form, agents with their terminals, library. See <a href="docs/tui.md">docs/tui.md</a>.
+      <code>handloom login https://your-hub</code> once, then <code>handloom tui</code>: overview, inbox (accept, send back, answer, each after a y/n), jobs with a new-job form, agents with their terminals, library, search. See <a href="docs/tui.md">docs/tui.md</a>.
     </td>
   </tr>
   <tr>
@@ -287,9 +287,10 @@ For a CLI that cannot refuse commands, "never run risky commands" becomes a stan
 Handloom is used for real work by its author and is pre-1.0. Honest about what is and is not proven:
 
 - **Proven with real agents:** Claude Code, Codex, OMP, Pi and OpenCode as workers; Claude Code and OMP as leads; parallel workers; a forced merge conflict resolved by a lead; fully local jobs on a local model. Evidence is in [docs/evidence](docs/evidence) and [DECISIONS.md](DECISIONS.md).
+- **Released:** signed multi-platform binaries, deb/rpm packages, a container image and a Homebrew formula (see [Install](#install)); version 0.1.2 adds search.
 - **Proven on a clean machine:** a Linux amd64 VPS with nothing of Handloom on it: install from a release, join, run the link as a service, register an agent, then `handloom uninstall --purge` left the machine identical to before.
 - **Not proven yet:** phone push against a real ntfy topic; macOS (the link needs tmux and has only been run on Linux so far); the Windows build (command line, console and MCP only) has not been run on Windows.
-- **Planned, tracked as [issues](https://github.com/afiffattouh/handloom/issues):** published binaries and an install script, a remote MCP endpoint, container isolation, schedules and a knowledge librarian.
+- **Planned, tracked as [issues](https://github.com/afiffattouh/handloom/issues):** a remote MCP endpoint, container isolation, schedules and a knowledge librarian.
 
 ## Documentation
 

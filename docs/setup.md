@@ -44,31 +44,23 @@ Sign in. The inbox shows a **Get started** checklist; the next stages tick it of
 
 Do this on every machine. Nothing needs to be open on these machines: they only call out to the hub.
 
-### 2a. Install the program
+### 2a. One command
 
-Easiest: `curl -fsSL https://raw.githubusercontent.com/afiffattouh/handloom/main/install.sh | sh` (Linux and macOS; it checks the download and never uses sudo). Other routes are in the README under [Install](../README.md#install): Homebrew, `.deb` and `.rpm` packages, a tarball, or a container image for the hub. On a machine with Go you can also build it: `go build -o handloom ./cmd/handloom`, then put the binary in your PATH (`sudo install handloom /usr/local/bin/`). Or from the repository, over ssh: `scripts/setup.sh device <ssh-name> --hub https://handloom.example.com` builds it for that machine, copies it and installs the link service (it needs the admin token in `HANDLOOM_TOKEN`).
-
-### 2b. Join it to the hub
-
-In the web UI: **Devices, Add a device**. Give it a name (anything: `laptop`, `build-box`), confirm with your password, and copy the command it shows. It looks like this, with a one-time token that expires:
+In the web UI: **Machines, Add a machine**. Give it a name (anything: `laptop`, `build-box`), confirm with your password, and paste the command it shows on that machine:
 
 ```
-handloom link join https://handloom.example.com hvj_...
+curl -fsSL https://raw.githubusercontent.com/afiffattouh/handloom/main/install.sh | sh -s -- join https://handloom.example.com hvj_...
 ```
 
-Paste it on the machine, then keep the link running across reboots:
+The token is one-time and expires. The command installs Handloom if it is not there (Linux and macOS; it checks the download and never uses sudo), joins the hub, keeps the link running (as a systemd service that starts at boot; where there is no working systemd, in a tmux session called `handloom-link`, which does not survive a reboot; add `--no-service` to choose that), and then checks the machine and prints one fix per problem. The Machines page shows the machine as **ready** by itself when the link has called in. Running the command again is safe.
 
-```
-handloom link install
-```
+If the program is already installed, `handloom join https://handloom.example.com hvj_...` is the same command without the install. Other ways to install it (Homebrew, `.deb` and `.rpm`, a tarball, a container) are in the README under [Install](../README.md#install). From a machine that has Go and ssh access, `scripts/setup.sh device <ssh-name> --hub https://handloom.example.com` builds the program for that machine, copies it and installs the link service (it needs the admin token in `HANDLOOM_TOKEN`).
 
-### 2c. Check it
+### 2b. If something is missing
 
-```
-handloom doctor
-```
+The command lists what the machine lacks: `git`, `tmux`, or an agent CLI that is not installed or not logged in. For a missing tool it prints the install command for your system (`apt`, `dnf`, `brew` and so on) without running it. Fix it and run `handloom doctor`; it ends with "This machine is ready." when it is.
 
-It checks the link and hub connection, git, tmux, and each agent CLI (installed, logged in), and prints one fix per problem. Fix what it says until the last line is "This machine is ready." The device now shows as connected in the Machines page.
+To take a machine out again: `handloom uninstall --purge` (see the README), then revoke it on the Machines page.
 
 ## Stage 3: profiles (in the web UI)
 

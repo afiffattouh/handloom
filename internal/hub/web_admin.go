@@ -89,33 +89,39 @@ func (q *webReq) stepUp() error {
 
 // ---- devices ----
 
+// installScriptURL is the installer that can also join a machine to this hub in one go.
+const installScriptURL = "https://raw.githubusercontent.com/afiffattouh/handloom/main/install.sh"
+
 type deviceView struct {
-	Name    string
-	Status  string
-	Seen    string
-	Agents  int
-	Revoked bool
-	Pending bool
+	Name     string
+	Status   string
+	Seen     string
+	Agents   int
+	Revoked  bool
+	Pending  bool
+	Ready    bool // joined, and its link has called in lately
+	Settling bool // waiting to join, or joined and its link has not called in yet: the page keeps looking
 }
 
 type devicesView struct {
 	Devices  []deviceView
 	CanAdmin bool
 	NewName  string // a device that was just added
-	JoinCmd  string // shown once
+	JoinCmd  string // shown once: install if needed, join, keep the link running, check the machine
+	AltCmd   string // the same, for a machine that already has handloom
 	Base     string
 	TTL      string
 }
 
-func (q *webReq) devicesPage(status int, errMsg string, fresh *devicesView) error {
+func (q *webReq) devicesView(fresh *devicesView) (*devicesView, error) {
 	h := q.c.h
 	ds, err := store.ListDevices(q.c.tx)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	v := &devicesView{CanAdmin: q.isOwner(), Base: h.publicBase(q.r), TTL: humanDur(h.opt.JoinTTL)}
 	if fresh != nil {
-		v.NewName, v.JoinCmd = fresh.NewName, fresh.JoinCmd
+		v.NewName, v.JoinCmd, v.AltCmd = fresh.NewName, fresh.JoinCmd, fresh.AltCmd
 	}
 	for _, d := range ds {
 		dv := deviceView{Name: d.Name, Agents: d.Agents}
@@ -123,12 +129,16 @@ func (q *webReq) devicesPage(status int, errMsg string, fresh *devicesView) erro
 		case d.Revoked.Valid:
 			dv.Status, dv.Revoked = "revoked "+ago(q.now, store.Time(d.Revoked.Int64)), true
 		case d.Joined:
-			dv.Status = "joined"
+			dv.Status = "joined, link not running"
+			dv.Settling = !d.LastSeen.Valid
 			if d.LastSeen.Valid {
 				dv.Seen = "seen " + ago(q.now, store.Time(d.LastSeen.Int64))
+				if q.now.Sub(store.Time(d.LastSeen.Int64)) < time.Minute {
+					dv.Status, dv.Ready = "ready", true
+				}
 			}
 		default:
-			dv.Pending = true
+			dv.Pending, dv.Settling = true, true
 			dv.Status = "waiting for it to join"
 			if d.JoinUntil.Valid {
 				if store.Time(d.JoinUntil.Int64).Before(q.now) {
@@ -140,11 +150,34 @@ func (q *webReq) devicesPage(status int, errMsg string, fresh *devicesView) erro
 		}
 		v.Devices = append(v.Devices, dv)
 	}
+	return v, nil
+}
+
+func (q *webReq) devicesPage(status int, errMsg string, fresh *devicesView) error {
+	v, err := q.devicesView(fresh)
+	if err != nil {
+		return err
+	}
 	q.page(status, "devices", pageData{Title: "Machines", Error: errMsg, Notice: map[string]string{"revoked": "Device revoked."}[q.r.URL.Query().Get("done")], Extra: v})
 	return nil
 }
 
 func (h *Hub) webDevices(q *webReq) error { return q.devicesPage(200, "", nil) }
+
+// webDevicesFragment is the list of machines alone, for the page to refresh while a machine is joining.
+func (h *Hub) webDevicesFragment(q *webReq) error {
+	v, err := q.devicesView(nil)
+	if err != nil {
+		return err
+	}
+	buf := &bytesBuffer{}
+	if err := h.pages["devices"].ExecuteTemplate(buf, "machines", pageData{Human: q.human, CSRF: q.sess.CSRF, Extra: v}); err != nil {
+		return err
+	}
+	q.w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	q.w.Write(buf.b)
+	return nil
+}
 
 func (h *Hub) webDeviceAdd(q *webReq) error {
 	if !q.isOwner() {
@@ -161,8 +194,10 @@ func (h *Hub) webDeviceAdd(q *webReq) error {
 	if err != nil {
 		return q.deviceError(err)
 	}
-	cmd := fmt.Sprintf("handloom link join %s %s", h.publicBase(q.r), tok)
-	return q.devicesPage(200, "", &devicesView{NewName: name, JoinCmd: cmd})
+	base := h.publicBase(q.r)
+	one := fmt.Sprintf("curl -fsSL %s | sh -s -- join %s %s", installScriptURL, base, tok)
+	alt := fmt.Sprintf("handloom join %s %s", base, tok)
+	return q.devicesPage(200, "", &devicesView{NewName: name, JoinCmd: one, AltCmd: alt})
 }
 
 func (q *webReq) deviceError(err error) error {

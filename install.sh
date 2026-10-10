@@ -3,11 +3,17 @@
 #   curl -fsSL https://raw.githubusercontent.com/afiffattouh/handloom/main/install.sh | sh
 #   HANDLOOM_VERSION=v0.1.0 sh install.sh        a specific release (default: the latest)
 #   HANDLOOM_INSTALL_DIR=/opt/bin sh install.sh  where to put it (default: /usr/local/bin if you can write there, else ~/.local/bin)
+#   curl -fsSL .../install.sh | sh -s -- join <hub-url> <join-token>   install, then join this machine to a hub in one go
 # It checks the download against the release's checksums.txt and installs nothing if they differ.
 # It never uses sudo: if you want /usr/local/bin, run it as a user who can write there, or set HANDLOOM_INSTALL_DIR.
 set -eu
 
 REPO="afiffattouh/handloom"
+mode=install; JOIN_HUB=""; JOIN_TOKEN=""
+if [ "${1:-}" = join ]; then
+  [ $# -ge 3 ] || { printf 'usage: sh install.sh join <hub-url> <join-token> [--no-service] [--no-start]\n' >&2; exit 1; }
+  mode=join; JOIN_HUB="$2"; JOIN_TOKEN="$3"; shift 3   # what is left (flags) goes to handloom join
+fi
 say() { printf '%s\n' "$*"; }
 die() { printf 'handloom install: %s\n' "$*" >&2; exit 1; }
 
@@ -78,6 +84,10 @@ fi
 
 say "Installed: $("$dir/handloom" version)"
 case ":$PATH:" in *":$dir:"*) ;; *) say "Note: $dir is not on your PATH. Add it: export PATH=\"$dir:\$PATH\"" ;; esac
+if [ "$mode" = join ]; then
+  # the program is not on PATH yet in this shell, and the service it installs copies PATH: put its folder first
+  PATH="$dir:$PATH" exec "$dir/handloom" join "$JOIN_HUB" "$JOIN_TOKEN" "$@"
+fi
 cat <<NEXT
 
 Next:

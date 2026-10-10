@@ -16,7 +16,7 @@ import (
 	"handloom/internal/api"
 )
 
-var joinCmdRE = regexp.MustCompile(`handloom link join (\S+) (hvj_[A-Za-z0-9_-]+)`)
+var joinCmdRE = regexp.MustCompile(`handloom join (\S+) (hvj_[A-Za-z0-9_-]+)`)
 
 func (e *webEnv) post(path string, c *http.Cookie, tok string, form url.Values) webResp {
 	if form == nil {
@@ -313,4 +313,46 @@ func TestEveryWebRouteNeedsASession(t *testing.T) {
 		}
 	}
 	_ = fmt.Sprint
+}
+
+func TestAddingAMachineShowsOneCommandAndTheListSaysWhenItIsReady(t *testing.T) {
+	e := newWebEnv(t, Options{})
+	c, tok := e.owner()
+	added := e.post("/devices", c, tok, url.Values{"name": {"box"}, "current_password": {goodPassword}})
+	for _, want := range []string{"install.sh | sh -s -- join " + testOrigin, "Already installed", "handloom join " + testOrigin, "installs Handloom if it is not there"} {
+		if !strings.Contains(added.body, want) {
+			t.Errorf("the add page lacks %q", want)
+		}
+	}
+	m := joinCmdRE.FindStringSubmatch(added.body)
+	// waiting: the fragment says so and carries the marker the page's script polls on
+	frag := e.req("GET", "/devices/fragment", nil, c, nil)
+	if frag.status != 200 || !strings.Contains(frag.body, `data-pending="box"`) || strings.Contains(frag.body, "<html") {
+		t.Fatalf("fragment while waiting: %d %s", frag.status, frag.body)
+	}
+	// joined but its link has not called in: not ready
+	var join api.JoinResp
+	code, body := e.join(m[2])
+	if code != 200 {
+		t.Fatalf("join: %d %s", code, body)
+	}
+	json.Unmarshal([]byte(body), &join)
+	if f := e.req("GET", "/devices/fragment", nil, c, nil).body; strings.Contains(f, "data-pending") || strings.Contains(f, `data-ready="1"`) || !strings.Contains(f, "joined, link not running") || !strings.Contains(f, `data-settling="1"`) {
+		t.Fatalf("fragment after joining: %s", f)
+	}
+	// the link calls in: ready, and the polling marker is gone
+	e.apiOK(join.Credential, "", "GET", "/v1/device/agents", nil, nil)
+	f := e.req("GET", "/devices/fragment", nil, c, nil).body
+	if !strings.Contains(f, `data-ready="1"`) || !strings.Contains(f, ">ready<") || strings.Contains(f, "data-pending") || strings.Contains(f, "data-settling") {
+		t.Fatalf("fragment once the link has called in: %s", f)
+	}
+	// and it stops being ready if the link goes quiet
+	e.clock.advance(5 * time.Minute)
+	if f := e.req("GET", "/devices/fragment", nil, c, nil).body; strings.Contains(f, `data-ready="1"`) {
+		t.Fatalf("still ready after five quiet minutes: %s", f)
+	}
+	// a viewer cannot see tokens, only the list
+	if r := e.req("GET", "/devices/fragment", nil, nil, nil); r.status == 200 {
+		t.Fatal("the fragment is open to anyone")
+	}
 }

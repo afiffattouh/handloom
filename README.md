@@ -101,25 +101,13 @@ docker compose -f docker-compose.caddy.yml logs handloom | grep -E "Admin token|
 
 Open `https://handloom.example.com/setup`, enter the setup code and make your owner account. Keep the admin token somewhere safe. On Dokploy, see [docs/deploy.md](docs/deploy.md).
 
-**2. Join each machine** that will run agents. It needs `git`, `tmux` and at least one logged-in agent CLI. First install the program (one static binary), by whichever route suits the machine:
+**2. Join each machine** that will run agents. In the web UI go to Machines, Add a machine, and paste the one command it shows on that machine. It installs Handloom if needed, joins the hub, keeps the link running (as a service, or in tmux where there is no systemd) and checks the machine, saying what to fix. The page shows the machine as **ready** when it is.
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/afiffattouh/handloom/main/install.sh | sh   # Linux and macOS; checks the download
-brew tap afiffattouh/handloom https://github.com/afiffattouh/handloom && brew install handloom
-sudo dpkg -i handloom_<version>_linux_amd64.deb      # or the .rpm; from the release page
-docker run ghcr.io/afiffattouh/handloom:latest       # the hub, as a container
-go build -o handloom ./cmd/handloom                  # from source
+curl -fsSL https://raw.githubusercontent.com/afiffattouh/handloom/main/install.sh | sh -s -- join https://handloom.example.com <join-token>
 ```
 
-Then join it to the hub:
-
-```bash
-handloom link join https://handloom.example.com <join-token>   # copy it from the web UI: Machines, Add a machine
-handloom link install                                          # starts at boot
-handloom doctor                                                # says what is missing, one fix per problem
-```
-
-See [Install](#install) for every route and how to verify a download.
+Already have the program? `handloom join https://handloom.example.com <join-token>` does the same. The machine needs `git`, `tmux` and at least one logged-in agent CLI (Claude Code, Codex, OMP, Pi or OpenCode); if something is missing the command prints the exact install command for your system. Other ways to install the program (Homebrew, packages, a container) are under [Install](#install).
 
 **3. Add profiles.** In the web UI: Profiles, Starter library, add a lead and a worker and choose their CLI. Or from the command line:
 

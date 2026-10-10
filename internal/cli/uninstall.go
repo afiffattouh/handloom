@@ -92,6 +92,11 @@ func (e *env) uninstallPlan(exe, home string, purge bool) []uninstallStep {
 			}
 		}
 	}
+	if out, err := exec.Command("tmux", "list-sessions", "-F", "#{session_name}").Output(); err == nil && strings.Contains("\n"+string(out), "\nhandloom-link\n") {
+		steps = append(steps, uninstallStep{"stop the link running in the tmux session handloom-link", func() error {
+			return exec.Command("tmux", "kill-session", "-t", "handloom-link").Run()
+		}})
+	}
 	if purge {
 		socket := "handloom"
 		if out, err := exec.Command("tmux", "-L", socket, "list-sessions").Output(); err == nil && len(strings.TrimSpace(string(out))) > 0 {

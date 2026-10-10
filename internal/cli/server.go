@@ -290,16 +290,12 @@ func (e *env) link(args []string) error {
 		if err != nil {
 			return err
 		}
-		var resp api.JoinResp
-		if err := client.Direct(pos[0], "").Post("/v1/devices/join", api.JoinReq{JoinToken: pos[1]}, &resp); err != nil {
-			return err
-		}
-		cfg := &client.LinkConfig{Hub: pos[0], Device: resp.Device, Credential: resp.Credential}
-		if err := client.SaveLinkConfig(cfg); err != nil {
+		cfg, err := e.joinHub(pos[0], pos[1])
+		if err != nil {
 			return err
 		}
 		fmt.Fprintf(e.out, "Joined %s as device %s. Credential saved in %s (mode 0600).\nStart the link with: handloom link run\n",
-			pos[0], resp.Device, client.Home())
+			cfg.Hub, cfg.Device, client.Home())
 		return nil
 	case "run":
 		fs := e.flags("link run")

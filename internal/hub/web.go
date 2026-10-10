@@ -232,6 +232,7 @@ func (h *Hub) webRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /devices/{name}/revoke", web(h.authed(h.webDeviceRevoke)))
 	mux.HandleFunc("GET /command", web(h.authed(h.webCommand)))
 	mux.HandleFunc("GET /command/fragment", web(h.authed(h.webCommandFragment)))
+	mux.HandleFunc("GET /devices/fragment", web(h.authed(h.webDevicesFragment)))
 	mux.HandleFunc("GET /jobs", web(h.authed(h.webJobs)))
 	mux.HandleFunc("GET /jobs/new", web(h.authed(h.webJobNewForm)))
 	mux.HandleFunc("POST /jobs", web(h.authed(h.webJobCreate)))

@@ -721,8 +721,9 @@ func (h *Hub) handleJoin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	cred := store.NewToken(store.PrefixDevice)
-	if _, err := tx.Exec(`UPDATE device SET join_hash = NULL, credential_hash = ?, last_seen_at = ? WHERE id = ?`,
-		store.HashToken(cred), store.Millis(c.now), id); err != nil {
+	// last_seen stays empty until the link itself calls in: "joined" and "its link is running" are different things
+	if _, err := tx.Exec(`UPDATE device SET join_hash = NULL, credential_hash = ? WHERE id = ?`,
+		store.HashToken(cred), id); err != nil {
 		h.writeErr(w, err)
 		return
 	}

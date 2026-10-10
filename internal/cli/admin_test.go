@@ -2,6 +2,9 @@ package cli
 
 import (
 	"bytes"
+	"encoding/json"
+	"handloom/internal/api"
+	"handloom/internal/client"
 	"os"
 	"path/filepath"
 	"strings"
@@ -129,6 +132,9 @@ func TestUninstallRemovesOnlyWhatItShouldAndSaysSoFirst(t *testing.T) {
 	repo := filepath.Join(dir, "repo", ".handloom")
 	os.MkdirAll(repo, 0o755)
 	t.Setenv("HANDLOOM_HOME", home)
+	// never let a test touch the real machine's tmux sessions or services: no tmux, no systemctl on this PATH
+	t.Setenv("PATH", t.TempDir())
+	t.Setenv("HOME", t.TempDir())
 
 	e := &env{out: &bytes.Buffer{}, err: &bytes.Buffer{}}
 	plain := e.uninstallPlan(exe, home, false)
@@ -233,4 +239,42 @@ func TestHandoffNotesThroughTheCLI(t *testing.T) {
 		t.Fatalf("show: %s", show)
 	}
 	r.agentOK("worker2", "task", "submit", "1", "--evidence", "test:go test -> ok", "--note", "backfilled", "--how-to-check", "go test ./migrate")
+}
+
+func TestJoinInOneCommand(t *testing.T) {
+	r := newRig(t)
+	out := r.as(r.admin, "device", "add", "second", "--json")
+	var tok api.TokenResp
+	json.Unmarshal([]byte(out), &tok)
+	t.Setenv("HANDLOOM_HOME", filepath.Join(t.TempDir(), "other-machine")) // another machine, with its own folder
+	got := r.run("join", r.hubURL+"/", tok.Token, "--no-start")
+	if !strings.Contains(got, "joined as second") || !strings.Contains(got, "Not started") {
+		t.Fatalf("join: %s", got)
+	}
+	cfg, err := client.LoadLinkConfig()
+	if err != nil || cfg.Device != "second" || cfg.Hub != r.hubURL {
+		t.Fatalf("saved: %+v %v", cfg, err)
+	}
+	// running it again is safe: the credential is kept, the used token is not needed
+	again := r.run("join", r.hubURL, tok.Token, "--no-start")
+	if !strings.Contains(again, "already joined as second") {
+		t.Fatalf("second run: %s", again)
+	}
+	// another hub: refused in words, nothing overwritten
+	code, _, errs := r.exec("join", "http://127.0.0.1:9", "hvj_x", "--no-start")
+	if code == 0 || !strings.Contains(errs, "already joined") || !strings.Contains(errs, "uninstall --purge") {
+		t.Fatalf("a second hub: %d %s", code, errs)
+	}
+	if cfg2, _ := client.LoadLinkConfig(); cfg2.Hub != r.hubURL {
+		t.Fatal("the saved hub was overwritten")
+	}
+	// a bad token on a fresh machine says what to do
+	t.Setenv("HANDLOOM_HOME", filepath.Join(t.TempDir(), "third"))
+	code, _, errs = r.exec("join", r.hubURL, "hvj_nonsense", "--no-start")
+	if code == 0 || !strings.Contains(errs, "Add a machine") {
+		t.Fatalf("a bad token: %d %s", code, errs)
+	}
+	if hint := installHint("tmux"); !strings.Contains(hint, "tmux") {
+		t.Fatalf("hint: %q", hint)
+	}
 }

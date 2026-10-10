@@ -100,6 +100,9 @@ func snippet(text string, terms []string) string {
 func isRuneStart(b byte) bool { return b&0xC0 != 0x80 }
 
 func searchGet(c *call) (any, error) {
+	if c.p.kind == kindDevice && c.p.agent == nil && c.p.agentName == "" {
+		return nil, forbidden("searching earlier jobs needs an agent identity (HANDLOOM_AGENT) or a person's token (handloom login); this machine's device token alone does not say which client's work it may see")
+	}
 	if err := c.allow(ActRead); err != nil {
 		return nil, err
 	}

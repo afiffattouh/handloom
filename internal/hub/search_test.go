@@ -134,3 +134,11 @@ func TestTheSearchPageFindsEarlierJobsAndSaysWhereNotesAreSearched(t *testing.T)
 		t.Fatal("search is open to anyone")
 	}
 }
+
+func TestSearchFromADeviceWithNoAgentIdentityExplainsWhat(t *testing.T) {
+	e := newEnv(t)
+	msg := e.fail(403, caller{e.d1, ""}, "GET", "/v1/search?q=prefix", nil)
+	if !strings.Contains(msg, "person's token") {
+		t.Fatalf("the refusal does not say what to do: %s", msg)
+	}
+}

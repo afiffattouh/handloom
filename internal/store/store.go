@@ -333,6 +333,7 @@ CREATE TABLE handoff (
 );
 CREATE INDEX handoff_task ON handoff(task_id, id);
 CREATE TRIGGER handoff_no_update BEFORE UPDATE ON handoff BEGIN SELECT RAISE(ABORT, 'handoff is append-only'); END;
+CREATE TRIGGER handoff_no_delete BEFORE DELETE ON handoff BEGIN SELECT RAISE(ABORT, 'handoff is append-only'); END;
 `, `
 CREATE TABLE lesson (
   id            INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -350,7 +351,6 @@ CREATE TABLE lesson (
   created_at    INTEGER NOT NULL
 );
 CREATE INDEX lesson_status ON lesson(status, id);
-CREATE TRIGGER handoff_no_delete BEFORE DELETE ON handoff BEGIN SELECT RAISE(ABORT, 'handoff is append-only'); END;
 `}
 
 // Open opens (and migrates) the database at path. Use ":memory:" in tests.

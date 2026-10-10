@@ -246,6 +246,8 @@ acme-knowledge/                  # one repository per client, owned by you
 branch job/12                    # what job 12's agents proposed; you review it, then merge it
 ```
 
+**Finding and reusing it.** `handloom search <words>` looks in the client's notes on the machine (an agent's `.handloom/knowledge/`, or any folder with `--knowledge`, following `[[links]]` one step) and in what earlier jobs recorded on the hub: briefs, finished work, handoff notes and answered questions. Agents are told to search before they plan and to say what helped in their evidence (`used:clients/acme.md`, `used:job#3`). The notes are read where they live and never sent to the hub; the web UI's search box and the console's Search screen cover what earlier jobs recorded. An agent only sees jobs that share its job's knowledge repository (a confidential job only if its own job is confidential).
+
 Continuing a project: a job points at an existing repository and starts from its latest commit; to build on unmerged work, give it a base branch such as `job/12/integration`. The hub sees the knowledge repository's path and a count of proposed notes, not the notes or their file names; back those up with git. A librarian that keeps the notes tidy is planned ([#7](https://github.com/afiffattouh/handloom/issues/7)).
 
 ## Agent CLIs

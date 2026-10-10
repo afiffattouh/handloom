@@ -205,6 +205,18 @@ var Tools = []tool{
 			}
 			return out, nil
 		}},
+	{Name: "handloom_search", Description: "Search what the team already knows: the client's notes on this machine (.handloom/knowledge) and what earlier jobs recorded (briefs, results, handoff notes, answered questions). Do this before you plan or start. If a result helps, name it in your evidence: used:<note path or job #id>.",
+		InputSchema: schema([]string{"query"}, map[string]any{"query": prop("string", "a few words, such as: invoice prefix"), "limit": prop("integer", "most results per kind (default 8)")}),
+		argv: func(a args) ([]string, error) {
+			if a.str("query") == "" {
+				return nil, fmt.Errorf("query is required")
+			}
+			out := []string{"search", a.str("query")}
+			if l := a.str("limit"); l != "" {
+				out = append(out, "--limit", l)
+			}
+			return out, nil
+		}},
 	simple("handloom_task_show", "show", "Show one task: description, owner, dependencies, evidence."),
 	simple("handloom_task_claim", "claim", "Claim a task before working on it. Fails if it is assigned to someone else or a dependency is not done."),
 	simple("handloom_task_heartbeat", "heartbeat", "Extend the lease on a task you own."),

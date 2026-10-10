@@ -443,3 +443,9 @@ label.intent { align-items: flex-start; }
 .copy-btn:hover { background: var(--accent); color: var(--foreground); filter: none; }
 .copy-btn.done { color: var(--success); }
 @media (hover: none) { .copy-btn { opacity: 1; } }
+
+/* the search box in the top bar */
+.topsearch { margin: 0; }
+.topsearch input { height: 32px; width: 11rem; padding: 0 10px; border-radius: 8px; font-size: 13px; background: var(--background); }
+.topsearch input:focus { width: 16rem; }
+@media (max-width: 820px) { .topsearch { display: none; } }

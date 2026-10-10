@@ -278,3 +278,51 @@ func TestJoinInOneCommand(t *testing.T) {
 		t.Fatalf("hint: %q", hint)
 	}
 }
+
+func TestSearchNotesOnThisMachineAndEarlierJobsOnTheHub(t *testing.T) {
+	r := newRig(t)
+	notes := t.TempDir()
+	os.MkdirAll(filepath.Join(notes, "clients"), 0o755)
+	os.WriteFile(filepath.Join(notes, "clients", "acme.md"), []byte("# Acme\n\nInvoice prefix: ACM. See [[terms]].\n"), 0o644)
+	os.WriteFile(filepath.Join(notes, "clients", "terms.md"), []byte("# Terms\n\nNet 30.\n"), 0o644)
+	r.as(r.human, "job", "new", "Invoice numbers", "--body", "Acme wants the ACM prefix on every invoice number")
+
+	out := r.as(r.human, "search", "invoice", "prefix", "--knowledge", notes)
+	for _, want := range []string{"Notes in " + notes, "clients/acme.md", "Invoice prefix: ACM", "clients/terms.md", "(linked from a match)", "Earlier jobs (on the hub)", "[job]", "Invoice numbers", "used:"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("search output lacks %q:\n%s", want, out)
+		}
+	}
+	// only one kind
+	if only := r.as(r.human, "search", "prefix", "--notes", "--knowledge", notes); strings.Contains(only, "Earlier jobs") || !strings.Contains(only, "acme.md") {
+		t.Fatalf("--notes: %s", only)
+	}
+	if only := r.as(r.human, "search", "prefix", "--jobs"); strings.Contains(only, "Notes in") || !strings.Contains(only, "[job]") {
+		t.Fatalf("--jobs: %s", only)
+	}
+	// from a folder with no notes above it, it says where to point it
+	here := t.TempDir()
+	t.Chdir(here)
+	if out := r.as(r.human, "search", "prefix"); !strings.Contains(out, "No knowledge repository here") || !strings.Contains(out, "[job]") {
+		t.Fatalf("without notes: %s", out)
+	}
+	// an agent's folder has them at .handloom/knowledge, found from a subfolder
+	os.MkdirAll(filepath.Join(here, ".handloom", "knowledge"), 0o755)
+	os.WriteFile(filepath.Join(here, ".handloom", "knowledge", "acme.md"), []byte("# Acme\n\nBilling contact is Dana.\n"), 0o644)
+	os.MkdirAll(filepath.Join(here, "src", "deep"), 0o755)
+	t.Chdir(filepath.Join(here, "src", "deep"))
+	if out := r.as(r.human, "search", "billing", "contact", "--notes"); !strings.Contains(out, "acme.md") || !strings.Contains(out, "Dana") {
+		t.Fatalf("found from a subfolder: %s", out)
+	}
+	// a bad query and --json
+	if code, _, errs := r.exec("search", "the"); code != 2 || !strings.Contains(errs, "usage") {
+		t.Fatalf("an empty query: %d %s", code, errs)
+	}
+	var res struct {
+		Notes []struct{ Path string }
+		Jobs  []struct{ Kind string }
+	}
+	if err := json.Unmarshal([]byte(r.as(r.human, "search", "prefix", "--knowledge", notes, "--json")), &res); err != nil || len(res.Notes) == 0 || len(res.Jobs) == 0 {
+		t.Fatalf("json: %v %+v", err, res)
+	}
+}

@@ -126,3 +126,16 @@ func TestToolCallsBecomeCommandLines(t *testing.T) {
 		t.Fatalf("unknown tool: %v", r)
 	}
 }
+
+func TestSearchToolsRunTheSearchCommand(t *testing.T) {
+	var got [][]string
+	run := func(argv []string) (string, string, int) { got = append(got, argv); return "ok", "", 0 }
+	call("handloom_search", args{"query": "invoice prefix", "limit": 3.0}, run, Tools)
+	call("handloom_search", args{"query": "invoice prefix"}, run, OperatorTools(false))
+	if len(got) != 2 || strings.Join(got[0], " ") != "search invoice prefix --limit 3" || strings.Join(got[1], " ") != "search --jobs invoice prefix" {
+		t.Fatalf("commands: %v", got)
+	}
+	if r := call("handloom_search", args{}, run, Tools); r["isError"] != true {
+		t.Fatal("an empty search should be a tool error")
+	}
+}

@@ -49,6 +49,7 @@
           <nav class="breadcrumb" aria-label="Where you are"><ol>{{range $i, $c := .Crumbs}}{{if $i}}<li class="sep" aria-hidden="true"><svg class="icon"><use href="#i-chevron-right"/></svg></li>{{end}}<li>{{if $c.Href}}<a href="{{$c.Href}}">{{$c.Label}}</a>{{else}}<span aria-current="page">{{$c.Label}}</span>{{end}}</li>{{end}}</ol></nav>
         </div>
         <div class="tb-right">
+          <form method="get" action="/search" class="topsearch" role="search"><input type="search" name="q" placeholder="Search jobs" aria-label="Search what earlier jobs recorded" autocomplete="off"></form>
           <details class="dd">
             <summary class="icon-btn" aria-label="Theme" title="Theme"><svg class="icon"><use href="#i-sun-moon"/></svg></summary>
             <div class="dd-menu" role="group" aria-label="Theme">

@@ -67,6 +67,13 @@ func OperatorTools(allowApprovals bool) []tool {
 				}
 				return []string{"task", "show", id}, nil
 			}),
+		reader("handloom_search", "Search what earlier jobs recorded on the hub: briefs, finished work, handoff notes and answered questions.", map[string]any{"query": prop("string", "a few words, such as: invoice prefix")}, []string{"query"},
+			func(a args) ([]string, error) {
+				if a.str("query") == "" {
+					return nil, fmt.Errorf("query is required")
+				}
+				return []string{"search", "--jobs", a.str("query")}, nil
+			}),
 		fixed("handloom_agents", "List every agent with its role, machine and state.", "agents"),
 		fixed("handloom_questions", "List the questions agents have asked the person, answered or not.", "escalations", "--status", "all"),
 		fixed("handloom_profiles", "List the person's profiles: what each kind of agent may do.", "profiles"),

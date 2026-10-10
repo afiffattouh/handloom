@@ -449,6 +449,18 @@ type SubmitReq struct {
 	HowToCheck string   `json:"how_to_check,omitempty"` // how a reviewer or the next agent can verify it
 }
 
+// SearchHit is one result of a search of what earlier jobs recorded.
+type SearchHit struct {
+	Kind    string    `json:"kind"` // job | task | handoff | answer
+	Job     int64     `json:"job,omitempty"`
+	Task    int64     `json:"task,omitempty"`
+	Title   string    `json:"title"`
+	Snippet string    `json:"snippet"`
+	Who     string    `json:"who,omitempty"`
+	At      time.Time `json:"at"`
+	Score   int       `json:"score"`
+}
+
 // HandoffReq is what a task's owner writes for whoever picks the task up next.
 type HandoffReq struct {
 	Done   string `json:"done"`             // where the work got to

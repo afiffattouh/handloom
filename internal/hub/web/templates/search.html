@@ -1,0 +1,25 @@
+{{define "content"}}
+{{with .Extra}}
+<div class="page-head"><div><h1>Search</h1><p class="desc">What earlier jobs recorded on this hub: briefs, finished work, handoff notes and answered questions.</p></div></div>
+<form method="get" action="/search" class="inline">
+  <input type="search" name="q" value="{{.Query}}" placeholder="invoice prefix" aria-label="What to look for" autofocus>
+  <button type="submit">Search</button>
+</form>
+{{if .Asked}}
+<section class="card" aria-labelledby="res">
+  <div class="ch"><div><h2 id="res">{{len .Hits}} result{{if ne (len .Hits) 1}}s{{end}}</h2></div></div>
+  <div class="cc flush"><div class="rows">
+  {{range .Hits}}
+  <div class="row">
+    <div><span class="badge outline">{{.Kind}}</span> <a href="{{.Href}}">{{.Title}}</a> <span class="desc">{{.Ago}}{{if .Who}} · {{.Who}}{{end}}</span>
+    <div class="desc text">{{.Snippet}}</div></div>
+  </div>
+  {{else}}
+  <div class="empty">Nothing recorded on the hub matches. Try fewer or different words.</div>
+  {{end}}
+  </div></div>
+</section>
+{{end}}
+<p class="desc">A client's notes stay on the machine that holds them, so they are not searched here. On that machine run <code>handloom search --notes --knowledge FOLDER your words</code>; agents on a job with a knowledge repository do this themselves.</p>
+{{end}}
+{{end}}

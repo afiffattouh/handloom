@@ -71,6 +71,7 @@ jobs:
         if: github.event_name == 'push' && !contains(github.ref_name, '-')
         run: |
           git fetch origin main && git checkout -B main origin/main
+          mkdir -p Formula
           scripts/make-formula.sh "$VERSION" dist/checksums.txt > Formula/handloom.rb
           git add Formula/handloom.rb
           if ! git diff --cached --quiet; then

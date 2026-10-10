@@ -231,7 +231,7 @@ func (c *call) searchableJobs() (map[int64]*jobInfo, error) {
 	}
 	a, err := c.agent()
 	if err != nil {
-		return nil, err
+		return nil, forbidden("searching earlier jobs needs an agent identity (HANDLOOM_AGENT) or a person's token (handloom login); this machine's device token alone does not say which client's work it may see")
 	}
 	var own *jobInfo
 	if a.jobID.Valid {

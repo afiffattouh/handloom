@@ -235,6 +235,10 @@ func (h *Hub) Handler() http.Handler {
 	v1("POST /tasks/{id}/verify", taskVerify)
 	v1("GET /metrics", metricsGet)
 	v1("GET /search", searchGet)
+	v1("POST /lessons", lessonPropose)
+	v1("GET /lessons", lessonList)
+	v1("POST /lessons/{id}/accept", lessonAccept)
+	v1("POST /lessons/{id}/reject", lessonReject)
 	v1("GET /prices", pricesList)
 	v1("POST /prices", pricesSet)
 	v1("POST /prices/delete", pricesDelete)
@@ -783,7 +787,7 @@ func (h *Hub) allowRate(key string, burst, perMinute float64, now time.Time) boo
 // look at the picture and start work; accepting, answering, closing and every
 // setting stay with the person's own token and the web UI.
 var operatorCalls = map[string]bool{
-	"GET /v1/whoami": true, "GET /v1/digest": true, "GET /v1/metrics": true, "GET /v1/search": true, "GET /v1/projects": true,
+	"GET /v1/whoami": true, "GET /v1/digest": true, "GET /v1/metrics": true, "GET /v1/search": true, "GET /v1/lessons": true, "GET /v1/projects": true,
 	"GET /v1/jobs": true, "GET /v1/jobs/{id}": true, "POST /v1/jobs": true,
 	"GET /v1/tasks": true, "GET /v1/tasks/{id}": true,
 	"GET /v1/agents": true, "GET /v1/agents/{name}/screen": true,

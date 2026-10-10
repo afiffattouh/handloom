@@ -1,0 +1,35 @@
+{{define "content"}}
+<div class="page-head"><div><h1>Lessons</h1><p class="desc">What finished jobs propose to teach. A lesson is a short addition to one skill. Nothing applies until you accept it; accepting makes a new version of the profile, and agents started from it afterwards have the lesson. Agents already running and earlier jobs keep the version they had.</p></div><div class="acts"><div class="tabs" role="group" aria-label="Profiles"><a href="/profiles">My profiles</a><a href="/profiles/starters">Starter library</a><a href="/lessons" aria-current="page">Lessons</a></div></div></div>
+{{with .Extra}}
+<section class="card" aria-labelledby="open"><div class="ch"><div><h2 id="open">Waiting for you ({{len .Proposed}})</h2></div></div>
+  <div class="cc">
+  {{range .Proposed}}
+    <div class="stack">
+      <p class="text"><strong>{{.Profile}} / {{.Skill}}</strong> <span class="desc">· proposed by {{.ProposedBy}}{{if .Job}} after job #{{.Job}}{{end}} · {{.Ago}}</span></p>
+      <p class="text">{{.Text}}</p>
+      <p class="desc">Why: {{.Why}}</p>
+      {{if $.Extra.CanDecide}}
+      <div class="acts">
+        <form method="post" action="/lessons/{{.ID}}/accept"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button type="submit">Accept</button></form>
+        <form method="post" action="/lessons/{{.ID}}/reject" class="inline"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input name="reason" placeholder="Why not (optional)" aria-label="Why not" maxlength="300"><button type="submit" class="secondary">Reject</button></form>
+      </div>
+      {{end}}
+    </div>
+  {{else}}
+    <div class="empty">Nothing waiting. When a job finishes, its lead may propose what it learned about a skill.</div>
+  {{end}}
+  </div>
+</section>
+{{if .Decided}}
+<section class="card" aria-labelledby="done"><div class="ch"><div><h2 id="done">Decided</h2></div></div>
+  <div class="cc flush"><div class="rows">
+  {{range .Decided}}
+  <div class="row"><div><span class="badge outline">{{.Status}}</span> <strong>{{.Profile}} / {{.Skill}}</strong> <span class="desc">· {{.Ago}} · {{.DecidedBy}}</span>
+    <div class="desc text">{{.Text}}</div>
+    {{if eq .Status "accepted"}}<div class="desc">Now in {{.Profile}} version {{.NewVersion}}; {{.Used}} agent{{if ne .Used 1}}s{{end}} started since have it.</div>{{else if .Note}}<div class="desc">Reason: {{.Note}}</div>{{end}}</div></div>
+  {{end}}
+  </div></div>
+</section>
+{{end}}
+{{end}}
+{{end}}

@@ -955,3 +955,32 @@ func gitOut(t *testing.T, dir string, args ...string) string {
 	}
 	return strings.TrimSpace(string(out))
 }
+
+func TestLessonVerbs(t *testing.T) {
+	r := newRig(t)
+	src := filepath.Join(t.TempDir(), "researcher")
+	writeProfileDir(t, src)
+	r.as(r.admin, "profile", "new", src)
+	if out := r.as(r.human, "lesson", "list"); !strings.Contains(out, "No lessons") {
+		t.Fatalf("empty list: %s", out)
+	}
+	out := r.as(r.human, "lesson", "propose", "--profile", "researcher", "--skill", "cite", "--why", "a source was missed", "Cite the page number too.")
+	if !strings.Contains(out, "Proposed lesson #1") {
+		t.Fatalf("propose: %s", out)
+	}
+	if code, _, errs := r.exec("lesson", "propose", "--profile", "researcher"); code != 2 || !strings.Contains(errs, "usage") {
+		t.Fatalf("a bad proposal: %d %s", code, errs)
+	}
+	if out := r.as(r.human, "lesson", "list", "--status", "proposed"); !strings.Contains(out, "Cite the page number too.") || !strings.Contains(out, "why: a source was missed") {
+		t.Fatalf("list: %s", out)
+	}
+	r.t.Setenv("HANDLOOM_HUB", r.hubURL)
+	r.t.Setenv("HANDLOOM_TOKEN", r.human)
+	if code, _, errs := r.exec("lesson", "accept", "1"); code == 0 || !strings.Contains(errs, "owner") {
+		t.Fatalf("a member accepting: %d %s", code, errs)
+	}
+	r.t.Setenv("HANDLOOM_TOKEN", "")
+	if out := r.as(r.human, "lesson", "reject", "1", "--reason", "not needed"); !strings.Contains(out, "Rejected lesson #1") {
+		t.Fatalf("reject: %s", out)
+	}
+}

@@ -105,6 +105,7 @@ Hub and administration (HANDLOOM_HUB and HANDLOOM_TOKEN set to the hub URL and a
   handloom spawn <name> [--profile P] [--kind claude] [--model M] [--device D] [--job N]   start an agent in a terminal the link owns (lead, human)
   handloom spawns                                 list spawn requests and how they went
   handloom digest                                 what needs you, what waits for review, what runs
+  handloom lesson propose|list|accept|reject      a finished job teaches: a short addition to a skill, reviewed by a person, becomes a new profile version
   handloom search <words> [--notes | --jobs] [--knowledge DIR]   what the team already knows: the client's notes on this machine and what earlier jobs recorded
   handloom join <hub-url> <join-token> [--no-start] [--no-service]   do everything to make this machine part of a hub: join, keep the link running, check the machine
   handloom uninstall [--purge] [--yes] [--dry-run]    remove the services and the program from this machine (--purge: also the link folder and agents)
@@ -201,6 +202,8 @@ func Main(args []string, stdout, stderr io.Writer) int {
 		err = e.uninstall(rest)
 	case "join":
 		err = e.join(rest)
+	case "lesson":
+		err = e.lesson(rest)
 	case "search":
 		err = e.search(rest)
 	case "login":

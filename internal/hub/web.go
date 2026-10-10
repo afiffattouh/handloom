@@ -36,7 +36,7 @@ const (
 	maxForm      = 64 << 10
 )
 
-var pageNames = []string{"setup", "login", "inbox", "closed", "message", "devices", "settings", "invite", "agents", "profiles", "profile", "jobs", "jobform", "job", "command", "agent", "starters", "starter", "connect", "search"}
+var pageNames = []string{"setup", "login", "inbox", "closed", "message", "devices", "settings", "invite", "agents", "profiles", "profile", "jobs", "jobform", "job", "command", "agent", "starters", "starter", "connect", "search", "lessons"}
 
 type pageData struct {
 	Title  string
@@ -69,7 +69,7 @@ type navCounts struct{ Needs, Jobs, Agents, Devices int }
 
 // activeMenu says which menu item a page belongs to.
 var activeMenu = map[string]string{"inbox": "inbox", "jobs": "jobs", "jobform": "jobs", "job": "jobs", "agents": "agents", "agent": "agents",
-	"profiles": "profiles", "profile": "profiles", "starters": "profiles", "starter": "profiles", "devices": "devices", "settings": "settings", "command": "command", "connect": "connect"}
+	"profiles": "profiles", "profile": "profiles", "starters": "profiles", "starter": "profiles", "devices": "devices", "settings": "settings", "command": "command", "connect": "connect", "lessons": "profiles"}
 
 // narrowPages are forms and reading pages.
 var narrowPages = map[string]bool{"jobform": true, "profile": true, "message": true}
@@ -234,6 +234,9 @@ func (h *Hub) webRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /command/fragment", web(h.authed(h.webCommandFragment)))
 	mux.HandleFunc("GET /devices/fragment", web(h.authed(h.webDevicesFragment)))
 	mux.HandleFunc("GET /search", web(h.authed(h.webSearch)))
+	mux.HandleFunc("GET /lessons", web(h.authed(h.webLessons)))
+	mux.HandleFunc("POST /lessons/{id}/accept", web(h.authed(h.webLessonDecide(true))))
+	mux.HandleFunc("POST /lessons/{id}/reject", web(h.authed(h.webLessonDecide(false))))
 	mux.HandleFunc("GET /jobs", web(h.authed(h.webJobs)))
 	mux.HandleFunc("GET /jobs/new", web(h.authed(h.webJobNewForm)))
 	mux.HandleFunc("POST /jobs", web(h.authed(h.webJobCreate)))

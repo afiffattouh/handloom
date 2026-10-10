@@ -17,6 +17,7 @@ const (
 	ActTaskWork         Action = "task.work"         // claim, heartbeat, submit, release own task
 	ActEscalationOpen   Action = "escalation.open"   // ask_human
 	ActEscalationAnswer Action = "escalation.answer" // answer escalation
+	ActLessonDecide     Action = "lesson.decide"     // accept or reject a lesson
 	ActSpawn            Action = "spawn"             // ask for an agent to be started
 )
 
@@ -34,6 +35,7 @@ var scopeTable = map[Action]map[string]bool{
 	ActTaskWork:         {api.RoleLead: true, api.RoleWorker: true},
 	ActEscalationOpen:   {api.RoleLead: true},
 	ActEscalationAnswer: {subjectHuman: true},
+	ActLessonDecide:     {subjectHuman: true},
 	ActSpawn:            {api.RoleLead: true, subjectHuman: true},
 }
 

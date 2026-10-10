@@ -449,6 +449,35 @@ type SubmitReq struct {
 	HowToCheck string   `json:"how_to_check,omitempty"` // how a reviewer or the next agent can verify it
 }
 
+// Lesson is a change to a skill that a finished job proposes. Nothing applies
+// until a person accepts it, and then it becomes a new version of the profile.
+type Lesson struct {
+	ID         int64     `json:"id"`
+	Job        int64     `json:"job,omitempty"`
+	ProposedBy string    `json:"proposed_by"`
+	Profile    string    `json:"profile"`
+	Skill      string    `json:"skill"`
+	Text       string    `json:"text"`
+	Why        string    `json:"why"`
+	Status     string    `json:"status"` // proposed | accepted | rejected
+	DecidedBy  string    `json:"decided_by,omitempty"`
+	Note       string    `json:"note,omitempty"`
+	NewVersion int       `json:"new_version,omitempty"`
+	Used       int       `json:"used"` // agents started from a version that has it
+	At         time.Time `json:"at"`
+}
+
+type LessonReq struct {
+	Profile string `json:"profile"`
+	Skill   string `json:"skill"`
+	Text    string `json:"text"`
+	Why     string `json:"why"`
+}
+
+type LessonDecideReq struct {
+	Reason string `json:"reason,omitempty"`
+}
+
 // SearchHit is one result of a search of what earlier jobs recorded.
 type SearchHit struct {
 	Kind    string    `json:"kind"` // job | task | handoff | answer

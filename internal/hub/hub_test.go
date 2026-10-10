@@ -427,6 +427,7 @@ func TestScopeTableMatchesDesign(t *testing.T) {
 		ActTaskWork:         "yes yes no no",
 		ActEscalationOpen:   "yes no no no",
 		ActEscalationAnswer: "no no no yes",
+		ActLessonDecide:     "no no no yes", // added with lessons (D102): only a person decides
 		ActSpawn:            "yes no no yes",
 	}
 	if len(scopeTable) != len(want) {

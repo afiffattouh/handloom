@@ -23,7 +23,7 @@ The window needs at least 80 columns by 24 rows. Smaller than that, it asks you 
 
 ## Layout
 
-The top line shows the hub, who you are and a filled pill with how many things **need you**. Under it are the five screens. The bottom line shows the keys that work right now; the line above it shows what just happened, or the connection state. Data refreshes by itself every 3 seconds.
+The top line shows the hub, who you are and a filled pill with how many things **need you**. Under it are the six screens. The bottom line shows the keys that work right now; the line above it shows what just happened, or the connection state. Data refreshes by itself every 3 seconds.
 
 Changes are never made on a single key. Every action (accept, send back, answer, close, start a job) first shows exactly what will happen and waits for `y`. `n` or `esc` cancels and nothing is sent.
 
@@ -31,7 +31,7 @@ Changes are never made on a single key. Every action (accept, send back, answer,
 
 | Key | What it does |
 |---|---|
-| `1` to `5`, `tab`, `shift+tab` | go to a screen |
+| `1` to `6`, `tab`, `shift+tab` | go to a screen |
 | `↑ ↓` or `k j`, `pgup pgdn`, `home end` | move, scroll |
 | `enter` | open the selected row |
 | `esc` | go back, or clear the filter |
@@ -92,6 +92,18 @@ Profiles (what an agent may do and know) and starters (ready-made profiles), rea
 | Key | |
 |---|---|
 | `s` | switch between profiles and starters |
+
+## 6 Search
+
+Searches what earlier jobs recorded on the hub: job briefs, finished work, handoff notes and answered questions. It is the same search as `handloom search` and calls `GET /v1/search`. A client's notes are not searched here; they stay on the machine that holds them, and `handloom search --notes` searches them there. The empty screen says so.
+
+Each result shows what kind it is (Job, Work, Handoff note, Answered question), its title, who wrote it and how long ago, and under it one line of the matching text, cut with an ellipsis. The search runs in the background; if you start a new one before the old one answers, only the newest answer is shown. If the hub refuses, for example because nothing was typed, its own words are shown at the bottom.
+
+| Key | |
+|---|---|
+| `/` or `enter` | type a search (`enter` runs it, `esc` stops typing); `enter` with a result selected opens it instead |
+| `↑ ↓` | select a result |
+| `enter` | open the selected result's job in the Jobs screen (for work, its job); `esc` there goes back to the Jobs list |
 
 ## What it does not do
 

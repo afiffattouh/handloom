@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # The terminal console (handloom tui), end to end with a real hub, a real link and a real tmux:
-# a person opens the console, reads every screen, answers a question, accepts and sends back work,
+# a person opens the console, reads every screen, searches what earlier jobs recorded, answers a question, accepts and sends back work,
 # starts a job from the form, watches an agent's terminal, and sees the offline and bad-token states.
 # Every screen is captured with tmux capture-pane into test/e2e/out/n/snap-*.txt.
 #
@@ -130,6 +130,16 @@ keys 5; expect "coder" "the profiles are listed"
 expect "This agent can" "the plain summary is shown"
 snap library
 keys s; expect "Starters" "s switches to starters"; sleep 1; snap library-starters
+
+say "search"
+keys 6; expect "A client's notes are searched on the machine that holds them" "the empty search screen says where notes are searched"
+keys /; keys login Enter; expect "results for" "a search for login returns hits"
+expect "Ship the login page" "a hit names the job"
+snap search
+cat "$OUT/snap-search.txt"
+keys Enter; expect "Job #1" "Enter opens the hit's job in the Jobs screen"; expect "Brief" "the job detail is shown"
+keys Escape; keys 6; keys /; keys zzzqqq Enter; expect "Nothing recorded on the hub matches." "a search with no hits says so"
+keys Escape; keys 1
 
 say "help"
 keys '?'; expect "Everywhere" "the help sheet opens"; snap help; keys q 2>/dev/null; keys Escape

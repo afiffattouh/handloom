@@ -27,6 +27,8 @@ type API interface {
 	Starters() ([]api.StarterInfo, error)
 	Starter(name string) (api.StarterFull, error)
 	Devices() ([]api.Device, error)
+	// Search looks through what earlier jobs recorded on the hub.
+	Search(q string) ([]api.SearchHit, error)
 
 	Accept(task int64) error
 	Reject(task int64, reason string) error
@@ -158,4 +160,8 @@ func (h *HTTP) NewJob(req api.JobNewReq) (api.Job, error) {
 }
 func (h *HTTP) CloseJob(id int64, cancel bool) error {
 	return h.c.Post(fmt.Sprintf("/v1/jobs/%d/close", id), api.JobCloseReq{Cancel: cancel}, nil)
+}
+
+func (h *HTTP) Search(q string) ([]api.SearchHit, error) {
+	return get[[]api.SearchHit](h, "/v1/search?q="+url.QueryEscape(q)+"&limit=20")
 }

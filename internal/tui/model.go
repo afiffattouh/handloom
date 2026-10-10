@@ -39,10 +39,11 @@ const (
 	tabJobs
 	tabAgents
 	tabLibrary
+	tabSearch
 	tabCount
 )
 
-var tabNames = [tabCount]string{"Overview", "Inbox", "Jobs", "Agents", "Library"}
+var tabNames = [tabCount]string{"Overview", "Inbox", "Jobs", "Agents", "Library", "Search"}
 
 type mode int
 
@@ -53,6 +54,7 @@ const (
 	modeConfirm
 	modeForm
 	modeHelp
+	modeSearch
 )
 
 // Model is the whole console. Screens keep their own small state and draw
@@ -95,6 +97,7 @@ type Model struct {
 	jb  jobsState
 	ag  agentsState
 	lib libState
+	sr  searchState
 
 	// overlays
 	input    textinput.Model
@@ -116,6 +119,7 @@ func New(o Options) *Model {
 	m.filter.Prompt = ""
 	m.filter.CharLimit = 80
 	m.ag.follow = true
+	m.sr = newSearchState()
 	return m
 }
 
@@ -279,6 +283,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case libDetailMsg:
 		m.lib.gotDetail(msg)
 		return m, nil
+	case searchMsg:
+		m.gotSearch(msg)
+		return m, nil
 	case formDataMsg:
 		m.gotFormData(msg)
 		return m, nil
@@ -420,6 +427,8 @@ func (m *Model) bodyView(w, h int) string {
 		return m.agentsView(w, h)
 	case tabLibrary:
 		return m.libraryView(w, h)
+	case tabSearch:
+		return m.searchView(w, h)
 	}
 	return m.overviewView(w, h)
 }

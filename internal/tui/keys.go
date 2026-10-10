@@ -23,6 +23,8 @@ func (m *Model) hints() []hint {
 		return []hint{{"enter", "keep filter", true}, {"esc", "clear", false}}
 	case modeForm:
 		return formHints(m.form)
+	case modeSearch:
+		return m.searchHints()
 	case modeConfirm:
 		return []hint{{"y", "yes, do it", true}, {"n", "no, cancel", false}}
 	}
@@ -35,6 +37,8 @@ func (m *Model) hints() []hint {
 		return m.jobsHints()
 	case tabAgents:
 		return m.agentsHints()
+	case tabSearch:
+		return m.searchHints()
 	}
 	return m.libraryHints()
 }
@@ -50,7 +54,7 @@ func helpSections() []struct {
 	}
 	return []sec{
 		{"Everywhere", []hint{
-			{"1-5", "go to a screen", false}, {"tab / shift+tab", "next or previous screen", false},
+			{"1-6", "go to a screen", false}, {"tab / shift+tab", "next or previous screen", false},
 			{"↑ ↓ / k j", "move; pgup pgdn scroll", false}, {"enter", "open the selected row", false},
 			{"esc", "go back, or clear the filter", false}, {"/", "filter the list", false},
 			{"ctrl+r", "refresh now (it also refreshes every 3 s)", false}, {"?", "this help", false}, {"q / ctrl+c", "quit", false},
@@ -66,6 +70,10 @@ func helpSections() []struct {
 		}},
 		{"Agents", []hint{{"enter", "watch the agent's terminal", false}, {"f", "follow the end of the terminal, on or off", false}}},
 		{"Library", []hint{{"s", "switch between profiles and starters", false}}},
+		{"Search", []hint{
+			{"/ or enter", "type a search; enter runs it, esc stops typing", false},
+			{"↑ ↓", "select a result", false}, {"enter", "open the result's job", false},
+		}},
 		{"New job form", []hint{
 			{"tab / shift+tab", "next or previous field", false}, {"← →", "choose a profile or a machine", false},
 			{"ctrl+s", "review and start", false}, {"esc", "cancel", false},
@@ -160,6 +168,8 @@ func (m *Model) key(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.filterKey(k)
 	case modeForm:
 		return m.formKey(k)
+	case modeSearch:
+		return m.searchInputKey(k)
 	}
 	switch s {
 	case "q":
@@ -169,7 +179,7 @@ func (m *Model) key(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case "ctrl+r":
 		return m, m.refresh()
-	case "1", "2", "3", "4", "5":
+	case "1", "2", "3", "4", "5", "6":
 		return m, m.goTab(tab(s[0] - '1'))
 	case "tab":
 		return m, m.goTab((m.tab + 1) % tabCount)
@@ -185,6 +195,8 @@ func (m *Model) key(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, m.jobsKey(s)
 	case tabAgents:
 		return m, m.agentsKey(s)
+	case tabSearch:
+		return m, m.searchKey(s)
 	}
 	return m, m.libraryKey(s)
 }

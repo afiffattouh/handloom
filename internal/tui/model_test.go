@@ -63,8 +63,8 @@ func TestNumberAndTabKeysSwitchScreens(t *testing.T) {
 		t.Fatalf("shift+tab should go back to Overview, got %d", m.tab)
 	}
 	press(m, "shift+tab")
-	if m.tab != tabLibrary {
-		t.Fatalf("shift+tab wraps to Library, got %d", m.tab)
+	if m.tab != tabSearch {
+		t.Fatalf("shift+tab wraps to Search, got %d", m.tab)
 	}
 }
 
@@ -435,7 +435,7 @@ func TestNothingOverflowsAtAnySize(t *testing.T) {
 	f := seeded()
 	for _, sz := range [][2]int{{80, 24}, {100, 30}, {120, 40}, {160, 50}} {
 		m := start(t, f, sz[0], sz[1])
-		for tabN := 1; tabN <= 5; tabN++ {
+		for tabN := 1; tabN <= 6; tabN++ {
 			press(m, itoa(tabN))
 			run(m, m.lib.load(m))
 			check := func(label string) {

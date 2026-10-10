@@ -34,6 +34,11 @@ type fakeAPI struct {
 	profiles []api.ProfileInfo
 	starters []api.StarterInfo
 
+	// search
+	searchHits []api.SearchHit
+	searchErr  error
+	searches   []string
+
 	// errors to return, per call
 	screenErr, newJobErr, metricsErr, digestErr, acceptErr error
 
@@ -84,6 +89,12 @@ func (f *fakeAPI) Starter(name string) (api.StarterFull, error) {
 	return api.StarterFull{StarterInfo: api.StarterInfo{Name: name}, WhatItCanDo: "This agent can read files."}, nil
 }
 func (f *fakeAPI) Devices() ([]api.Device, error) { return nil, nil }
+func (f *fakeAPI) Search(q string) ([]api.SearchHit, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.searches = append(f.searches, q)
+	return f.searchHits, f.searchErr
+}
 
 func (f *fakeAPI) Accept(id int64) error {
 	f.mu.Lock()

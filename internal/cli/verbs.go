@@ -170,7 +170,7 @@ func (e *env) audit(args []string) error {
 func (e *env) register(args []string) error {
 	fs := e.flags("register")
 	kind := fs.String("kind", "shell", "agent kind: claude, codex, shell, ...")
-	project := fs.String("project", "", "project (default \"default\")")
+	project := fs.tenant("the hub's tenancy (default \"default\")")
 	wake := fs.String("wake-target", "", "wake target (default: detected from $TMUX_PANE or $HERDR_PANE_ID)")
 	session := fs.String("session-id", "", "agent session id, if known")
 	dir := fs.String("dir", "", "the agent's working directory (default: the current directory)")
@@ -236,7 +236,7 @@ func (e *env) whoami(args []string) error {
 
 func (e *env) agents(args []string) error {
 	fs := e.flags("agents")
-	project := fs.String("project", "", "project (humans and admin)")
+	project := fs.tenant("the hub's tenancy (humans and admin)")
 	pos, err := fs.parse(args)
 	if err != nil {
 		return err
@@ -290,7 +290,7 @@ func (e *env) state(args []string) error {
 func (e *env) send(args []string) error {
 	fs := e.flags("send")
 	task := fs.Int64("task", 0, "task this message is about")
-	project := fs.String("project", "", "project (humans only)")
+	project := fs.tenant("the hub's tenancy (humans only)")
 	pos, err := fs.need(args, 2, -1, "send <to> <text> [--task N]")
 	if err != nil {
 		return err
@@ -358,7 +358,7 @@ func (e *env) task(args []string) error {
 	sub, args := args[0], args[1:]
 	fs := e.flags("task " + sub)
 	status := fs.String("status", "", "filter by status")
-	project := fs.String("project", "", "project (humans only)")
+	project := fs.tenant("the hub's tenancy (humans only)")
 	body := fs.String("body", "", "task description")
 	assign := fs.String("assign", "", "agent that must do the task")
 	depends := fs.String("depends", "", "comma-separated ids of tasks that must be done first")
@@ -573,8 +573,8 @@ func (e *env) job(args []string) error {
 	cancel := fs.Bool("cancel", false, "close: cancel the job and its unfinished tasks")
 	remote := fs.String("remote", "", "publish: the remote to push to (default origin)")
 	pr := fs.Bool("pr", false, "publish: also open a pull request (needs gh on the job's machine)")
-	project := fs.String("project", "", "new: the Handloom project (a shared repository) to work on; the machine gets its own copy first if it has none. list: the hub's tenancy project")
-	tenant := fs.String("tenant", "", "new, list: the hub's tenancy project (rarely used; the default one is meant)")
+	project := fs.String("project", "", "new: the Handloom project (a shared repository) to work on; the machine gets its own copy first if it has none")
+	tenant := fs.String("tenant", "", "the hub's tenancy (rarely used; the default one is meant)")
 	pos, err := fs.parse(args[1:])
 	if err != nil {
 		return err

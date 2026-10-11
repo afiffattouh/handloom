@@ -44,7 +44,7 @@ func (e *env) mcp(args []string) error {
 const usage = `handloom: coordination for coding agents across machines
 
 Agent verbs (run inside an agent's shell, through the local link):
-  handloom register <name> [--kind K] [--project P]   register this agent on this device
+  handloom register <name> [--kind K] [--tenant T]  register this agent on this device
   handloom whoami                                     show who the hub thinks you are
   handloom agents remove <name>                       take a stale agent off the board (never one that holds work)
   handloom agents                                     list agents and their state
@@ -268,6 +268,15 @@ func usageErr(format string, args ...any) error {
 type flags struct {
 	*flag.FlagSet
 	e *env
+}
+
+// tenant registers the hub's tenancy ("project" in the first versions) as
+// --tenant and, for old scripts, --project, both writing the same value.
+func (f *flags) tenant(usage string) *string {
+	v := new(string)
+	f.StringVar(v, "tenant", "", usage)
+	f.StringVar(v, "project", "", "same as --tenant (the old name)")
+	return v
 }
 
 func (e *env) flags(name string) *flags {

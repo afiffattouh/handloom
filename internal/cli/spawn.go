@@ -25,7 +25,7 @@ func (e *env) spawn(args []string) error {
 	model := fs.String("model", "", "model name for the agent CLI")
 	device := fs.String("device", "", "device to start it on (humans)")
 	job := fs.Int64("job", 0, "job it joins (humans; a lead's agents join the lead's job)")
-	project := fs.String("project", "", "project (humans)")
+	project := fs.tenant("the hub's tenancy (humans)")
 	wait := fs.Duration("wait", 90*time.Second, "wait this long for it to start (0: do not wait)")
 	pos, err := fs.need(args, 1, 1, "spawn <name> [--profile P] [--kind claude] [--model M] [--device D] [--job N] [--wait 90s]")
 	if err != nil {

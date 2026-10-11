@@ -100,7 +100,7 @@ func (e *env) adapter(args []string) error {
 	fs := e.flags("adapter")
 	name := fs.String("name", "", "agent name")
 	dir := fs.String("dir", ".", "project directory the agent runs in")
-	project := fs.String("project", "", "handloom project (default \"default\")")
+	project := fs.tenant("the hub's tenancy (default \"default\")")
 	noPerm := fs.Bool("no-permissions", false, "claude: do not add the allow rule for handloom commands")
 	synopsis := "adapter install|remove " + adapterKinds() + " --name N [--dir D]"
 	pos, err := fs.need(args, 2, 2, synopsis)

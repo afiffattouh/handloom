@@ -564,9 +564,29 @@ func jobLine(j api.Job) string {
 		j.ID, j.Status, j.Title, conf, repo, lead, n.Open, n.Claimed, n.Submitted, n.Done)
 }
 
+// publishWait is how long `job publish` waits for the machine to push; publishPoll how often it looks.
+var (
+	publishWait = 60 * time.Second
+	publishPoll = time.Second
+)
+
+func publishLine(p api.Publish) string {
+	s := fmt.Sprintf("%s to %s as %s", p.Status, p.Remote, p.Branch)
+	if p.URL != "" {
+		s += ", pull request " + p.URL
+	}
+	if p.Status == "done" && p.Behind > 0 {
+		s += fmt.Sprintf(" (the base moved: %d new commit(s) on %s)", p.Behind, p.Remote)
+	}
+	if p.Status == "failed" && p.Detail != "" {
+		s += ": " + p.Detail
+	}
+	return s
+}
+
 func (e *env) job(args []string) error {
 	if len(args) == 0 {
-		return usageErr("usage: handloom job new|list|show|resume|close")
+		return usageErr("usage: handloom job new|list|show|publish|resume|close")
 	}
 	sub := args[0]
 	fs := e.flags("job " + sub)
@@ -581,6 +601,8 @@ func (e *env) job(args []string) error {
 	leadProfile := fs.String("lead-profile", "", "new: start the job's lead from this profile")
 	leadName := fs.String("lead-name", "", "new: a name for that lead (default lead-<job id>)")
 	cancel := fs.Bool("cancel", false, "close: cancel the job and its unfinished tasks")
+	remote := fs.String("remote", "", "publish: the remote to push to (default origin)")
+	pr := fs.Bool("pr", false, "publish: also open a pull request (needs gh on the job's machine)")
 	project := fs.String("project", "", "project")
 	pos, err := fs.parse(args[1:])
 	if err != nil {
@@ -615,6 +637,9 @@ func (e *env) job(args []string) error {
 			if *leadProfile != "" {
 				fmt.Fprintf(e.out, "Its lead is starting on %s; watch it with: handloom spawns\n", j.Device)
 			}
+			if w := api.OverlapText(j.Overlaps); w != "" {
+				fmt.Fprintln(e.out, "Note: "+w)
+			}
 		})
 	case "list":
 		var js []api.Job
@@ -642,8 +667,16 @@ func (e *env) job(args []string) error {
 		if err := c.Get(fmt.Sprintf("/v1/tasks?job=%d", id), &tasks); err != nil {
 			return err
 		}
-		e.print(map[string]any{"job": j, "tasks": tasks}, func() {
+		var pubs []api.Publish
+		c.Get(fmt.Sprintf("/v1/jobs/%d/publishes", id), &pubs) // a missing list leaves the line out
+		e.print(map[string]any{"job": j, "tasks": tasks, "publishes": pubs}, func() {
 			fmt.Fprintln(e.out, jobLine(j))
+			if w := api.OverlapText(j.Overlaps); w != "" {
+				fmt.Fprintln(e.out, w)
+			}
+			if len(pubs) > 0 {
+				fmt.Fprintln(e.out, "Latest publish: "+publishLine(pubs[0]))
+			}
 			if j.Body != "" {
 				fmt.Fprintln(e.out, "\n"+j.Body+"\n")
 			}
@@ -651,6 +684,50 @@ func (e *env) job(args []string) error {
 				fmt.Fprintln(e.out, "  "+taskLine(t))
 			}
 		})
+	case "publish":
+		id, err := jobID("publish <id> [--remote R] [--pr]")
+		if err != nil {
+			return err
+		}
+		var p api.Publish
+		if err := c.Post(fmt.Sprintf("/v1/jobs/%d/publish", id), api.PublishReq{Remote: *remote, PR: *pr}, &p); err != nil {
+			return err
+		}
+		deadline := time.Now().Add(publishWait)
+		for p.Status == "pending" && time.Now().Before(deadline) {
+			time.Sleep(publishPoll)
+			var all []api.Publish
+			if err := c.Get(fmt.Sprintf("/v1/jobs/%d/publishes", id), &all); err != nil {
+				return err
+			}
+			for _, x := range all {
+				if x.ID == p.ID {
+					p = x
+				}
+			}
+		}
+		e.print(p, func() {
+			switch p.Status {
+			case "done":
+				fmt.Fprintf(e.out, "Published job #%d to %s as the branch %s.\n", id, p.Remote, p.Branch)
+				if p.URL != "" {
+					fmt.Fprintln(e.out, "Pull request: "+p.URL)
+				}
+				if p.Behind > 0 {
+					fmt.Fprintf(e.out, "Warning: the base moved: %d new commit(s) on %s; the pull request may conflict.\n", p.Behind, p.Remote)
+				}
+				if p.Detail != "" {
+					fmt.Fprintln(e.out, p.Detail)
+				}
+			case "failed":
+				fmt.Fprintf(e.out, "Publishing job #%d failed: %s\n", id, p.Detail)
+			default:
+				fmt.Fprintf(e.out, "Publish #%d is still waiting for the machine that holds the repository (%ds). Check later with: handloom job show %d\n", p.ID, int(publishWait.Seconds()), id)
+			}
+		})
+		if p.Status == "failed" {
+			return fmt.Errorf("publishing failed")
+		}
 	case "resume":
 		id, err := jobID("resume <id> --lead AGENT")
 		if err != nil {

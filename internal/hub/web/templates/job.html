@@ -15,6 +15,12 @@
 </article>
 {{end}}
 
+{{if .Overlap}}
+<article class="card attention">
+  <div class="ch"><div class="lead"><svg class="icon sev-warn"><use href="#i-circle-alert"/></svg><div><h3>Other jobs on this repository</h3><p class="desc">{{.Overlap}}</p></div></div></div>
+</article>
+{{end}}
+
 <div class="grid2">
   <div class="stream-col">
     <section class="card" aria-labelledby="tasks">
@@ -82,6 +88,36 @@
         {{if .Job.Knowledge}}<p class="desc">Client knowledge: <code>{{.Job.Knowledge}}</code>. {{if .Job.Notes}}<strong>{{.Job.Notes}} proposed note{{if ne .Job.Notes 1}}s{{end}}</strong> are on the branch <code>job/{{.Job.ID}}</code> of that repository. Review with <code>git -C {{.Job.Knowledge}} diff HEAD...job/{{.Job.ID}}</code> and merge what you accept with <code>git -C {{.Job.Knowledge}} merge job/{{.Job.ID}}</code>.{{else}}Notes the agents propose appear on the branch <code>job/{{.Job.ID}}</code> of it; you merge them yourself.{{end}}{{if .Job.NotesProblem}} <span class="sev-bad">Problem: {{.Job.NotesProblem}}</span>{{end}}</p>{{end}}
       </div>
     </section>
+
+    {{if .RepoJob}}
+    <section class="card" aria-labelledby="publish">
+      <div class="ch"><div><h2 id="publish">Publish</h2></div></div>
+      <div class="cc">
+        <p class="desc">Push this job's branch <code>job/{{.Job.ID}}/integration</code> to the shared remote so teammates can pull it. It goes to a branch of its own, and an existing branch is never overwritten.</p>
+        {{if .CanPublish}}
+        <div class="acts">
+          <form method="post" action="/jobs/{{.Job.ID}}/publish" class="inline"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button type="submit" class="secondary">Push branch</button></form>
+          <form method="post" action="/jobs/{{.Job.ID}}/publish" class="inline"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="pr" value="1"><button type="submit">Push and open pull request</button></form>
+        </div>
+        {{else if .NoMerged}}
+        <p class="desc">Nothing to publish yet: accept a finished task and wait for it to be merged.</p>
+        {{end}}
+      </div>
+      {{if .Publishes}}
+      <div class="cc flush"><div class="rows">
+        {{range .Publishes}}
+        <div class="row line"><span>
+          {{if eq .Status "done"}}<span class="badge success">Pushed</span>{{else if eq .Status "failed"}}<span class="badge destructive">Failed</span>{{else}}<span class="badge warning"><i class="dot"></i>Waiting</span>{{end}}
+          <code>{{.Remote}}/{{.Branch}}</code>{{if .PR}} <span class="desc">with a pull request</span>{{end}}
+          {{if .URL}}<div class="desc text">Pull request: {{if .LinkOK}}<a href="{{.URL}}" rel="noopener noreferrer">{{.URL}}</a>{{else}}{{.URL}}{{end}}</div>{{end}}
+          {{if .Behind}}<div class="desc text sev-warn">The base moved: {{.Behind}} new commit{{if ne .Behind 1}}s{{end}} on {{.Remote}}; the pull request may conflict.</div>{{end}}
+          {{if .Detail}}<div class="desc text{{if eq .Status "failed"}} sev-bad{{end}}">{{.Detail}}</div>{{end}}
+        </span><span class="desc nw">{{.Ago}}</span></div>
+        {{end}}
+      </div></div>
+      {{end}}
+    </section>
+    {{end}}
 
     {{if and .CanAct .Open}}
     <section class="card" aria-labelledby="manage">

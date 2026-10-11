@@ -209,6 +209,8 @@ One hub serves one team. Everyone signs in to the same web UI and everyone's mac
 
 Agents are not people: they can never start or close a job, answer a question or change a profile, whoever started them.
 
+**Working on one project together.** Each machine keeps its own clone and the team shares code through git. A finished job's work can be pushed to the shared remote (`handloom job publish <id> --pr`, or the Publish card on the job page), never forced, and starting a job warns when other open jobs use the same repository on the same machine. See [docs/collaborate.md](docs/collaborate.md).
+
 **A day in a team**
 
 <p align="center">
@@ -300,6 +302,7 @@ Handloom is used for real work by its author and is pre-1.0. Honest about what i
 | --- | --- |
 | [docs/setup.md](docs/setup.md) | Step-by-step setup: domain, https, tokens, first job |
 | [docs/overview.html](docs/overview.html) | The whole picture on one page: topology, architecture, flow, teams, knowledge (open in a browser) |
+| [docs/collaborate.md](docs/collaborate.md) | Working on one project together: machines, splitting by job, publishing to the shared remote, overlap warnings |
 | [docs/tui.md](docs/tui.md) · [docs/mcp.md](docs/mcp.md) | The terminal console · using Handloom from an AI app |
 | [docs/protocol.md](docs/protocol.md) | The API, version `handloom/1` |
 | [docs/deploy.md](docs/deploy.md) · [docs/isolation.md](docs/isolation.md) | Deploying · the container-mode design |

@@ -351,6 +351,25 @@ CREATE TABLE lesson (
   created_at    INTEGER NOT NULL
 );
 CREATE INDEX lesson_status ON lesson(status, id);
+`, `
+-- D103: a request to push a finished job's integration branch to the project's shared remote, done by the device that holds the repository.
+CREATE TABLE publish (
+  id           INTEGER PRIMARY KEY,
+  job_id       INTEGER NOT NULL REFERENCES task(id),
+  device_id    INTEGER NOT NULL REFERENCES device(id),
+  requested_by TEXT NOT NULL,
+  remote       TEXT NOT NULL,
+  branch       TEXT NOT NULL,
+  open_pr      INTEGER NOT NULL DEFAULT 0,
+  status       TEXT NOT NULL DEFAULT 'pending',
+  detail       TEXT NOT NULL DEFAULT '',
+  url          TEXT NOT NULL DEFAULT '',
+  behind       INTEGER NOT NULL DEFAULT 0,
+  created_at   INTEGER NOT NULL,
+  done_at      INTEGER
+);
+CREATE INDEX publish_pending ON publish(device_id, status);
+CREATE INDEX publish_job ON publish(job_id);
 `}
 
 // Open opens (and migrates) the database at path. Use ":memory:" in tests.

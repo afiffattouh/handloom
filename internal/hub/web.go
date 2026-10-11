@@ -243,6 +243,7 @@ func (h *Hub) webRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /jobs/{id}", web(h.authed(h.webJob)))
 	mux.HandleFunc("POST /jobs/{id}/close", web(h.authed(h.webJobClose)))
 	mux.HandleFunc("POST /jobs/{id}/resume", web(h.authed(h.webJobResume)))
+	mux.HandleFunc("POST /jobs/{id}/publish", web(h.authed(h.webJobPublish)))
 	mux.HandleFunc("GET /agents", web(h.authed(h.webAgents)))
 	mux.HandleFunc("GET /agents/{name}", web(h.authed(h.webAgent)))
 	mux.HandleFunc("POST /agents/{name}/watch", web(h.authed(h.webWatch)))

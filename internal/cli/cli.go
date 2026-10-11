@@ -54,6 +54,7 @@ Agent verbs (run inside an agent's shell, through the local link):
   handloom job new <title> [--body B] [--lead AGENT | --lead-profile P] [--repo PATH [--base BRANCH] --verify CMD --device D] [--knowledge PATH] [--confidential]   (human)
   handloom job resume <id> --lead AGENT                                 (human) a new lead takes over a job whose lead is gone
   handloom job close <id> [--cancel]                                    (human)
+  handloom job publish <id> [--remote R] [--pr]                         (human) push a finished job's branch to the shared remote (never forced); --pr also opens a pull request with gh
   handloom task list [--status S] [--job N]
   handloom task show <id>
   handloom task create <title> [--body B] [--assign A] [--depends 1,2]      (lead, human)

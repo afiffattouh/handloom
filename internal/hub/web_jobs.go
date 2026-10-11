@@ -162,6 +162,18 @@ type jobView2 struct {
 	CanAct   bool
 	Open     bool
 	Ready    bool // every task is done: the job can be closed
+
+	Overlap    string        // other open jobs on the same repository: a warning
+	Publishes  []publishView // newest first
+	CanPublish bool          // a person who may push, on a repo job with merged work
+	NoMerged   bool          // a repo job with nothing merged yet: say why there is no button
+	RepoJob    bool
+}
+
+type publishView struct {
+	api.Publish
+	Ago    string
+	LinkOK bool // the pull request link is shown as a link only if it is an https address
 }
 
 type attachView struct {
@@ -206,6 +218,7 @@ func (q *webReq) jobPage(status int, errMsg string, id int64) error {
 		return err
 	}
 	var targets []string
+	merged := false
 	for _, tk := range tasks {
 		tv := taskView{Task: tk.api(), Ago: ago(q.now, store.Time(tk.updated))}
 		if tk.check != nil {
@@ -218,8 +231,24 @@ func (q *webReq) jobPage(status int, errMsg string, id int64) error {
 		if tv.Handoff, err = q.c.latestHandoff(tk.id); err != nil {
 			return err
 		}
+		if tv.Merge != nil && tv.Merge.Status == "merged" {
+			merged = true
+		}
 		v.Tasks = append(v.Tasks, tv)
 		targets = append(targets, tk.target())
+	}
+	v.Overlap = api.OverlapText(jv.Overlaps)
+	if t.repo != "" && t.deviceID.Valid {
+		v.RepoJob = true
+		pubs, err := q.c.publishes(id)
+		if err != nil {
+			return err
+		}
+		for _, p := range pubs {
+			v.Publishes = append(v.Publishes, publishView{Publish: p, Ago: ago(q.now, p.At), LinkOK: strings.HasPrefix(p.URL, "https://")})
+		}
+		v.CanPublish = q.c.allow(ActPublish) == nil && merged && t.status != api.StatusCancelled
+		v.NoMerged = !merged
 	}
 	targets = append(targets, fmt.Sprintf("job:%d", id))
 	for _, a := range agents {
@@ -260,8 +289,11 @@ func (q *webReq) jobPage(status int, errMsg string, id int64) error {
 			v.Attach = append(v.Attach, attachView{s.Name, "tmux -L handloom attach -t handloom:" + s.Name})
 		}
 	}
-	q.page(status, "job", pageData{Title: fmt.Sprintf("Job #%d", id), Error: errMsg, Extra: v,
-		Notice: map[string]string{"started": "Job started. Its lead is starting; this page updates as work arrives.", "closed": "Job closed.", "resumed": "Job resumed with the new lead."}[q.r.URL.Query().Get("done")]})
+	notice := map[string]string{"started": "Job started. Its lead is starting; this page updates as work arrives.", "closed": "Job closed.", "resumed": "Job resumed with the new lead.", "published": "Publishing asked for: the machine that holds the repository is pushing the branch. The result appears under Publish."}[q.r.URL.Query().Get("done")]
+	if q.r.URL.Query().Get("done") == "started" && v.Overlap != "" {
+		notice += " " + v.Overlap
+	}
+	q.page(status, "job", pageData{Title: fmt.Sprintf("Job #%d", id), Error: errMsg, Extra: v, Notice: notice})
 	return nil
 }
 
@@ -313,6 +345,16 @@ func (h *Hub) webJobClose(q *webReq) error {
 func (h *Hub) webJobResume(q *webReq) error {
 	return q.jobAction("resumed", func(id int64) error {
 		_, err := q.c.resumeJob(id, q.r.PostForm.Get("lead"))
+		return err
+	})
+}
+
+func (h *Hub) webJobPublish(q *webReq) error {
+	return q.jobAction("published", func(id int64) error {
+		if err := q.c.allow(ActPublish); err != nil {
+			return err
+		}
+		_, err := q.c.publishJob(id, api.PublishReq{PR: q.r.PostForm.Get("pr") == "1"})
 		return err
 	})
 }

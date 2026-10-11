@@ -67,6 +67,9 @@ func (c *call) jobView(t *taskRow) (api.Job, error) {
 	if lead != nil {
 		j.Lead = lead.name
 	}
+	if j.Overlaps, err = c.overlaps(t); err != nil {
+		return api.Job{}, err
+	}
 	return j, nil
 }
 

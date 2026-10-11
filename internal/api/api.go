@@ -4,6 +4,8 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
+	"strings"
 	"time"
 
 	"handloom/internal/profile"
@@ -310,6 +312,14 @@ type Job struct {
 	CreatedBy    string    `json:"created_by"`
 	CreatedAt    time.Time `json:"created_at"`
 	Tasks        JobCounts `json:"tasks"`
+	Overlaps     []JobRef  `json:"overlaps,omitempty"` // other open jobs on the same repository and device: a warning, never a block
+}
+
+// JobRef names another job.
+type JobRef struct {
+	ID    int64  `json:"id"`
+	Title string `json:"title"`
+	Lead  string `json:"lead,omitempty"`
 }
 
 type JobCounts struct {
@@ -673,4 +683,69 @@ type CollectReport struct {
 	Status string `json:"status"` // done | conflict | failed
 	Notes  int    `json:"notes"`
 	Detail string `json:"detail,omitempty"`
+}
+
+// PublishReq asks the job's device to push the job's integration branch to a shared remote (D103).
+type PublishReq struct {
+	Remote string `json:"remote,omitempty"` // a configured remote of the repository (default origin)
+	PR     bool   `json:"pr,omitempty"`     // also open a pull request, when gh is installed
+}
+
+// Publish is one request to publish a job's work, and what came of it.
+type Publish struct {
+	ID          int64      `json:"id"`
+	Job         int64      `json:"job"`
+	RequestedBy string     `json:"requested_by"`
+	Remote      string     `json:"remote"`
+	Branch      string     `json:"branch"` // the branch pushed to the remote
+	PR          bool       `json:"pr"`
+	Status      string     `json:"status"` // pending | done | failed
+	Detail      string     `json:"detail,omitempty"`
+	URL         string     `json:"url,omitempty"`    // the pull request, when one was opened
+	Behind      int        `json:"behind,omitempty"` // commits the base branch is behind on the remote
+	At          time.Time  `json:"at"`
+	DoneAt      *time.Time `json:"done_at,omitempty"`
+}
+
+// PendingPublish is a publish a device has been asked to do, with what it needs.
+type PendingPublish struct {
+	ID     int64         `json:"id"`
+	Job    int64         `json:"job"`
+	Remote string        `json:"remote"`
+	Branch string        `json:"branch"`
+	PR     bool          `json:"pr"`
+	Repo   string        `json:"repo"`
+	Base   string        `json:"base,omitempty"`
+	Title  string        `json:"title"`
+	Body   string        `json:"body,omitempty"`
+	Tasks  []PublishTask `json:"tasks"` // accepted tasks and who did them: no evidence, no handoff notes
+}
+
+type PublishTask struct {
+	ID    int64  `json:"id"`
+	Title string `json:"title"`
+	Owner string `json:"owner,omitempty"`
+}
+
+// PublishReport is the device's account of one publish.
+type PublishReport struct {
+	Status string `json:"status"` // done | failed
+	Detail string `json:"detail,omitempty"`
+	URL    string `json:"url,omitempty"`
+	Behind int    `json:"behind,omitempty"`
+}
+
+// OverlapText is the warning shown when other open jobs work on the same repository and device.
+func OverlapText(refs []JobRef) string {
+	if len(refs) == 0 {
+		return ""
+	}
+	parts := make([]string, len(refs))
+	for i, r := range refs {
+		parts[i] = fmt.Sprintf("#%d %s", r.ID, r.Title)
+		if r.Lead != "" {
+			parts[i] += " (lead " + r.Lead + ")"
+		}
+	}
+	return "Also open on this repository: " + strings.Join(parts, ", ") + ". Jobs that change the same files will conflict when their branches are merged."
 }

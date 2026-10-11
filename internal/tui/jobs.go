@@ -209,6 +209,12 @@ func (m *Model) jobDetail(w int) []string {
 	if j.Confidential {
 		kv("Handling", "confidential")
 	}
+	if w2 := api.OverlapText(j.Overlaps); w2 != "" {
+		add("")
+		for _, l := range wrap(w2, w-2) {
+			add(l)
+		}
+	}
 	if j.Body != "" {
 		add("", sMuted.Render("Brief"))
 		for _, l := range wrap(j.Body, w-2) {

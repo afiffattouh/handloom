@@ -756,7 +756,7 @@ func (f *fixture) repoJob(repo string) api.Job { return f.repoJobVerify(repo, ""
 func (f *fixture) repoJobVerify(repo, verify string) api.Job {
 	f.t.Helper()
 	var j api.Job
-	f.must(f.human.Post("/v1/jobs", api.JobNewReq{Title: "Fix it", Repo: repo, Verify: verify, Device: "dev"}, &j))
+	f.must(f.human.Post("/v1/jobs", api.JobNewReq{Title: "Fix it", Body: "Make src better.", Repo: repo, Verify: verify, Device: "dev"}, &j))
 	return j
 }
 

@@ -19,6 +19,7 @@ const (
 	ActEscalationAnswer Action = "escalation.answer" // answer escalation
 	ActLessonDecide     Action = "lesson.decide"     // accept or reject a lesson
 	ActSpawn            Action = "spawn"             // ask for an agent to be started
+	ActPublish          Action = "publish"           // push a job's work to the shared remote (D103)
 )
 
 const (
@@ -37,6 +38,7 @@ var scopeTable = map[Action]map[string]bool{
 	ActEscalationAnswer: {subjectHuman: true},
 	ActLessonDecide:     {subjectHuman: true},
 	ActSpawn:            {api.RoleLead: true, subjectHuman: true},
+	ActPublish:          {subjectHuman: true},
 }
 
 // Allowed reports whether subject (a role, or "human") may perform action.

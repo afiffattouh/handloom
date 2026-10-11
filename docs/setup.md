@@ -75,7 +75,7 @@ Prefer to write your own? **Profiles, New profile** guides you: start from a sta
 
 ## Stage 4: your first job (in the web UI)
 
-**Jobs, New job.** Fill in a title and a brief (what to do, what done looks like). Pick the device, the repository path on that device and a check command (for example `./check.sh` or `go test ./...`), and the lead's profile. Start it. The lead plans tasks and starts workers on that device; each worker gets its own copy of the repository. You get inbox items when something needs you. When every task is done, look at the branch `job/<id>/integration` in the repository and merge it yourself.
+**Jobs, New job.** Fill in a title and a brief (what to do, what done looks like). Pick the device, the repository path on that device and a check command (for example `./check.sh` or `go test ./...`), and the lead's profile. Start it. The lead plans tasks and starts workers on that device; each worker gets its own copy of the repository. You get inbox items when something needs you. When every task is done, look at the branch `job/<id>/integration` in the repository and merge it yourself, or push it to your team's remote with the job page's **Publish** card (see [collaborate.md](collaborate.md)).
 
 ## What every token is for
 

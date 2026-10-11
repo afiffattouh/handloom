@@ -984,3 +984,48 @@ func TestLessonVerbs(t *testing.T) {
 		t.Fatalf("reject: %s", out)
 	}
 }
+
+func TestJobOverlapWarningAndPublishRefusal(t *testing.T) {
+	r := newRig(t)
+	first := r.as(r.human, "job", "new", "First change", "--repo", "/srv/app", "--device", "dev")
+	if strings.Contains(first, "Also open") {
+		t.Fatalf("the first job warns: %s", first)
+	}
+	second := r.as(r.human, "job", "new", "Second change", "--repo", "/srv/app", "--device", "dev")
+	if !strings.Contains(second, "Started job #2") || !strings.Contains(second, "Also open on this repository: #1 First change.") || !strings.Contains(second, "will conflict when their branches are merged") {
+		t.Fatalf("second job: %s", second)
+	}
+	if show := r.as(r.human, "job", "show", "1"); !strings.Contains(show, "Also open on this repository: #2 Second change") {
+		t.Fatalf("job show: %s", show)
+	}
+	var shown struct {
+		Job       api.Job
+		Publishes []api.Publish
+	}
+	if err := json.Unmarshal([]byte(r.as(r.human, "job", "show", "1", "--json")), &shown); err != nil || len(shown.Job.Overlaps) != 1 || shown.Job.Overlaps[0].ID != 2 {
+		t.Fatalf("job show --json: %v %+v", err, shown)
+	}
+	// Nothing merged yet: refused, in words, with a failing exit code.
+	r.t.Setenv("HANDLOOM_HUB", r.hubURL)
+	r.t.Setenv("HANDLOOM_TOKEN", r.human)
+	code, _, errs := r.exec("job", "publish", "1", "--pr")
+	if code == 0 || !strings.Contains(errs, "nothing to publish") {
+		t.Fatalf("publishing without merged work: %d %s", code, errs)
+	}
+	if code, _, errs := r.exec("job", "publish"); code != 2 || !strings.Contains(errs, "usage") {
+		t.Fatalf("publish without an id: %d %s", code, errs)
+	}
+	r.t.Setenv("HANDLOOM_TOKEN", "")
+}
+
+func TestPublishLine(t *testing.T) {
+	ok := publishLine(api.Publish{Status: "done", Remote: "origin", Branch: "handloom/job-1-x", URL: "https://h/pr/1", Behind: 2})
+	for _, want := range []string{"done to origin as handloom/job-1-x", "pull request https://h/pr/1", "the base moved: 2 new commit(s)"} {
+		if !strings.Contains(ok, want) {
+			t.Errorf("%q lacks %q", ok, want)
+		}
+	}
+	if bad := publishLine(api.Publish{Status: "failed", Remote: "origin", Branch: "b", Detail: "rejected"}); !strings.HasSuffix(bad, ": rejected") {
+		t.Errorf("failed line: %q", bad)
+	}
+}

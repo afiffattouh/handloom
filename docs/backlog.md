@@ -41,3 +41,6 @@ Context that survives a change of device, agent or person (tracking issue #20):
 - #18 Let a finished job teach: reviewed lessons become notes and skills
 - #19 Join a machine in one step (done, v0.1.1)
 
+## Working on one project together (D103)
+
+Left undone: pull a teammate's published branch into a clone from Handloom; run one job's agents on several machines; warn on overlap by changed files rather than by repository; an MCP tool for publishing (kept out on purpose: it is an approval-class action).

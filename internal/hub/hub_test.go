@@ -429,6 +429,7 @@ func TestScopeTableMatchesDesign(t *testing.T) {
 		ActEscalationAnswer: "no no no yes",
 		ActLessonDecide:     "no no no yes", // added with lessons (D102): only a person decides
 		ActSpawn:            "yes no no yes",
+		ActPublish:          "no no no yes", // added with publishing (D103): only a person pushes a job's work to the shared remote
 	}
 	if len(scopeTable) != len(want) {
 		t.Fatalf("scope table has %d actions, want %d", len(scopeTable), len(want))

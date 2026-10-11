@@ -224,6 +224,10 @@ func (h *Hub) Handler() http.Handler {
 	v1("GET /jobs/{id}", jobGet)
 	v1("POST /jobs/{id}/close", jobClose)
 	v1("POST /jobs/{id}/resume", jobResume)
+	v1("POST /jobs/{id}/publish", jobPublish)
+	v1("GET /jobs/{id}/publishes", jobPublishes)
+	v1("GET /device/publishes", devicePublishes)
+	v1("POST /publishes/{id}/report", publishReport)
 	v1("POST /agents/{name}/job", agentJob)
 
 	v1("POST /spawns", spawnNew)
@@ -788,7 +792,7 @@ func (h *Hub) allowRate(key string, burst, perMinute float64, now time.Time) boo
 // setting stay with the person's own token and the web UI.
 var operatorCalls = map[string]bool{
 	"GET /v1/whoami": true, "GET /v1/digest": true, "GET /v1/metrics": true, "GET /v1/search": true, "GET /v1/lessons": true, "GET /v1/projects": true,
-	"GET /v1/jobs": true, "GET /v1/jobs/{id}": true, "POST /v1/jobs": true,
+	"GET /v1/jobs": true, "GET /v1/jobs/{id}": true, "POST /v1/jobs": true, "GET /v1/jobs/{id}/publishes": true,
 	"GET /v1/tasks": true, "GET /v1/tasks/{id}": true,
 	"GET /v1/agents": true, "GET /v1/agents/{name}/screen": true,
 	"GET /v1/escalations": true, "GET /v1/escalations/{id}": true,

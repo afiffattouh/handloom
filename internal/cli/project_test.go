@@ -147,7 +147,7 @@ func TestProjectCreateThroughTheCLI(t *testing.T) {
 	os.Symlink(gitPath, filepath.Join(bin, "git"))
 
 	// No gh: said in words, with a failing exit.
-	r.t.Setenv("PATH", bin+":/usr/bin:/bin")
+	r.t.Setenv("PATH", bin)
 	r.t.Setenv("HANDLOOM_HUB", r.hubURL)
 	r.t.Setenv("HANDLOOM_TOKEN", r.human)
 	code, _, errs := r.exec("project", "new", "fresh", "--create", "--device", "dev")

@@ -87,7 +87,18 @@ func fakeBin(t *testing.T, scripts map[string]string) {
 	if err := os.Symlink(git, filepath.Join(dir, "git")); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("PATH", dir+string(os.PathListSeparator)+"/usr/bin"+string(os.PathListSeparator)+"/bin")
+	if _, has := scripts["gh"]; has {
+		t.Setenv("PATH", dir+string(os.PathListSeparator)+"/usr/bin"+string(os.PathListSeparator)+"/bin")
+		return
+	}
+	// no gh wanted: a machine that has one (a CI runner) must not leak it in,
+	// so give the scripts only the tools they need
+	for _, tool := range []string{"sh", "cat", "printf", "echo", "mkdir", "dirname", "env", "rm", "ls", "test", "head", "tr", "sed", "grep", "date", "sleep"} {
+		if p, err := exec.LookPath(tool); err == nil {
+			os.Symlink(p, filepath.Join(dir, tool))
+		}
+	}
+	t.Setenv("PATH", dir)
 }
 
 func lookGit() (string, error) { return exec.LookPath("git") }

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Projects (D104), with NO model: a project is a name and a shared git remote that a machine gets on demand.
+# Projects (D104, D105), with NO model: a project is a name and a shared git remote that a machine gets on demand.
 # One machine: a hub (file:// remotes allowed, for this test only), a link, a local bare repository as the
 # shared remote, and a fake `gh` that makes bare repositories instead of calling GitHub. A fake `claude`
 # only sleeps; this script drives the agent through the link socket.
@@ -31,6 +31,9 @@ printf '#!/bin/sh\nexec sleep 3600\n' > "$OUT/fakebin/claude"
 cat > "$OUT/fakebin/gh" <<EOF2
 #!/bin/sh
 printf '%s ' "\$@" >> "$OUT/gh-args.txt"; echo >> "$OUT/gh-args.txt"
+# "pr create" prints a pull request address; "pr view" answers with the file the script switches (open, then merged).
+if [ "\$1 \$2" = "pr create" ]; then echo "https://github.com/acme/shared/pull/1"; exit 0; fi
+if [ "\$1 \$2" = "pr view" ]; then cat "$OUT/pr-answer.json"; exit 0; fi
 [ "\$1 \$2" = "repo create" ] || exit 2
 name="\${3##*/}"
 git init -q --bare "$OUT/ghremotes/\$name.git" || exit 1
@@ -47,6 +50,8 @@ printf 'hello\n' > "$SEED/README.md"; git -C "$SEED" add -A && git -C "$SEED" co
 git -C "$SEED" push -q "$BARE" main && git -C "$BARE" symbolic-ref HEAD refs/heads/main
 REMOTE="file://$BARE"
 
+# the pull request is looked at every 2 seconds here (2 minutes by default)
+export HANDLOOM_PR_POLL=2s
 export HANDLOOM_HOME="$OUT/home" HOME="$OUT/fakehome" PATH="$OUT/fakebin:$OUT/bin:$PATH"
 # git needs an identity for the first commit of a created project (the fake home has none)
 finish() {
@@ -103,6 +108,45 @@ human job publish 1 | tee "$OUT/publish.txt"
 BRANCH="handloom/job-1-add-greeting"
 [ "$(git -C "$BARE" show "$BRANCH:greeting.txt" 2>/dev/null)" = "hi from the job" ] && ok "the shared remote has the job's branch with the commit" || bad "the remote lacks the job's work"
 [ "$(git -C "$BARE" rev-parse main)" = "$(git -C "$SEED" rev-parse main)" ] && ok "main on the remote was not touched" || bad "main moved"
+
+say "a new job starts from the latest base: the remote moved, the copy is fast-forwarded"
+MATE="$OUT/mate"
+git clone -q "$REMOTE" "$MATE" && git -C "$MATE" config user.email m@m && git -C "$MATE" config user.name mate
+printf 'from a teammate\n' > "$MATE/teammate.txt"; git -C "$MATE" add -A && git -C "$MATE" commit -q -m "teammate change" && git -C "$MATE" push -q origin main
+[ "$(git -C "$CLONE" rev-parse main)" != "$(git -C "$BARE" rev-parse main)" ] && ok "the copy is behind the remote before the job starts" || bad "the copy was not behind"
+human job new "Second job" --project shared --device $DEV > "$OUT/jobnew-fresh.txt" 2>&1 || { bad "job new: $(cat "$OUT/jobnew-fresh.txt")"; }
+J2="$(sed -n 's/^Started job #\([0-9]*\).*/\1/p' "$OUT/jobnew-fresh.txt" | head -1)"
+human spawn beta --job "$J2" --device $DEV --wait 60s > "$OUT/spawn-beta.txt" 2>&1
+grep -q "is running" "$OUT/spawn-beta.txt" && ok "the job's agent started" || { bad "beta did not start: $(cat "$OUT/spawn-beta.txt")"; }
+[ "$(git -C "$CLONE" rev-parse main)" = "$(git -C "$BARE" rev-parse main)" ] && ok "the copy of main was fast-forwarded to the remote" || bad "the copy is still behind"
+[ -f "$CLONE/teammate.txt" ] && [ -f "$HANDLOOM_HOME/work/job-$J2/beta/teammate.txt" ] && ok "the job's worktree has the teammate's commit" || bad "the worktree lacks the teammate's commit"
+human job show "$J2" | tee "$OUT/show2.txt" | grep -q "^Base: fresh: main moved forward 1 commit to " && ok "job show says fresh" || bad "job show 2: $(cat "$OUT/show2.txt")"
+human job list | grep -q "job #$J2 .*Second job" && ok "listed" || bad "job list"
+
+say "a copy with commits of its own is not touched"
+printf 'my local work\n' > "$CLONE/local.txt"; git -C "$CLONE" add -A && git -C "$CLONE" -c user.name=me -c user.email=me@m commit -q -m "local only"
+LOCAL="$(git -C "$CLONE" rev-parse main)"
+printf 'more from a teammate\n' > "$MATE/teammate2.txt"; git -C "$MATE" add -A && git -C "$MATE" commit -q -m "teammate change 2" && git -C "$MATE" push -q origin main
+human job new "Third job" --project shared --device $DEV > "$OUT/jobnew-div.txt" 2>&1 || bad "job new: $(cat "$OUT/jobnew-div.txt")"
+J3="$(sed -n 's/^Started job #\([0-9]*\).*/\1/p' "$OUT/jobnew-div.txt" | head -1)"
+human spawn gamma --job "$J3" --device $DEV --wait 60s > "$OUT/spawn-gamma.txt" 2>&1
+grep -q "is running" "$OUT/spawn-gamma.txt" && ok "the job still started" || bad "gamma did not start: $(cat "$OUT/spawn-gamma.txt")"
+human job show "$J3" | tee "$OUT/show3.txt" | grep -q "^Base: diverged: this machine's copy of main has commits that are not on origin; the job starts from it as it is" && ok "job show says diverged" || bad "job show 3: $(cat "$OUT/show3.txt")"
+[ "$(git -C "$CLONE" rev-parse main)" = "$LOCAL" ] && [ "$(cat "$CLONE/local.txt")" = "my local work" ] && [ ! -e "$CLONE/teammate2.txt" ] && ok "nothing was overwritten or merged" || bad "the diverged copy was changed"
+
+say "the pull request is followed: open, then merged"
+printf '{"state":"OPEN","mergedAt":null,"mergeable":"MERGEABLE","reviewDecision":"APPROVED","title":"Add greeting"}\n' > "$OUT/pr-answer.json"
+human job publish 1 --pr > "$OUT/publish-pr.txt" 2>&1; cat "$OUT/publish-pr.txt"
+grep -q "https://github.com/acme/shared/pull/1" "$OUT/publish-pr.txt" && ok "the pull request was opened through gh" || bad "no pull request link"
+for i in $(seq 1 20); do human job show 1 2>/dev/null | grep -q "^Pull request: open, approved, can merge" && break; sleep 1; done
+human job show 1 | grep -q "^Pull request: open, approved, can merge" && ok "job show: open, approved, can merge" || bad "job show 1 after publish: $(human job show 1)"
+human job list | grep -q "job #1 .*pull request merged" && bad "marked merged too early" || ok "not marked merged while open"
+printf '{"state":"MERGED","mergedAt":"2026-10-11T10:00:00Z","mergeable":"UNKNOWN","reviewDecision":"APPROVED","title":"Add greeting"}\n' > "$OUT/pr-answer.json"
+for i in $(seq 1 20); do human job show 1 2>/dev/null | grep -q "^Pull request: merged" && break; sleep 1; done
+human job show 1 | grep -q "^Pull request: merged" && ok "job show: merged" || bad "job show 1 after merge: $(human job show 1)"
+human job list | grep -q "job #1 .*\[pull request merged\]" && ok "the jobs list marks it" || bad "job list lacks the marker"
+human job show 1 --json | python3 -c 'import json,sys;j=json.load(sys.stdin)["job"];sys.exit(0 if j["status"]=="open" else 1)' && ok "nothing closed the job by itself" || bad "the job was closed"
+curl -s -H "Authorization: Bearer $HT" "$H/v1/digest" | grep -q "pull request merged for job 1" && ok "the activity feed says so" || bad "no activity line"
 
 say "the hub never held the code or a login"
 grep -aq "hi from the job" "$OUT/data/"*.db* 2>/dev/null && bad "the job's code is in the hub's database" || ok "the code is not in the hub's database"

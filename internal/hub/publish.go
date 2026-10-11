@@ -104,16 +104,17 @@ func (c *call) publishJob(id int64, req api.PublishReq) (api.Publish, error) {
 	return c.onePublish(pid)
 }
 
-const publishSelect = `SELECT id, job_id, requested_by, remote, branch, open_pr, status, detail, url, behind, created_at, done_at FROM publish `
+const publishSelect = `SELECT id, job_id, requested_by, remote, branch, open_pr, status, detail, url, behind, pr_state, pr_review, pr_mergeable, created_at, done_at FROM publish `
 
 func scanPublish(s scanner) (api.Publish, error) {
 	var p api.Publish
 	var at int64
 	var done sql.NullInt64
-	if err := s.Scan(&p.ID, &p.Job, &p.RequestedBy, &p.Remote, &p.Branch, &p.PR, &p.Status, &p.Detail, &p.URL, &p.Behind, &at, &done); err != nil {
+	if err := s.Scan(&p.ID, &p.Job, &p.RequestedBy, &p.Remote, &p.Branch, &p.PR, &p.Status, &p.Detail, &p.URL, &p.Behind, &p.PRState, &p.PRReview, &p.PRMergeable, &at, &done); err != nil {
 		return p, err
 	}
 	p.At = store.Time(at)
+	p.PRWords = api.PRWords(p.PRState, p.PRReview, p.PRMergeable)
 	if done.Valid {
 		t := store.Time(done.Int64)
 		p.DoneAt = &t

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"io"
 	"log"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"os/exec"
@@ -1027,5 +1028,65 @@ func TestPublishLine(t *testing.T) {
 	}
 	if bad := publishLine(api.Publish{Status: "failed", Remote: "origin", Branch: "b", Detail: "rejected"}); !strings.HasSuffix(bad, ": rejected") {
 		t.Errorf("failed line: %q", bad)
+	}
+}
+
+// A hub that answers with a job whose base and pull request were recorded (D105): `job show` and `job list` say so.
+func TestJobShowAndListSayHowTheBaseAndThePullRequestAre(t *testing.T) {
+	job := api.Job{ID: 4, Title: "Add greeting", Status: "open", Codebase: "shared", Repo: "/p/shared", Device: "dev",
+		BaseState: "diverged", BaseDetail: "this machine's copy of main has commits that are not on origin; the job starts from it as it is",
+		PullRequest: "open, approved, can merge"}
+	pubs := []api.Publish{{ID: 1, Job: 4, Status: "done", Remote: "origin", Branch: "handloom/job-4-add-greeting", PR: true,
+		URL: "https://github.com/acme/app/pull/7", PRState: "open", PRWords: "open, approved, can merge"}}
+	serve := func(job api.Job) string {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			switch r.URL.Path {
+			case "/v1/jobs/4":
+				json.NewEncoder(w).Encode(job)
+			case "/v1/jobs":
+				json.NewEncoder(w).Encode([]api.Job{job})
+			case "/v1/jobs/4/publishes":
+				json.NewEncoder(w).Encode(pubs)
+			default:
+				w.Write([]byte("[]"))
+			}
+		}))
+		t.Cleanup(srv.Close)
+		t.Setenv("HANDLOOM_HUB", srv.URL)
+		t.Setenv("HANDLOOM_TOKEN", "x")
+		t.Setenv("HANDLOOM_HOME", t.TempDir())
+		return srv.URL
+	}
+	run := func(args ...string) string {
+		var out, errb bytes.Buffer
+		if code := Main(args, &out, &errb); code != 0 {
+			t.Fatalf("%v: %d %s", args, code, errb.String())
+		}
+		return out.String()
+	}
+	serve(job)
+	show := run("job", "show", "4")
+	for _, want := range []string{"Base: diverged: this machine's copy of main has commits that are not on origin; the job starts from it as it is",
+		"Pull request: open, approved, can merge", "pull request https://github.com/acme/app/pull/7 (open, approved, can merge)"} {
+		if !strings.Contains(show, want) {
+			t.Errorf("job show lacks %q:\n%s", want, show)
+		}
+	}
+	if list := run("job", "list"); strings.Contains(list, "pull request merged") || strings.Contains(list, "Base:") {
+		t.Errorf("job list: %s", list)
+	}
+	job.PullRequest, job.PRMerged, job.BaseState, job.BaseDetail = "merged", true, "fresh", "main moved forward 3 commits to abc1234"
+	pubs[0].PRState, pubs[0].PRWords = "merged", "merged"
+	serve(job)
+	show = run("job", "show", "4")
+	if !strings.Contains(show, "Pull request: merged") || !strings.Contains(show, "Base: fresh: main moved forward 3 commits to abc1234") {
+		t.Errorf("job show of a merged job:\n%s", show)
+	}
+	if list := run("job", "list"); !strings.Contains(list, "[pull request merged]") {
+		t.Errorf("job list lacks the marker: %s", list)
+	}
+	if out := run("job", "show", "4", "--json"); !strings.Contains(out, `"pr_merged": true`) && !strings.Contains(out, `"pr_merged":true`) {
+		t.Errorf("job show --json lacks pr_merged: %s", out)
 	}
 }

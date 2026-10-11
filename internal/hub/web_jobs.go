@@ -285,16 +285,20 @@ func (q *webReq) jobPage(status int, errMsg string, id int64) error {
 		for i, x := range targets {
 			args[i] = x
 		}
-		rows, err := q.c.tx.Query(`SELECT actor, action, target, created_at FROM audit WHERE target IN (`+marks+`) ORDER BY seq DESC LIMIT 60`, args...)
+		rows, err := q.c.tx.Query(`SELECT actor, action, target, payload, created_at FROM audit WHERE target IN (`+marks+`) ORDER BY seq DESC LIMIT 60`, args...)
 		if err != nil {
 			return err
 		}
 		for rows.Next() && len(v.Activity) < 15 {
-			var actor, action, target string
+			var actor, action, target, payload string
 			var at int64
-			if err := rows.Scan(&actor, &action, &target, &at); err != nil {
+			if err := rows.Scan(&actor, &action, &target, &payload, &at); err != nil {
 				rows.Close()
 				return err
+			}
+			if text, ok := activityText(actor, action, target, payload); ok && strings.HasPrefix(action, "publish.pr_") {
+				v.Activity = append(v.Activity, activityView{ago(q.now, store.Time(at)), text})
+				continue
 			}
 			verb, ok := activityVerbs[action]
 			if !ok {

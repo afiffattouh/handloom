@@ -376,7 +376,14 @@ func deviceSpawns(c *call) (any, error) {
 	}
 	out := make([]api.Spawn, 0, len(rows))
 	for _, r := range rows {
-		out = append(out, r.api())
+		a := r.api()
+		if r.status == api.SpawnPending && r.job.Valid {
+			// A job of a project whose start has not been recorded: the link gets the latest base first (D105).
+			var n int
+			c.tx.QueryRow(`SELECT count(*) FROM task WHERE id = ? AND codebase_id IS NOT NULL AND base_state = ''`, r.job.Int64).Scan(&n)
+			a.FreshBase = n > 0
+		}
+		out = append(out, a)
 	}
 	return out, nil
 }

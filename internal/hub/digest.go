@@ -274,6 +274,10 @@ func activityText(actor, action, target, payload string) (string, bool) {
 		return fmt.Sprintf("%s started job %s: %s", who(actor), strings.TrimPrefix(target, "job:"), str("title")), true
 	case "job.close":
 		return fmt.Sprintf("job %s was closed (%s)", strings.TrimPrefix(target, "job:"), str("status")), true
+	case "publish.pr_merged":
+		return fmt.Sprintf("pull request merged for job %s", strings.TrimPrefix(target, "job:")), true
+	case "publish.pr_closed":
+		return fmt.Sprintf("pull request closed without merging for job %s", strings.TrimPrefix(target, "job:")), true
 	case "job.lead_lost":
 		return fmt.Sprintf("the lead of job %s stopped responding", strings.TrimPrefix(target, "job:")), true
 	case "spawn.request":

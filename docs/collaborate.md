@@ -22,7 +22,21 @@ You no longer clone by hand. In the web UI, **Projects** (in the menu after Jobs
 
 **Who may do it.** Attaching, creating and cloning are for people (owner and member). Creating a repository is outward-facing, so agents and AI apps cannot do it; an AI app can read the list of projects (`handloom_projects`). Each step is in the audit log (`project.attach`, `project.create`, `project.clone`, and `project.clone_done`, `project.create_done`, `project.clone_failed`, `project.create_failed`).
 
-**Not built yet (planned, see the backlog):** starting a job from a freshly fetched base branch (today the copy is as the last fetch left it); showing the pull request's status in Handloom; a warning when the base branch moved on the remote, or when two jobs on different machines change the same files.
+## A fresh start for each job (stage two)
+
+When a job of a project starts on a machine, that machine first looks at the project's remote (`git fetch origin`) and, if it can do so safely, brings its own copy of the job's base branch up to date before the agents' worktrees are made. "Safely" means a plain fast-forward: nothing is merged, rebased or reset, and the machine's own history is never rewritten. A job never waits for this to succeed. The outcome is a short line on the job: on the job page under the title, in `handloom job show` (`Base: ...`), and in the audit log (`job.base`).
+
+- **fresh**: the copy is at the remote's latest commit. The line says how far it moved, for example "main moved forward 3 commits to 4f2a9c1", or "main is already current at 4f2a9c1".
+- **stale**: Handloom could not bring the copy up to date, and the job starts from the copy as it is. The line says why in words: the fetch failed (usually the machine is offline or has no access), the remote has no such branch, or the working folder has uncommitted changes on that branch (so nothing was touched).
+- **diverged**: "this machine's copy of main has commits that are not on origin; the job starts from it as it is". Somebody committed straight onto main in this copy and did not push. Handloom leaves those commits alone and does not merge the remote's commits in, so the job's work may later conflict with the remote's main. To fix it, look at the copy yourself: push the commits if they belong on the remote (`git -C <copy> push`), or move them to a branch and reset main, then start the next job. Handloom will not do this for you.
+
+Only the first agent of a job triggers this; later agents of the same job start from the same base, and the base does not move in the middle of a job. A job that is not from a project (it names a repository path) is not touched at all.
+
+## Following the pull request (stage two)
+
+After a publish that opened a pull request, the machine that published asks `gh pr view` about it, at most once every two minutes, while the pull request is open and for at most 14 days after the publish. The job shows where it stands: "Pull request: open, approved, can merge" (or "waiting for a review", "changes requested", "has conflicts"), "merged", or "closed without being merged". It appears in the Publish card on the job page, in `handloom job show`, and as a small "pull request merged" marker in the Jobs list and `handloom job list`. When it is merged or closed, the activity feed says so and the audit log has `publish.pr_merged` or `publish.pr_closed`, once. Nothing else happens by itself: the job is not closed, nothing is deleted, no notes are collected. If `gh` is missing on that machine, or it fails (offline, not logged in), the pull request is simply not looked at and the publish still shows its link. For trials the interval can be shortened with the environment variable `HANDLOOM_PR_POLL` on the link (for example `5s`).
+
+**Not built yet (stage three, see the backlog):** a warning while a job runs that the base branch moved on the remote (across machines), and warnings when two jobs on different machines change the same files.
 
 ## Which machine runs which job
 

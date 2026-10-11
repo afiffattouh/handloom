@@ -43,9 +43,9 @@ Context that survives a change of device, agent or person (tracking issue #20):
 
 ## Projects (D104)
 
-Stage one is built: a project is a name and a shared remote; attach or create it, and any machine gets its own copy under its own login. Planned, not built:
+Stage one is built: a project is a name and a shared remote; attach or create it, and any machine gets its own copy under its own login. Stage two is built (D105): a job of a project starts from a fast-forwarded base (fresh, stale or diverged, recorded on the job) and a published pull request's status is followed. Planned, not built:
 
-- Stage two: start a job from a fresh base (fetch the remote and fast-forward the project's main branch before the job's worktrees are made, refusing in words if the copy has diverged); show the pull request's status (open, merged, checks) on the job and project pages; let a person say which branch is the base when a repository has no usable default.
+- Left from stage two: pull request checks (the CI result) are not shown, only state, review and mergeability; the status is on the job, not yet on the project page; let a person say which branch is the base when a repository has no usable default.
 - Stage three: warn across machines. "The base moved" while a job runs (the remote's main has new commits), and shared-file warnings between open jobs of one project on different machines (compare changed files, not repository paths). Needs a periodic fetch by the link and a small report of changed paths per job, never file contents.
 - Left undone from stage one: removing a project or forgetting one machine's copy; a different folder than `<link folder>/projects/<name>`; GitLab and other hosts for *creating* repositories (attaching and cloning work with any git host); a project page that refreshes by itself while a machine works.
 

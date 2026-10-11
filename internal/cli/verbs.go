@@ -530,6 +530,9 @@ func jobLine(j api.Job) string {
 	if j.Knowledge != "" {
 		repo += fmt.Sprintf(" [knowledge %s, %d proposed notes on its branch job/%d]", j.Knowledge, j.Notes, j.ID)
 	}
+	if j.PRMerged {
+		repo += " [pull request merged]"
+	}
 	return fmt.Sprintf("job #%-3d %-9s %s%s%s  (lead: %s; tasks: %d open, %d claimed, %d submitted, %d done)",
 		j.ID, j.Status, j.Title, conf, repo, lead, n.Open, n.Claimed, n.Submitted, n.Done)
 }
@@ -544,6 +547,9 @@ func publishLine(p api.Publish) string {
 	s := fmt.Sprintf("%s to %s as %s", p.Status, p.Remote, p.Branch)
 	if p.URL != "" {
 		s += ", pull request " + p.URL
+		if p.PRWords != "" {
+			s += " (" + p.PRWords + ")"
+		}
 	}
 	if p.Status == "done" && p.Behind > 0 {
 		s += fmt.Sprintf(" (the base moved: %d new commit(s) on %s)", p.Behind, p.Remote)
@@ -657,8 +663,14 @@ func (e *env) job(args []string) error {
 			if w := api.OverlapText(j.Overlaps); w != "" {
 				fmt.Fprintln(e.out, w)
 			}
+			if l := api.BaseLine(j); l != "" {
+				fmt.Fprintln(e.out, l)
+			}
 			if len(pubs) > 0 {
 				fmt.Fprintln(e.out, "Latest publish: "+publishLine(pubs[0]))
+			}
+			if j.PullRequest != "" {
+				fmt.Fprintln(e.out, "Pull request: "+j.PullRequest)
 			}
 			if j.Body != "" {
 				fmt.Fprintln(e.out, "\n"+j.Body+"\n")

@@ -41,6 +41,7 @@ type Options struct {
 	LiveEvery     time.Duration // how often a live terminal is reported to the hub as alive; default 20s
 	VerifyTimeout time.Duration // longest a job's verify command may run; default 10m
 	PollWait      int           // long-poll seconds; default 25
+	PRPoll        time.Duration // how often a published pull request is looked at; default 2m, or HANDLOOM_PR_POLL (a duration such as 5s, for tests)
 
 	// Spawn: the link starts agents in a tmux server of its own.
 	TmuxSocket   string         // tmux -L name; default "handloom"
@@ -64,11 +65,13 @@ type Link struct {
 	hub  *client.Client
 	kick chan struct{}
 
-	mu      sync.Mutex
-	memo    map[string]*memo
-	tailing bool // the screen-reading loop is running
-	usage   usageReader
-	fresh   map[string]time.Time // spawned agents and when their window opened
+	mu       sync.Mutex
+	memo     map[string]*memo
+	tailing  bool // the screen-reading loop is running
+	usage    usageReader
+	fresh    map[string]time.Time // spawned agents and when their window opened
+	baseDone map[int64]bool       // jobs whose base this process has looked at (D105)
+	prSeen   map[int64]time.Time  // publishes and when their pull request was last looked at (D105)
 }
 
 func New(opt Options) *Link {
@@ -89,6 +92,12 @@ func New(opt Options) *Link {
 	def(&opt.LiveEvery, 20*time.Second)
 	def(&opt.VerifyTimeout, 10*time.Minute)
 	def(&opt.HeadlessTimeout, 15*time.Minute)
+	if opt.PRPoll <= 0 {
+		if d, err := time.ParseDuration(os.Getenv("HANDLOOM_PR_POLL")); err == nil && d > 0 {
+			opt.PRPoll = d
+		}
+	}
+	def(&opt.PRPoll, defaultPRPoll)
 	if opt.HeadlessRun == nil {
 		opt.HeadlessRun = execHeadless
 	}
@@ -213,6 +222,9 @@ func (l *Link) handler() http.Handler {
 	mux.HandleFunc("/v1/device/project-requests", linkOnly("the projects to fetch or create"))
 	mux.HandleFunc("POST /v1/project-requests/{id}/report", linkOnly("project results"))
 	mux.HandleFunc("POST /v1/publishes/{id}/report", linkOnly("publish results"))
+	mux.HandleFunc("/v1/device/pull-requests", linkOnly("the pull requests to look at"))
+	mux.HandleFunc("POST /v1/publishes/{id}/pr", linkOnly("where a pull request stands"))
+	mux.HandleFunc("POST /v1/jobs/{id}/base", linkOnly("how a job's base went"))
 	mux.HandleFunc("/v1/device/tails", linkOnly("the screens wanted"))
 	mux.HandleFunc("POST /v1/device/usage", linkOnly("usage"))
 	mux.HandleFunc("POST /v1/device/tails/{name}", linkOnly("screens"))

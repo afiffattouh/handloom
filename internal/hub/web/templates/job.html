@@ -2,7 +2,8 @@
 {{with .Extra}}
 <div class="page-head">
   <div><h1><span class="muted">#{{.Job.ID}}</span> {{.Job.Title}}</h1>
-    <p class="desc">{{if .Job.Codebase}}project <strong>{{.Job.Codebase}}</strong> · {{end}}{{if .Job.Repo}}<span class="mono">{{.Job.Repo}}</span> on {{.Job.Device}} · {{end}}lead {{if .Job.Lead}}{{.Job.Lead}}{{else}}none{{end}}{{if .Job.Confidential}} · confidential{{end}}</p></div>
+    <p class="desc">{{if .Job.Codebase}}project <strong>{{.Job.Codebase}}</strong> · {{end}}{{if .Job.Repo}}<span class="mono">{{.Job.Repo}}</span> on {{.Job.Device}} · {{end}}lead {{if .Job.Lead}}{{.Job.Lead}}{{else}}none{{end}}{{if .Job.Confidential}} · confidential{{end}}</p>
+    {{if .Job.BaseState}}<p class="desc{{if ne .Job.BaseState "fresh"}} sev-warn{{end}}">Base: {{.Job.BaseState}}. {{.Job.BaseDetail}}</p>{{end}}</div>
   <div class="acts">
     {{if eq .Job.Status "open"}}<span class="badge success"><i class="dot"></i>Open</span>{{else if eq .Job.Status "done"}}<span class="badge">Done</span>{{else}}<span class="badge outline">{{.Job.Status}}</span>{{end}}
   </div>
@@ -109,7 +110,7 @@
         <div class="row line"><span>
           {{if eq .Status "done"}}<span class="badge success">Pushed</span>{{else if eq .Status "failed"}}<span class="badge destructive">Failed</span>{{else}}<span class="badge warning"><i class="dot"></i>Waiting</span>{{end}}
           <code>{{.Remote}}/{{.Branch}}</code>{{if .PR}} <span class="desc">with a pull request</span>{{end}}
-          {{if .URL}}<div class="desc text">Pull request: {{if .LinkOK}}<a href="{{.URL}}" rel="noopener noreferrer">{{.URL}}</a>{{else}}{{.URL}}{{end}}</div>{{end}}
+          {{if .URL}}<div class="desc text">Pull request: {{if .LinkOK}}<a href="{{.URL}}" rel="noopener noreferrer">{{.URL}}</a>{{else}}{{.URL}}{{end}}{{if .PRWords}} <span class="badge{{if eq .PRState "merged"}} success{{else if eq .PRState "closed"}} outline{{end}}">{{.PRWords}}</span>{{end}}</div>{{end}}
           {{if .Behind}}<div class="desc text sev-warn">The base moved: {{.Behind}} new commit{{if ne .Behind 1}}s{{end}} on {{.Remote}}; the pull request may conflict.</div>{{end}}
           {{if .Detail}}<div class="desc text{{if eq .Status "failed"}} sev-bad{{end}}">{{.Detail}}</div>{{end}}
         </span><span class="desc nw">{{.Ago}}</span></div>

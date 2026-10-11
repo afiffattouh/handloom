@@ -96,6 +96,7 @@ func (l *Link) launch(ctx context.Context, s api.Spawn) error {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return err
 	}
+	l.freshBase(ctx, s)
 	if s.Repo != "" {
 		// A repo job: the agent works in its own git worktree of the repository,
 		// on its own branch, so agents cannot trip over each other's files.

@@ -118,6 +118,7 @@ func (l *Link) runLadder(ctx context.Context) {
 	l.runMerges(ctx)
 	l.runCollects(ctx)
 	l.runPublishes(ctx)
+	l.pollPullRequests(ctx)
 	l.runProjectRequests(ctx)
 	l.runTails(ctx)
 	l.runUsage(ctx, agents)

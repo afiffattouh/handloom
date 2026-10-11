@@ -229,6 +229,9 @@ func (h *Hub) Handler() http.Handler {
 	v1("GET /jobs/{id}/publishes", jobPublishes)
 	v1("GET /device/publishes", devicePublishes)
 	v1("POST /publishes/{id}/report", publishReport)
+	v1("GET /device/pull-requests", devicePullRequests)
+	v1("POST /publishes/{id}/pr", publishPR)
+	v1("POST /jobs/{id}/base", jobBase)
 	v1("POST /agents/{name}/job", agentJob)
 
 	// Projects (D104): a name and a shared git remote. "codebase" in the paths because /projects is the tenancy.

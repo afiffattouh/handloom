@@ -313,7 +313,62 @@ type Job struct {
 	CreatedBy    string    `json:"created_by"`
 	CreatedAt    time.Time `json:"created_at"`
 	Tasks        JobCounts `json:"tasks"`
-	Overlaps     []JobRef  `json:"overlaps,omitempty"` // other open jobs on the same repository and device: a warning, never a block
+	Overlaps     []JobRef  `json:"overlaps,omitempty"`     // other open jobs on the same repository and device: a warning, never a block
+	BaseState    string    `json:"base_state,omitempty"`   // how the start from a project's latest code went (D105): fresh | stale | diverged
+	BaseDetail   string    `json:"base_detail,omitempty"`  // that, in words
+	BaseCommit   string    `json:"base_commit,omitempty"`  // the short id of the base branch when the job started
+	PullRequest  string    `json:"pull_request,omitempty"` // where the latest published pull request stands, in words (D105)
+	PRMerged     bool      `json:"pr_merged,omitempty"`    // a pull request of this job was merged
+}
+
+// Base states of a job that works on a project (D105).
+const (
+	BaseFresh    = "fresh"
+	BaseStale    = "stale"
+	BaseDiverged = "diverged"
+)
+
+// BaseReport is the device's account of getting the latest code of a project's base branch before a job started.
+type BaseReport struct {
+	Status string `json:"status"` // fresh | stale | diverged
+	Detail string `json:"detail,omitempty"`
+	Commit string `json:"commit,omitempty"`
+}
+
+// BaseLine is the one line that says how a job's start went, or "" when nothing was recorded.
+func BaseLine(j Job) string {
+	if j.BaseState == "" {
+		return ""
+	}
+	return "Base: " + j.BaseState + ": " + j.BaseDetail
+}
+
+// PRWords says where a pull request stands, such as "open, approved, can merge", or "" when it has not been looked at.
+func PRWords(state, review, mergeable string) string {
+	switch state {
+	case "merged":
+		return "merged"
+	case "closed":
+		return "closed without being merged"
+	case "open":
+		s := "open"
+		switch review {
+		case "approved":
+			s += ", approved"
+		case "changes_requested":
+			s += ", changes requested"
+		case "review_required":
+			s += ", waiting for a review"
+		}
+		switch mergeable {
+		case "true":
+			s += ", can merge"
+		case "false":
+			s += ", has conflicts"
+		}
+		return s
+	}
+	return ""
 }
 
 // JobRef names another job.
@@ -368,9 +423,10 @@ type Spawn struct {
 	Repo      string    `json:"repo,omitempty"` // the repository its work directory is a worktree of
 	Knowledge string    `json:"knowledge,omitempty"`
 	Base      string    `json:"base,omitempty"`
-	Verify    string    `json:"verify,omitempty"`  // the job's verify command, which the device runs after this agent submits
-	Profile   string    `json:"profile,omitempty"` // name@version it is pinned to
-	Status    string    `json:"status"`            // pending | launching | started | failed
+	Verify    string    `json:"verify,omitempty"`     // the job's verify command, which the device runs after this agent submits
+	Profile   string    `json:"profile,omitempty"`    // name@version it is pinned to
+	FreshBase bool      `json:"fresh_base,omitempty"` // the job belongs to a project and its start has not been recorded: get the latest base first (D105)
+	Status    string    `json:"status"`               // pending | launching | started | failed
 	Pane      string    `json:"pane,omitempty"`
 	Error     string    `json:"error,omitempty"`
 	CreatedBy string    `json:"created_by"`
@@ -703,8 +759,12 @@ type Publish struct {
 	PR          bool       `json:"pr"`
 	Status      string     `json:"status"` // pending | done | failed
 	Detail      string     `json:"detail,omitempty"`
-	URL         string     `json:"url,omitempty"`    // the pull request, when one was opened
-	Behind      int        `json:"behind,omitempty"` // commits the base branch is behind on the remote
+	URL         string     `json:"url,omitempty"`          // the pull request, when one was opened
+	Behind      int        `json:"behind,omitempty"`       // commits the base branch is behind on the remote
+	PRState     string     `json:"pr_state,omitempty"`     // open | merged | closed, as the machine last saw it (D105)
+	PRReview    string     `json:"pr_review,omitempty"`    // approved | changes_requested | review_required
+	PRMergeable string     `json:"pr_mergeable,omitempty"` // true | false | unknown
+	PRWords     string     `json:"pr_words,omitempty"`     // the three above in words
 	At          time.Time  `json:"at"`
 	DoneAt      *time.Time `json:"done_at,omitempty"`
 }
@@ -735,6 +795,20 @@ type PublishReport struct {
 	Detail string `json:"detail,omitempty"`
 	URL    string `json:"url,omitempty"`
 	Behind int    `json:"behind,omitempty"`
+}
+
+// PendingPR is a published pull request a device keeps an eye on.
+type PendingPR struct {
+	ID  int64  `json:"id"` // the publish
+	Job int64  `json:"job"`
+	URL string `json:"url"`
+}
+
+// PRReport is the device's account of where a pull request stands.
+type PRReport struct {
+	State     string `json:"state"`               // open | merged | closed
+	Review    string `json:"review,omitempty"`    // approved | changes_requested | review_required
+	Mergeable string `json:"mergeable,omitempty"` // true | false | unknown
 }
 
 // OverlapText is the warning shown when other open jobs work on the same repository and device.

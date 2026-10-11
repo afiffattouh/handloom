@@ -89,7 +89,7 @@ func fakeGH(t *testing.T, output string, fail bool) (argsFile string) {
 	if fail {
 		exit = "1"
 	}
-	script := "#!/bin/sh\nfor a in \"$@\"; do printf '%s\\n' \"$a\"; printf '\\000'; done > " + argsFile + "\ncat <<'EOF'\n" + output + "\nEOF\nexit " + exit + "\n"
+	script := "#!/bin/sh\n[ \"$2\" = view ] || for a in \"$@\"; do printf '%s\\n' \"$a\"; printf '\\000'; done > " + argsFile + "\ncat <<'EOF'\n" + output + "\nEOF\nexit " + exit + "\n"
 	if err := os.WriteFile(filepath.Join(dir, "gh"), []byte(script), 0o755); err != nil {
 		t.Fatal(err)
 	}

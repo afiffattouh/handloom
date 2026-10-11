@@ -407,6 +407,15 @@ CREATE TABLE codebase_request (
 );
 CREATE INDEX codebase_request_pending ON codebase_request(device_id, status);
 ALTER TABLE task ADD COLUMN codebase_id INTEGER;
+`, `
+-- D105: how the job's start from a project went (a fresh base), and where a published pull request stands.
+ALTER TABLE task ADD COLUMN base_state TEXT NOT NULL DEFAULT '';
+ALTER TABLE task ADD COLUMN base_detail TEXT NOT NULL DEFAULT '';
+ALTER TABLE task ADD COLUMN base_commit TEXT NOT NULL DEFAULT '';
+ALTER TABLE publish ADD COLUMN pr_state TEXT NOT NULL DEFAULT '';
+ALTER TABLE publish ADD COLUMN pr_review TEXT NOT NULL DEFAULT '';
+ALTER TABLE publish ADD COLUMN pr_mergeable TEXT NOT NULL DEFAULT '';
+ALTER TABLE publish ADD COLUMN pr_checked_at INTEGER;
 `}
 
 // Open opens (and migrates) the database at path. Use ":memory:" in tests.

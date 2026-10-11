@@ -26,9 +26,11 @@ BIN="$OUT/bin/handloom"
 
 # fake claude: the spawned pane runs it after handloom has registered the agent
 printf '#!/bin/sh\nexec sleep 3600\n' > "$OUT/fakebin/claude"
-# fake gh: records its arguments, one per line, and prints a pull request link
+# fake gh: records its arguments, one per line, and prints a pull request link (the link also looks at the pull
+# request with "pr view" afterwards, D105; that call is not recorded, so the file keeps the "pr create" arguments)
 cat > "$OUT/fakebin/gh" <<EOF2
 #!/bin/sh
+[ "\$2" = view ] && exit 1
 for a in "\$@"; do printf '%s\n' "\$a"; done > "$OUT/gh-args.txt"
 echo "https://github.com/acme/toy/pull/7"
 EOF2

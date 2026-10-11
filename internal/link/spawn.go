@@ -175,7 +175,45 @@ func (l *Link) worktree(ctx context.Context, s api.Spawn, dir string) error {
 			return fmt.Errorf("could not make a worktree for %s: %v", s.Name, err)
 		}
 	}
+	l.excludeAdapterFiles(git)
 	return nil
+}
+
+// excludeAdapterFiles tells git to ignore what handloom and the agent CLIs write into a worktree (the agent's
+// token among them), so an agent that runs `git add -A` itself does not commit them. It goes in the repository's
+// shared info/exclude, which never touches a file the repository already tracks. Best effort.
+func (l *Link) excludeAdapterFiles(git func(args ...string) (string, error)) {
+	out, err := git("rev-parse", "--path-format=absolute", "--git-path", "info/exclude")
+	if err != nil {
+		return
+	}
+	file := strings.TrimSpace(out)
+	have, _ := os.ReadFile(file)
+	var add []string
+	for _, p := range []string{"/.handloom/", "/.claude/settings.local.json", "/CLAUDE.md", "/AGENTS.md"} {
+		if !strings.Contains("\n"+string(have), "\n"+p+"\n") {
+			add = append(add, p)
+		}
+	}
+	if len(add) == 0 {
+		return
+	}
+	if err := os.MkdirAll(filepath.Dir(file), 0o755); err != nil {
+		return
+	}
+	f, err := os.OpenFile(file, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0o644)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	text := strings.Join(add, "\n") + "\n"
+	if len(have) > 0 && have[len(have)-1] != '\n' {
+		text = "\n" + text
+	}
+	if len(have) == 0 || !strings.Contains(string(have), "# handloom") {
+		text = "# handloom: files it writes into an agent's directory\n" + text
+	}
+	f.WriteString(text)
 }
 
 // profileRuntime is whether the agent's profile runs on a model on this

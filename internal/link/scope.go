@@ -225,7 +225,9 @@ func (l *Link) autoCommit(ctx context.Context, rec *scopeRecord, taskID int64) e
 	for _, p := range []string{".handloom", ".claude", ".codex", ".pi", ".opencode", "CLAUDE.md", "AGENTS.md"} {
 		args = append(args, ":(exclude)"+p)
 	}
-	if _, err := git(args...); err != nil {
+	// git add exits 1 when a path it was told to leave out is also ignored (excludeAdapterFiles makes them so),
+	// yet it still stages the rest.
+	if out, err := git(args...); err != nil && !strings.Contains(out, "ignored by one of your .gitignore") {
 		return err
 	}
 	if _, err := git("diff", "--cached", "--quiet"); err == nil {

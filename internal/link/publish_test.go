@@ -293,3 +293,58 @@ func TestAnAgentCannotReachThePublishEndpoints(t *testing.T) {
 func exec_LookPath(name string) (string, error) { return exec.LookPath(name) }
 
 func nil2() context.Context { return context.Background() }
+
+func TestPublishRefusesABranchThatCarriesAnAgentsToken(t *testing.T) {
+	pf := newPublishFixture(t, true)
+	// the integration branch is checked out in a worktree of its own; commit the token file there
+	var wt string
+	var cur string
+	for _, l := range strings.Split(gitOut(t, pf.repo, "worktree", "list", "--porcelain"), "\n") {
+		if strings.HasPrefix(l, "worktree ") {
+			cur = strings.TrimPrefix(l, "worktree ")
+		}
+		if l == "branch refs/heads/"+pf.integ {
+			wt = cur
+		}
+	}
+	if wt == "" {
+		t.Fatal("no worktree for the integration branch")
+	}
+	if err := os.MkdirAll(filepath.Join(wt, ".handloom", "tokens"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(wt, ".handloom", "tokens", "alpha"), []byte("secret"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	gitOut(t, wt, "add", "-f", ".handloom")
+	gitOut(t, wt, "-c", "user.name=a", "-c", "user.email=a@a", "commit", "-q", "-m", "oops")
+	p := pf.publish(api.PublishReq{})
+	if p.Status != "failed" || !strings.Contains(p.Detail, "access token") || !strings.Contains(p.Detail, "git rm -r --cached .handloom") {
+		t.Fatalf("publish: %+v", p)
+	}
+	if pf.remoteBranch(fmt.Sprintf("handloom/job-%d-fix-it", pf.job)) != "" {
+		t.Fatal("the branch with the token was pushed")
+	}
+}
+
+func TestWorktreeFilesOfHandloomAreIgnoredByGit(t *testing.T) {
+	pf := newPublishFixture(t, true)
+	git := func(args ...string) (string, error) {
+		return execGit(nil2(), "git", append([]string{"-C", pf.repo}, args...)...)
+	}
+	(&Link{}).excludeAdapterFiles(git)
+	(&Link{}).excludeAdapterFiles(git) // twice adds nothing
+	for _, f := range []string{".handloom/tokens/alpha", "CLAUDE.md", ".claude/settings.local.json"} {
+		p := filepath.Join(pf.repo, f)
+		os.MkdirAll(filepath.Dir(p), 0o755)
+		os.WriteFile(p, []byte("x"), 0o600)
+	}
+	gitOut(t, pf.repo, "add", "-A")
+	if staged := gitOut(t, pf.repo, "diff", "--cached", "--name-only"); staged != "" {
+		t.Fatalf("git add -A staged Handloom's files: %q", staged)
+	}
+	b, _ := os.ReadFile(filepath.Join(pf.repo, ".git", "info", "exclude"))
+	if strings.Count(string(b), "/.handloom/") != 1 {
+		t.Fatalf("exclude file: %q", b)
+	}
+}

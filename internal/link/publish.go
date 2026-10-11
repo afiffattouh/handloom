@@ -60,6 +60,12 @@ func (l *Link) publish(ctx context.Context, p api.PendingPublish) api.PublishRep
 	if _, err := git("rev-parse", "--verify", "-q", "refs/heads/"+integ); err != nil {
 		return failed("this device has no branch %s in %s: nothing has been merged here yet", integ, p.Repo)
 	}
+	// An agent's token file must never leave the machine. If one got committed (git add -A by hand), say how to remove it.
+	if out, err := git("ls-tree", "-r", "--name-only", "refs/heads/"+integ, "--", ".handloom/"); err == nil && strings.TrimSpace(out) != "" {
+		return failed("the branch %s contains files Handloom keeps for its agents (%s), including an access token, so it was not pushed. "+
+			"Remove them and publish again: git -C %s checkout %s && git rm -r --cached .handloom && git commit -m \"remove agent files\"",
+			integ, strings.Join(strings.Fields(out), ", "), p.Repo, integ)
+	}
 	remotes, err := git("remote")
 	if err != nil {
 		return failed("could not list the remotes of %s: %v", p.Repo, err)

@@ -43,11 +43,12 @@ type Options struct {
 	PollWait      int           // long-poll seconds; default 25
 
 	// Spawn: the link starts agents in a tmux server of its own.
-	TmuxSocket string         // tmux -L name; default "handloom"
-	WorkRoot   string         // where spawned agents get their directories; default <home>/work
-	Binary     string         // the handloom binary a spawned pane runs; default this one
-	Tmux       drivers.Runner // replaceable in tests
-	Git        drivers.Runner // runs git; replaceable in tests
+	TmuxSocket   string         // tmux -L name; default "handloom"
+	WorkRoot     string         // where spawned agents get their directories; default <home>/work
+	ProjectsRoot string         // where this machine keeps its copies of projects (D104); default <home>/projects
+	Binary       string         // the handloom binary a spawned pane runs; default this one
+	Tmux         drivers.Runner // replaceable in tests
+	Git          drivers.Runner // runs git; replaceable in tests
 
 	Headless        map[string][]string // per-kind headless command overrides
 	HeadlessTimeout time.Duration       // longest a headless turn may run; default 15m
@@ -102,6 +103,9 @@ func New(opt Options) *Link {
 	}
 	if opt.WorkRoot == "" {
 		opt.WorkRoot = filepath.Join(client.Home(), "work")
+	}
+	if opt.ProjectsRoot == "" {
+		opt.ProjectsRoot = filepath.Join(client.Home(), "projects")
 	}
 	if opt.Binary == "" {
 		if exe, err := os.Executable(); err == nil {
@@ -206,6 +210,8 @@ func (l *Link) handler() http.Handler {
 	mux.HandleFunc("/v1/device/merges", linkOnly("the merges to do"))
 	mux.HandleFunc("/v1/device/kcollects", linkOnly("the notes to gather"))
 	mux.HandleFunc("/v1/device/publishes", linkOnly("the publishes to do"))
+	mux.HandleFunc("/v1/device/project-requests", linkOnly("the projects to fetch or create"))
+	mux.HandleFunc("POST /v1/project-requests/{id}/report", linkOnly("project results"))
 	mux.HandleFunc("POST /v1/publishes/{id}/report", linkOnly("publish results"))
 	mux.HandleFunc("/v1/device/tails", linkOnly("the screens wanted"))
 	mux.HandleFunc("POST /v1/device/usage", linkOnly("usage"))

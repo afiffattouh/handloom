@@ -76,6 +76,7 @@ func OperatorTools(allowApprovals bool) []tool {
 			}),
 		fixed("handloom_agents", "List every agent with its role, machine and state.", "agents"),
 		fixed("handloom_questions", "List the questions agents have asked the person, answered or not.", "escalations", "--status", "all"),
+		fixed("handloom_projects", "List the projects (shared git repositories) and which machines have a copy. Reading only: attaching, creating and fetching are for the person.", "project", "list"),
 		fixed("handloom_profiles", "List the person's profiles: what each kind of agent may do.", "profiles"),
 		reader("handloom_starters", "List the ready-made starter profiles, or show one by name.", map[string]any{"name": prop("string", "a starter name; empty lists them all")}, nil,
 			func(a args) ([]string, error) {

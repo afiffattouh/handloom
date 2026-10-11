@@ -104,7 +104,7 @@ func newFixture(t *testing.T) *fixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	h := hub.New(db, hub.Options{Now: f.clock, MsgRate: 1000})
+	h := hub.New(db, hub.Options{Now: f.clock, MsgRate: 1000, AllowFileRemotes: true})
 	srv := httptest.NewServer(h.Handler())
 	t.Cleanup(srv.Close)
 

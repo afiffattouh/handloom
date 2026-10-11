@@ -41,6 +41,14 @@ Context that survives a change of device, agent or person (tracking issue #20):
 - #18 Let a finished job teach: reviewed lessons become notes and skills
 - #19 Join a machine in one step (done, v0.1.1)
 
+## Projects (D104)
+
+Stage one is built: a project is a name and a shared remote; attach or create it, and any machine gets its own copy under its own login. Planned, not built:
+
+- Stage two: start a job from a fresh base (fetch the remote and fast-forward the project's main branch before the job's worktrees are made, refusing in words if the copy has diverged); show the pull request's status (open, merged, checks) on the job and project pages; let a person say which branch is the base when a repository has no usable default.
+- Stage three: warn across machines. "The base moved" while a job runs (the remote's main has new commits), and shared-file warnings between open jobs of one project on different machines (compare changed files, not repository paths). Needs a periodic fetch by the link and a small report of changed paths per job, never file contents.
+- Left undone from stage one: removing a project or forgetting one machine's copy; a different folder than `<link folder>/projects/<name>`; GitLab and other hosts for *creating* repositories (attaching and cloning work with any git host); a project page that refreshes by itself while a machine works.
+
 ## Working on one project together (D103)
 
 Left undone: pull a teammate's published branch into a clone from Handloom; run one job's agents on several machines; warn on overlap by changed files rather than by repository; an MCP tool for publishing (kept out on purpose: it is an approval-class action).

@@ -17,6 +17,14 @@
   <section class="card" aria-labelledby="s2">
     <div class="ch"><div><h2 id="s2">2. Where does the work live?</h2><p class="desc">Pick the machine that holds the files. For work that is not code (research, writing), leave the folder empty.</p></div></div>
     <div class="cc">
+      {{if or .Projects .NotReady}}
+      <label><span>Project <span class="desc">(optional)</span></span>
+        <select name="project" id="project">
+          <option value="">None: use a folder on the machine below</option>
+          {{range .Projects}}<option value="{{.Value}}"{{if eq .Value (index $.Extra.Form "project")}} selected{{end}}>{{.Label}}</option>{{end}}
+        </select></label>
+      <p class="desc">A project is a shared git repository that a machine has its own copy of. If you choose one, the folder and machine fields below are ignored: the job starts from that machine's copy. {{if .NotReady}}Not on any machine yet: {{range $i, $n := .NotReady}}{{if $i}}, {{end}}{{$n}}{{end}}. Get it onto a machine from <a href="/projects">Projects</a>.{{end}}</p>
+      {{end}}
       <label>Machine
         <select name="device" required>
           {{range .Devices}}<option value="{{.}}"{{if eq . (index $.Extra.Form "device")}} selected{{end}}>{{.}}</option>{{else}}<option value="">no machine has joined yet</option>{{end}}

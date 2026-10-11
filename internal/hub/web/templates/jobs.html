@@ -7,7 +7,7 @@
   <tbody>
   {{range .Jobs}}
   <tr class="link">
-    <td><a class="rowlink" href="/jobs/{{.ID}}"><span class="mono muted">#{{.ID}}</span> <strong>{{.Title}}</strong>{{if .Confidential}} <span class="badge outline">confidential</span>{{end}}</a></td>
+    <td><a class="rowlink" href="/jobs/{{.ID}}"><span class="mono muted">#{{.ID}}</span> <strong>{{.Title}}</strong>{{if .Codebase}} <span class="badge outline">{{.Codebase}}</span>{{end}}{{if .Confidential}} <span class="badge outline">confidential</span>{{end}}</a></td>
     <td class="nw">{{if eq .Status "open"}}<span class="badge success"><i class="dot"></i>Open</span>{{else if eq .Status "done"}}<span class="badge">Done</span>{{else}}<span class="badge outline">{{.Status}}</span>{{end}}</td>
     <td class="nw">{{if .Lead}}{{.Lead}}{{else}}<span class="muted">none yet</span>{{end}}</td>
     <td class="nw desc">{{.Counts}}</td>

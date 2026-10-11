@@ -51,7 +51,8 @@ Agent verbs (run inside an agent's shell, through the local link):
   handloom send <to> <text> [--task N]                to: agent name, role:lead, or task:<id>
   handloom inbox [--all]                              read new messages (marks them read)
   handloom job list | show <id>                   jobs: a root task with its own lead
-  handloom job new <title> [--body B] [--lead AGENT | --lead-profile P] [--repo PATH [--base BRANCH] --verify CMD --device D] [--knowledge PATH] [--confidential]   (human)
+  handloom job new <title> [--body B] [--lead AGENT | --lead-profile P] [--project NAME | --repo PATH] [--base BRANCH] [--verify CMD] [--device D] [--knowledge PATH] [--confidential]   (human)
+                                                  --project: work on a project; this machine gets its own copy first if it has none
   handloom job resume <id> --lead AGENT                                 (human) a new lead takes over a job whose lead is gone
   handloom job close <id> [--cancel]                                    (human)
   handloom job publish <id> [--remote R] [--pr]                         (human) push a finished job's branch to the shared remote (never forced); --pr also opens a pull request with gh
@@ -67,6 +68,12 @@ Agent verbs (run inside an agent's shell, through the local link):
   handloom task handoff <id> --done D [--tried T] [--next N] [--verify V]  leave a note for whoever picks the task up (lead, worker)
   handloom ask <question> [--option A --option B] [--task N] [--wait 10m]   (lead) ask the human; the answer arrives as a message
   handloom state <idle|working|blocked|offline>       report agent state (adapters do this)
+
+Projects (a name and a shared git remote that any machine can get; the code and git logins stay on the machines):
+  handloom project new NAME --remote URL [--base B] [--device D]            (human) attach a repository that exists; --device also fetches it there
+  handloom project new NAME --create [--owner O] [--public] [--device D]    (human) make the repository with gh on that machine, under its login (private unless --public)
+  handloom project list | show NAME                  the projects and which machines have a copy
+  handloom project clone NAME --device D             (human) have that machine fetch its own copy (waits up to 5 minutes)
 
 Device:
   handloom link join <hub-url> <join-token>           exchange a join token for a device credential
@@ -91,7 +98,7 @@ Hub and administration (HANDLOOM_HUB and HANDLOOM_TOKEN set to the hub URL and a
   handloom hub install [--data DIR] [--addr A] | uninstall     run the hub as a systemd service
   handloom device add <name> | list | revoke <name>   (admin)
   handloom human add <name>                           (admin)
-  handloom project add <name> | list                  (admin)
+  handloom project add <name> | tenants                (admin) the hub's own tenancy, rarely needed
   handloom agent role <name> <lead|worker|observer>   (admin, human)
   handloom agent job <name> <job id | 0>              move an agent into a job (admin, human)
   handloom people [add <name> [--role R] | invite <name> | role <name> --role R]   (owner) who can sign in; invite links

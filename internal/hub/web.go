@@ -36,7 +36,7 @@ const (
 	maxForm      = 64 << 10
 )
 
-var pageNames = []string{"setup", "login", "inbox", "closed", "message", "devices", "settings", "invite", "agents", "profiles", "profile", "jobs", "jobform", "job", "command", "agent", "starters", "starter", "connect", "search", "lessons"}
+var pageNames = []string{"setup", "login", "inbox", "closed", "message", "devices", "settings", "invite", "agents", "profiles", "profile", "jobs", "jobform", "job", "command", "agent", "starters", "starter", "connect", "search", "lessons", "projects"}
 
 type pageData struct {
 	Title  string
@@ -60,7 +60,7 @@ type pageData struct {
 type crumb struct{ Label, Href string }
 
 // sections are the menu items as the header's path names them.
-var sections = map[string]crumb{"command": {"Command center", "/command"}, "inbox": {"Inbox", "/inbox"}, "jobs": {"Jobs", "/jobs"},
+var sections = map[string]crumb{"command": {"Command center", "/command"}, "inbox": {"Inbox", "/inbox"}, "jobs": {"Jobs", "/jobs"}, "projects": {"Projects", "/projects"},
 	"agents": {"Agents", "/agents"}, "profiles": {"Profiles", "/profiles"}, "devices": {"Machines", "/devices"},
 	"settings": {"Settings", "/settings"}, "connect": {"Connect an AI app", "/connect"}}
 
@@ -69,7 +69,7 @@ type navCounts struct{ Needs, Jobs, Agents, Devices int }
 
 // activeMenu says which menu item a page belongs to.
 var activeMenu = map[string]string{"inbox": "inbox", "jobs": "jobs", "jobform": "jobs", "job": "jobs", "agents": "agents", "agent": "agents",
-	"profiles": "profiles", "profile": "profiles", "starters": "profiles", "starter": "profiles", "devices": "devices", "settings": "settings", "command": "command", "connect": "connect", "lessons": "profiles"}
+	"profiles": "profiles", "profile": "profiles", "starters": "profiles", "starter": "profiles", "devices": "devices", "settings": "settings", "command": "command", "connect": "connect", "lessons": "profiles", "projects": "projects"}
 
 // narrowPages are forms and reading pages.
 var narrowPages = map[string]bool{"jobform": true, "profile": true, "message": true}
@@ -237,6 +237,10 @@ func (h *Hub) webRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /lessons", web(h.authed(h.webLessons)))
 	mux.HandleFunc("POST /lessons/{id}/accept", web(h.authed(h.webLessonDecide(true))))
 	mux.HandleFunc("POST /lessons/{id}/reject", web(h.authed(h.webLessonDecide(false))))
+	mux.HandleFunc("GET /projects", web(h.authed(h.webProjects)))
+	mux.HandleFunc("POST /projects/attach", web(h.authed(h.webProjectAttach)))
+	mux.HandleFunc("POST /projects/create", web(h.authed(h.webProjectCreate)))
+	mux.HandleFunc("POST /projects/{name}/clone", web(h.authed(h.webProjectClone)))
 	mux.HandleFunc("GET /jobs", web(h.authed(h.webJobs)))
 	mux.HandleFunc("GET /jobs/new", web(h.authed(h.webJobNewForm)))
 	mux.HandleFunc("POST /jobs", web(h.authed(h.webJobCreate)))

@@ -52,7 +52,11 @@ type jobFormView struct {
 	Repos     []string // folders earlier jobs used, to pick from
 	Form      map[string]string
 	AllowConf bool
+	Projects  []projectOption // projects with a ready copy: one entry per machine that has it
+	NotReady  []string        // projects no machine has a copy of yet
 }
+
+type projectOption struct{ Value, Label string }
 
 func (q *webReq) jobForm(status int, errMsg string, form map[string]string) error {
 	if q.human.Role == store.RoleViewer {
@@ -88,6 +92,23 @@ func (q *webReq) jobForm(status int, errMsg string, form map[string]string) erro
 			v.Devices = append(v.Devices, d.Name)
 		}
 	}
+	// Projects: only a machine that has its copy ready can start a job from it.
+	cbs, err := q.c.codebases()
+	if err != nil {
+		return err
+	}
+	for _, cb := range cbs {
+		ready := 0
+		for _, k := range cb.Clones {
+			if k.Status == "ready" {
+				v.Projects = append(v.Projects, projectOption{Value: cb.Name + "|" + k.Device, Label: cb.Name + " on " + k.Device})
+				ready++
+			}
+		}
+		if ready == 0 {
+			v.NotReady = append(v.NotReady, cb.Name)
+		}
+	}
 	// Fill in what can be known: the only machine, the lead profile when there is one obvious choice.
 	if form["device"] == "" && len(v.Devices) == 1 {
 		form["device"] = v.Devices[0]
@@ -119,6 +140,10 @@ func (h *Hub) webJobCreate(q *webReq) error {
 	req := api.JobNewReq{Title: strings.TrimSpace(f.Get("title")), Body: strings.TrimSpace(strings.ReplaceAll(f.Get("body"), "\r\n", "\n")),
 		Repo: strings.TrimSpace(f.Get("repo")), Verify: strings.TrimSpace(f.Get("verify")), Knowledge: strings.TrimSpace(f.Get("knowledge")), Base: strings.TrimSpace(f.Get("base")), Device: f.Get("device"),
 		LeadProfile: f.Get("lead_profile"), Confidential: f.Get("confidential") == "1"}
+	if pr := f.Get("project"); pr != "" { // "name|machine": a project chosen, the folder field is ignored
+		name, dev, _ := strings.Cut(pr, "|")
+		req.Codebase, req.Device, req.Repo = name, dev, ""
+	}
 	res, err := q.c.createJob(req)
 	if err != nil {
 		var ae *apiError

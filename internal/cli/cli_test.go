@@ -41,7 +41,7 @@ func newRig(t *testing.T) *rig {
 	if err != nil {
 		t.Fatal(err)
 	}
-	srv := httptest.NewServer(hub.New(db, hub.Options{}).Handler())
+	srv := httptest.NewServer(hub.New(db, hub.Options{AllowFileRemotes: true}).Handler())
 	t.Cleanup(srv.Close)
 	r := &rig{t: t, hubURL: srv.URL, admin: admin}
 

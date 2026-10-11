@@ -90,38 +90,6 @@ func (e *env) human(args []string) error {
 	return nil
 }
 
-func (e *env) project(args []string) error {
-	fs := e.flags("project")
-	pos, err := fs.need(args, 1, 2, "project add <name> | list")
-	if err != nil {
-		return err
-	}
-	c, err := conn()
-	if err != nil {
-		return err
-	}
-	switch {
-	case pos[0] == "add" && len(pos) == 2:
-		if err := c.Post("/v1/admin/projects", api.NameReq{Name: pos[1]}, nil); err != nil {
-			return err
-		}
-		fmt.Fprintf(e.out, "Project %s added.\n", pos[1])
-	case pos[0] == "list" && len(pos) == 1:
-		var projects []api.Project
-		if err := c.Get("/v1/projects", &projects); err != nil {
-			return err
-		}
-		e.print(projects, func() {
-			for _, p := range projects {
-				fmt.Fprintln(e.out, p.Name)
-			}
-		})
-	default:
-		return usageErr("usage: handloom project add <name> | list")
-	}
-	return nil
-}
-
 func (e *env) agent(args []string) error {
 	fs := e.flags("agent")
 	pos, err := fs.parse(args)
@@ -554,7 +522,9 @@ func jobLine(j api.Job) string {
 	}
 	n := j.Tasks
 	repo := ""
-	if j.Repo != "" {
+	if j.Codebase != "" {
+		repo = " [project " + j.Codebase + ", " + j.Repo + " on " + j.Device + "]"
+	} else if j.Repo != "" {
 		repo = " [repo " + j.Repo + " on " + j.Device + "]"
 	}
 	if j.Knowledge != "" {
@@ -603,7 +573,8 @@ func (e *env) job(args []string) error {
 	cancel := fs.Bool("cancel", false, "close: cancel the job and its unfinished tasks")
 	remote := fs.String("remote", "", "publish: the remote to push to (default origin)")
 	pr := fs.Bool("pr", false, "publish: also open a pull request (needs gh on the job's machine)")
-	project := fs.String("project", "", "project")
+	project := fs.String("project", "", "new: the Handloom project (a shared repository) to work on; the machine gets its own copy first if it has none. list: the hub's tenancy project")
+	tenant := fs.String("tenant", "", "new, list: the hub's tenancy project (rarely used; the default one is meant)")
 	pos, err := fs.parse(args[1:])
 	if err != nil {
 		return err
@@ -625,10 +596,19 @@ func (e *env) job(args []string) error {
 	switch sub {
 	case "new":
 		if len(pos) == 0 {
-			return usageErr("usage: handloom job new <title> [--body B] [--lead AGENT | --lead-profile P] [--repo PATH [--base BRANCH] --verify CMD --device D] [--knowledge PATH] [--confidential]")
+			return usageErr("usage: handloom job new <title> [--body B] [--lead AGENT | --lead-profile P] [--project NAME | --repo PATH] [--base BRANCH] [--verify CMD] [--device D] [--knowledge PATH] [--confidential]")
+		}
+		if *project != "" && *repo != "" {
+			return usageErr("name a project (--project) or a repository path (--repo), not both")
+		}
+		if *project != "" {
+			// No manual cloning: if the machine has no copy of the project yet, get it first and wait.
+			if _, err := e.ensureClone(c, *project, *device); err != nil {
+				return err
+			}
 		}
 		var j api.Job
-		if err := c.Post("/v1/jobs", api.JobNewReq{Title: strings.Join(pos, " "), Body: *body, Lead: *lead, Confidential: *conf, Project: *project,
+		if err := c.Post("/v1/jobs", api.JobNewReq{Title: strings.Join(pos, " "), Body: *body, Lead: *lead, Confidential: *conf, Project: *tenant, Codebase: *project,
 			Repo: *repo, Verify: *verify, Knowledge: *knowledge, Base: *base, Device: *device, LeadProfile: *leadProfile, LeadName: *leadName}, &j); err != nil {
 			return err
 		}
@@ -643,7 +623,10 @@ func (e *env) job(args []string) error {
 		})
 	case "list":
 		var js []api.Job
-		if err := c.Get("/v1/jobs?"+url.Values{"project": {*project}}.Encode(), &js); err != nil {
+		if *tenant == "" {
+			*tenant = *project
+		}
+		if err := c.Get("/v1/jobs?"+url.Values{"project": {*tenant}}.Encode(), &js); err != nil {
 			return err
 		}
 		e.print(js, func() {

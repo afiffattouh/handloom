@@ -370,6 +370,43 @@ CREATE TABLE publish (
 );
 CREATE INDEX publish_pending ON publish(device_id, status);
 CREATE INDEX publish_job ON publish(job_id);
+`, `
+-- D104: a project is a name and a shared git remote that any machine can get on demand. The code and the git credentials never reach
+-- the hub: it keeps the name, the remote's address and, per machine, where the clone is and how it went. (The table "project" above
+-- is the tenancy of the hub; a project of this kind is called a codebase inside the program.)
+CREATE TABLE codebase (
+  id          INTEGER PRIMARY KEY,
+  name        TEXT NOT NULL UNIQUE,
+  remote      TEXT NOT NULL DEFAULT '',
+  base_branch TEXT NOT NULL DEFAULT '',
+  created_by  TEXT NOT NULL,
+  created_at  INTEGER NOT NULL
+);
+CREATE TABLE codebase_clone (
+  codebase_id INTEGER NOT NULL REFERENCES codebase(id),
+  device_id   INTEGER NOT NULL REFERENCES device(id),
+  path        TEXT NOT NULL DEFAULT '',
+  status      TEXT NOT NULL DEFAULT 'pending',
+  detail      TEXT NOT NULL DEFAULT '',
+  created_at  INTEGER NOT NULL,
+  updated_at  INTEGER NOT NULL,
+  UNIQUE (codebase_id, device_id)
+);
+CREATE TABLE codebase_request (
+  id           INTEGER PRIMARY KEY,
+  codebase_id  INTEGER NOT NULL REFERENCES codebase(id),
+  device_id    INTEGER NOT NULL REFERENCES device(id),
+  kind         TEXT NOT NULL,
+  owner        TEXT NOT NULL DEFAULT '',
+  private      INTEGER NOT NULL DEFAULT 1,
+  requested_by TEXT NOT NULL,
+  status       TEXT NOT NULL DEFAULT 'pending',
+  detail       TEXT NOT NULL DEFAULT '',
+  created_at   INTEGER NOT NULL,
+  done_at      INTEGER
+);
+CREATE INDEX codebase_request_pending ON codebase_request(device_id, status);
+ALTER TABLE task ADD COLUMN codebase_id INTEGER;
 `}
 
 // Open opens (and migrates) the database at path. Use ":memory:" in tests.

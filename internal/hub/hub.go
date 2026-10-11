@@ -37,6 +37,7 @@ type Options struct {
 	TrustProxy        bool             // take the client address from the proxy's X-Forwarded-For
 	SessionIdle       time.Duration    // web session idle timeout; default 12h
 	SessionMax        time.Duration    // web session absolute lifetime; default 7 days
+	AllowFileRemotes  bool             // accept file:// addresses as a project's remote (tests and trials only)
 	AllowConfidential bool             // this hub may host confidential jobs (private, trusted deployments only)
 	RequireRunToken   bool             // refuse agent requests that carry only the device credential and a claimed name
 	MaxSpawns         int              // agents a job may have running or starting at once; default 5
@@ -229,6 +230,15 @@ func (h *Hub) Handler() http.Handler {
 	v1("GET /device/publishes", devicePublishes)
 	v1("POST /publishes/{id}/report", publishReport)
 	v1("POST /agents/{name}/job", agentJob)
+
+	// Projects (D104): a name and a shared git remote. "codebase" in the paths because /projects is the tenancy.
+	v1("GET /codebases", codebaseList)
+	v1("POST /codebases", codebaseAttach)
+	v1("POST /codebases/create", codebaseCreate)
+	v1("GET /codebases/{name}", codebaseGet)
+	v1("POST /codebases/{name}/clone", codebaseClone)
+	v1("GET /device/project-requests", deviceCodebaseRequests)
+	v1("POST /project-requests/{id}/report", codebaseReport)
 
 	v1("POST /spawns", spawnNew)
 	v1("GET /spawns", spawnList)
@@ -689,7 +699,7 @@ func (h *Hub) deviceEvents(r *http.Request, after int64) ([]api.Event, int64, er
 	// A device sees the events of its agents, and the spawn requests addressed to it.
 	rows, err := tx.Query(`SELECT e.seq, e.type, COALESCE(a.name, ''), e.payload, e.created_at
 		FROM event e LEFT JOIN agent a ON a.id = e.agent_id
-		WHERE (a.device_id = ? OR (e.agent_id IS NULL AND e.type = 'spawn.requested' AND json_extract(e.payload, '$.device_id') = ?))
+		WHERE (a.device_id = ? OR (e.agent_id IS NULL AND e.type IN ('spawn.requested', 'project.requested') AND json_extract(e.payload, '$.device_id') = ?))
 		AND e.seq > ? ORDER BY e.seq LIMIT 200`, p.deviceID, p.deviceID, after)
 	if err != nil {
 		return nil, 0, err
@@ -791,7 +801,7 @@ func (h *Hub) allowRate(key string, burst, perMinute float64, now time.Time) boo
 // look at the picture and start work; accepting, answering, closing and every
 // setting stay with the person's own token and the web UI.
 var operatorCalls = map[string]bool{
-	"GET /v1/whoami": true, "GET /v1/digest": true, "GET /v1/metrics": true, "GET /v1/search": true, "GET /v1/lessons": true, "GET /v1/projects": true,
+	"GET /v1/whoami": true, "GET /v1/digest": true, "GET /v1/metrics": true, "GET /v1/search": true, "GET /v1/lessons": true, "GET /v1/projects": true, "GET /v1/codebases": true, "GET /v1/codebases/{name}": true,
 	"GET /v1/jobs": true, "GET /v1/jobs/{id}": true, "POST /v1/jobs": true, "GET /v1/jobs/{id}/publishes": true,
 	"GET /v1/tasks": true, "GET /v1/tasks/{id}": true,
 	"GET /v1/agents": true, "GET /v1/agents/{name}/screen": true,

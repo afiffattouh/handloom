@@ -67,6 +67,7 @@ func (c *call) jobView(t *taskRow) (api.Job, error) {
 	if lead != nil {
 		j.Lead = lead.name
 	}
+	j.Codebase = c.codebaseName(t.id)
 	if j.Overlaps, err = c.overlaps(t); err != nil {
 		return api.Job{}, err
 	}
@@ -127,6 +128,25 @@ func (c *call) createJob(req api.JobNewReq) (any, error) {
 	if req.Lead != "" && req.LeadProfile != "" {
 		return nil, badRequest("name an existing agent as lead, or a profile to start one from, not both")
 	}
+	var codebaseID sql.NullInt64
+	if req.Codebase != "" {
+		if req.Repo != "" {
+			return nil, badRequest("name a project or a repository path, not both")
+		}
+		d, err := c.spawnDevice(req.Device)
+		if err != nil {
+			return nil, err
+		}
+		cid, repo, base, err := c.codebaseFor(req.Codebase, d)
+		if err != nil {
+			return nil, err
+		}
+		codebaseID = sql.NullInt64{Int64: cid, Valid: true}
+		req.Repo = repo
+		if req.Base == "" {
+			req.Base = base
+		}
+	}
 	if err := checkRepoSpec(req.Repo, req.Verify); err != nil {
 		return nil, err
 	}
@@ -151,13 +171,13 @@ func (c *call) createJob(req api.JobNewReq) (any, error) {
 		}
 	}
 	ms := store.Millis(c.now)
-	res, err := c.tx.Exec(`INSERT INTO task(project_id, title, body, status, kind, depends_on, created_by, created_at, updated_at, confidential, repo, verify, device_id, knowledge, base)
-		VALUES (?, ?, ?, 'open', 'job', '[]', ?, ?, ?, ?, ?, ?, ?, ?, ?)`, projectID, req.Title, req.Body, c.p.actor(), ms, ms, req.Confidential, req.Repo, req.Verify, nullAny(deviceID), req.Knowledge, req.Base)
+	res, err := c.tx.Exec(`INSERT INTO task(project_id, title, body, status, kind, depends_on, created_by, created_at, updated_at, confidential, repo, verify, device_id, knowledge, base, codebase_id)
+		VALUES (?, ?, ?, 'open', 'job', '[]', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, projectID, req.Title, req.Body, c.p.actor(), ms, ms, req.Confidential, req.Repo, req.Verify, nullAny(deviceID), req.Knowledge, req.Base, nullAny(codebaseID))
 	if err != nil {
 		return nil, err
 	}
 	id, _ := res.LastInsertId()
-	if err := c.record(projectID, 0, "job.new", fmt.Sprintf("job:%d", id), map[string]any{"title": req.Title, "lead": req.Lead, "confidential": req.Confidential, "repo": req.Repo, "verify": req.Verify, "knowledge": req.Knowledge, "base": req.Base, "lead_profile": req.LeadProfile}); err != nil {
+	if err := c.record(projectID, 0, "job.new", fmt.Sprintf("job:%d", id), map[string]any{"title": req.Title, "lead": req.Lead, "confidential": req.Confidential, "repo": req.Repo, "verify": req.Verify, "knowledge": req.Knowledge, "base": req.Base, "project": req.Codebase, "lead_profile": req.LeadProfile}); err != nil {
 		return nil, err
 	}
 	if req.LeadProfile != "" {

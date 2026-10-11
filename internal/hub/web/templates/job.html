@@ -2,7 +2,7 @@
 {{with .Extra}}
 <div class="page-head">
   <div><h1><span class="muted">#{{.Job.ID}}</span> {{.Job.Title}}</h1>
-    <p class="desc">{{if .Job.Repo}}<span class="mono">{{.Job.Repo}}</span> on {{.Job.Device}} · {{end}}lead {{if .Job.Lead}}{{.Job.Lead}}{{else}}none{{end}}{{if .Job.Confidential}} · confidential{{end}}</p></div>
+    <p class="desc">{{if .Job.Codebase}}project <strong>{{.Job.Codebase}}</strong> · {{end}}{{if .Job.Repo}}<span class="mono">{{.Job.Repo}}</span> on {{.Job.Device}} · {{end}}lead {{if .Job.Lead}}{{.Job.Lead}}{{else}}none{{end}}{{if .Job.Confidential}} · confidential{{end}}</p></div>
   <div class="acts">
     {{if eq .Job.Status "open"}}<span class="badge success"><i class="dot"></i>Open</span>{{else if eq .Job.Status "done"}}<span class="badge">Done</span>{{else}}<span class="badge outline">{{.Job.Status}}</span>{{end}}
   </div>

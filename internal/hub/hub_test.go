@@ -364,6 +364,13 @@ var scopeCases = []scopeCase{
 		},
 	},
 	{
+		name:    "attach a project",
+		allowed: map[string]bool{"human": true},
+		run: func(e *env, s string) (int, []byte) {
+			return e.do(e.subject(s), "POST", "/v1/codebases", api.CodebaseReq{Name: "billing", Remote: "https://github.com/acme/billing"})
+		},
+	},
+	{
 		name:    "answer escalation",
 		allowed: map[string]bool{"human": true},
 		run: func(e *env, s string) (int, []byte) {
@@ -430,6 +437,7 @@ func TestScopeTableMatchesDesign(t *testing.T) {
 		ActLessonDecide:     "no no no yes", // added with lessons (D102): only a person decides
 		ActSpawn:            "yes no no yes",
 		ActPublish:          "no no no yes", // added with publishing (D103): only a person pushes a job's work to the shared remote
+		ActProjectManage:    "no no no yes", // added with projects (D104): only a person attaches, creates or clones a shared repository; creating one is outward-facing
 	}
 	if len(scopeTable) != len(want) {
 		t.Fatalf("scope table has %d actions, want %d", len(scopeTable), len(want))

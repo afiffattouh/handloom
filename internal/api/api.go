@@ -302,8 +302,9 @@ type Job struct {
 	Status       string    `json:"status"` // open | done | cancelled
 	Lead         string    `json:"lead,omitempty"`
 	Confidential bool      `json:"confidential,omitempty"`
-	Repo         string    `json:"repo,omitempty"`   // a git repository on Device; each agent of the job works in its own worktree of it
-	Verify       string    `json:"verify,omitempty"` // a command the device runs in an agent's worktree after it submits
+	Codebase     string    `json:"codebase,omitempty"` // the Handloom project this job works on (D104), if it was started from one
+	Repo         string    `json:"repo,omitempty"`     // a git repository on Device; each agent of the job works in its own worktree of it
+	Verify       string    `json:"verify,omitempty"`   // a command the device runs in an agent's worktree after it submits
 	Device       string    `json:"device,omitempty"`
 	Knowledge    string    `json:"knowledge,omitempty"` // a git repository on Device with what is known about the client; agents read it, and what they add is proposed on the branch job/<id> of it
 	Base         string    `json:"base,omitempty"`      // the branch of Repo the job's worktrees start from (default: its current commit)
@@ -335,7 +336,8 @@ type JobNewReq struct {
 	Body         string `json:"body,omitempty"`
 	Lead         string `json:"lead,omitempty"` // an existing agent that becomes the job's lead
 	Confidential bool   `json:"confidential,omitempty"`
-	Project      string `json:"project,omitempty"`
+	Project      string `json:"project,omitempty"`  // the hub's tenancy project (not a Handloom project; see Codebase)
+	Codebase     string `json:"codebase,omitempty"` // a Handloom project (D104): Repo and Base come from its ready clone on Device
 	Repo         string `json:"repo,omitempty"`
 	Verify       string `json:"verify,omitempty"`
 	Knowledge    string `json:"knowledge,omitempty"`    // a git repository on the device with what is known about the client
@@ -748,4 +750,80 @@ func OverlapText(refs []JobRef) string {
 		}
 	}
 	return "Also open on this repository: " + strings.Join(parts, ", ") + ". Jobs that change the same files will conflict when their branches are merged."
+}
+
+// Codebase is a Handloom project (D104): a name and a shared git remote that any machine can get on demand.
+// The hub keeps only this and where each machine's clone is; the code and the git login stay on the machines.
+type Codebase struct {
+	Name      string          `json:"name"`
+	Remote    string          `json:"remote"` // empty while a repository the hub was asked to create is not made yet
+	Base      string          `json:"base,omitempty"`
+	CreatedBy string          `json:"created_by"`
+	CreatedAt time.Time       `json:"created_at"`
+	Clones    []CodebaseClone `json:"clones"`
+}
+
+// CodebaseClone is one machine's copy: where it is, and how getting it went.
+type CodebaseClone struct {
+	Device string    `json:"device"`
+	Path   string    `json:"path,omitempty"`
+	Status string    `json:"status"` // pending | ready | failed
+	Detail string    `json:"detail,omitempty"`
+	At     time.Time `json:"at"`
+}
+
+// CodebaseReq attaches a repository that already exists.
+type CodebaseReq struct {
+	Name   string `json:"name"`
+	Remote string `json:"remote"`
+	Base   string `json:"base,omitempty"`
+}
+
+// CodebaseCreateReq asks a machine to create a repository under its own login.
+type CodebaseCreateReq struct {
+	Name    string `json:"name"`
+	Owner   string `json:"owner,omitempty"`   // a user or organisation; empty: the account the machine is logged in as
+	Private *bool  `json:"private,omitempty"` // default true
+	Base    string `json:"base,omitempty"`
+	Device  string `json:"device,omitempty"`
+}
+
+// CodebaseCloneReq asks a machine to get its own copy.
+type CodebaseCloneReq struct {
+	Device string `json:"device,omitempty"`
+}
+
+// CodebaseRequest is one thing a machine was asked to do for a project, or, for a clone that is already
+// there, the answer with its path (Status ready, no ID).
+type CodebaseRequest struct {
+	ID          int64      `json:"id,omitempty"`
+	Codebase    string     `json:"project"`
+	Device      string     `json:"device"`
+	Kind        string     `json:"kind"`   // clone | create
+	Status      string     `json:"status"` // pending | done | failed | ready
+	Path        string     `json:"path,omitempty"`
+	Detail      string     `json:"detail,omitempty"`
+	RequestedBy string     `json:"requested_by,omitempty"`
+	At          time.Time  `json:"at"`
+	DoneAt      *time.Time `json:"done_at,omitempty"`
+}
+
+// PendingCodebaseRequest is what a device is asked to do.
+type PendingCodebaseRequest struct {
+	ID      int64  `json:"id"`
+	Name    string `json:"name"`
+	Kind    string `json:"kind"` // clone | create
+	Remote  string `json:"remote,omitempty"`
+	Base    string `json:"base,omitempty"`
+	Owner   string `json:"owner,omitempty"`
+	Private bool   `json:"private"`
+}
+
+// CodebaseReport is the device's account of one request.
+type CodebaseReport struct {
+	Status string `json:"status"` // done | failed
+	Detail string `json:"detail,omitempty"`
+	Path   string `json:"path,omitempty"`
+	Remote string `json:"remote,omitempty"` // for a create: the address of the repository that was made
+	Base   string `json:"base,omitempty"`   // the repository's default branch
 }

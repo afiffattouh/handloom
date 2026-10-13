@@ -44,21 +44,24 @@ Sign in. The inbox shows a **Get started** checklist; the next stages tick it of
 
 Do this on every machine. Nothing needs to be open on these machines: they only call out to the hub.
 
-### 2a. One command
+### 2a. One line per machine
 
-In the web UI: **Machines, Add a machine**. Give it a name (anything: `laptop`, `build-box`), confirm with your password, and paste the command it shows on that machine:
+In the web UI: **Machines, Add a machine**. Give it a name (anything: `laptop`, `build-box`), confirm with your password, and paste the line it shows on that machine. The page shows one for Linux and macOS (Terminal) and one for Windows (PowerShell). The longer story, system by system, is in [add-a-machine.md](add-a-machine.md).
 
 ```
 curl -fsSL https://raw.githubusercontent.com/afiffattouh/handloom/main/install.sh | sh -s -- join https://handloom.example.com hvj_...
 ```
 
-The token is one-time and expires. The command installs Handloom if it is not there (Linux and macOS; it checks the download and never uses sudo), joins the hub, keeps the link running (as a systemd service that starts at boot; where there is no working systemd, in a tmux session called `handloom-link`, which does not survive a reboot; add `--no-service` to choose that), and then checks the machine and prints one fix per problem. The Machines page shows the machine as **ready** by itself when the link has called in. Running the command again is safe.
+The token is one-time and expires. The line installs Handloom if it is not there (it checks the download and never uses sudo), joins the hub, keeps the link running, and then checks the machine and says, in plain words, what is still to do. The link runs as a systemd service on Linux (starts at boot), as a launchd agent on macOS (starts at login); where there is no working systemd (WSL without systemd, some containers) it runs in the background and a line in your login file starts it at each login (`handloom link uninstall` removes it). Add `--no-service` to choose that on purpose. The Machines page shows the machine as **ready** by itself when the link has called in. Running the line again is safe.
 
-If the program is already installed, `handloom join https://handloom.example.com hvj_...` is the same command without the install. Other ways to install it (Homebrew, `.deb` and `.rpm`, a tarball, a container) are in the README under [Install](../README.md#install). From a machine that has Go and ssh access, `scripts/setup.sh device <ssh-name> --hub https://handloom.example.com` builds the program for that machine, copies it and installs the link service (it needs the admin token in `HANDLOOM_TOKEN`).
+If the program is already installed, `handloom join https://handloom.example.com hvj_...` is the same line without the install. Other ways to install it (Homebrew, `.deb` and `.rpm`, a tarball, a container) are in the README under [Install](../README.md#install). From a machine that has Go and ssh access, `scripts/setup.sh device <ssh-name> --hub https://handloom.example.com` builds the program for that machine, copies it and installs the link service (it needs the admin token in `HANDLOOM_TOKEN`).
 
 ### 2b. If something is missing
 
-The command lists what the machine lacks: `git`, `tmux`, or an agent CLI that is not installed or not logged in. For a missing tool it prints the install command for your system (`apt`, `dnf`, `brew` and so on) without running it. Fix it and run `handloom doctor`; it ends with "This machine is ready." when it is.
+The check starts with one line, "Ready: this machine can run agents" or "Not ready yet: 2 things to do", and then gives each thing as a sentence and the exact step. Run it any time with `handloom doctor`.
+
+- **git or tmux missing.** `handloom doctor --fix` (and `handloom join` itself, on a terminal) shows the install command for this machine's package manager (apt, dnf, yum, pacman, apk, zypper or Homebrew) and asks `[y/N]` before running it. It uses `sudo` only if you are not root, and only after you say yes. With no terminal to ask on, it prints the commands and runs nothing.
+- **No agent program.** Handloom never installs these. The check prints the official install line for Claude Code, Codex or OpenCode and the sign-in step; do them, then run `handloom doctor` again.
 
 To take a machine out again: `handloom uninstall --purge` (see the README), then revoke it on the Machines page.
 

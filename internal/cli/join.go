@@ -3,9 +3,7 @@ package cli
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"time"
 
@@ -28,14 +26,14 @@ func (e *env) joinHub(hub, token string) (*client.LinkConfig, error) {
 }
 
 // join does everything a machine needs to become part of a hub, in one command:
-// join it, keep the link running (as a service, or in tmux where there is no
-// systemd), and check the machine, saying exactly what to fix.
+// join it, keep the link running (as a service, or in the background where there is no
+// service manager), and check the machine, saying exactly what to fix.
 //
 //	handloom join <hub-url> <join-token> [--no-start] [--no-service]
 func (e *env) join(args []string) error {
 	fs := e.flags("join")
 	noStart := fs.Bool("no-start", false, "only join: do not start the link or check the machine")
-	noService := fs.Bool("no-service", false, "keep the link running in a tmux session instead of installing a systemd service")
+	noService := fs.Bool("no-service", false, "keep the link running in the background (and start it at login) instead of installing a service")
 	pos, err := fs.need(args, 2, 2, "join <hub-url> <join-token> [--no-start] [--no-service]")
 	if err != nil {
 		return err
@@ -60,28 +58,31 @@ func (e *env) join(args []string) error {
 		return nil
 	}
 
-	for _, tool := range []string{"git", "tmux"} {
-		if _, err := exec.LookPath(tool); err != nil {
-			e.say("%s is missing here: %s", tool, installHint(tool))
-		}
-	}
-
 	e.step("Starting the link")
-	if linkRunning() {
+	if linkUp() {
 		e.say("the link is already running")
 	} else if err := e.startLink(*noService); err != nil {
 		return err
 	}
-	for i := 0; i < 40 && !linkRunning(); i++ {
+	for i := 0; i < 40 && !linkUp(); i++ {
 		time.Sleep(500 * time.Millisecond)
 	}
 
 	e.step("Checking this machine")
 	fmt.Fprintln(e.out)
-	if err := e.doctor(nil); err != nil {
-		fmt.Fprintln(e.out, "\nIt is joined and the link is running; fix what is listed above and run `handloom doctor` again. The web UI shows this machine as soon as the link has called in.")
-		return err
+	checks := e.runChecks()
+	if notReadyCount(checks) > 0 {
+		fmt.Fprint(e.out, renderDoctor(checks, installHint))
+		fmt.Fprintln(e.out)
+		e.fixChecks(checks) // asks first on a terminal; otherwise it only prints the commands
+		checks = e.runChecks()
 	}
+	if notReadyCount(checks) > 0 {
+		fmt.Fprint(e.out, "\n"+renderDoctor(checks, installHint))
+		fmt.Fprintln(e.out, "\nIt is joined and the link is running. Do what is listed above, then run `handloom doctor` again. The web UI shows this machine as soon as the link has called in.")
+		return fmt.Errorf("this machine is not ready")
+	}
+	fmt.Fprint(e.out, renderDoctor(checks, installHint))
 	fmt.Fprintln(e.out, "\nThe web UI now shows this machine as ready. Start a job on it from Jobs, New job.")
 	return nil
 }
@@ -89,13 +90,17 @@ func (e *env) join(args []string) error {
 func (e *env) step(format string, a ...any) { fmt.Fprintf(e.out, "\n== "+format+"\n", a...) }
 func (e *env) say(format string, a ...any)  { fmt.Fprintf(e.out, "   "+format+"\n", a...) }
 
+// linkUp is replaceable in tests.
+var linkUp = linkRunning
+
 func linkRunning() bool {
 	var st map[string]any
 	return client.Socket(client.SocketPath(), "").Get("/local/status", &st) == nil
 }
 
-// startLink keeps the link running: as a systemd service when this machine has
-// one that works for this user, otherwise inside a detached tmux session.
+// startLink keeps the link running: as a service when this machine has a service manager that works
+// for this user (systemd on Linux, launchd on macOS), otherwise started in the background with a line
+// in the login file that starts it again at login.
 func (e *env) startLink(noService bool) error {
 	home, err := filepath.Abs(client.Home())
 	if err != nil {
@@ -107,24 +112,14 @@ func (e *env) startLink(noService bool) error {
 		name: "handloom-link", description: "Handloom link (device daemon)",
 		args: []string{"link", "run"}, env: map[string]string{"HANDLOOM_HOME": home},
 	}); err == nil {
-		e.say("the link runs as a service and starts at boot")
+		e.say("the link runs as a service and starts at %s", map[bool]string{true: "login", false: "boot"}[goos == "darwin"])
 		return nil
 	}
+	why := "no service manager works here (" + firstLine(err.Error()) + "); keeping the link running in the background instead"
 	if noService {
-		e.say("keeping the link in tmux, as asked")
-	} else {
-		e.say("no working systemd service here (%s); using tmux instead", firstLine(err.Error()))
+		why = "keeping the link running in the background, as asked"
 	}
-	exe, _ := os.Executable()
-	if _, terr := exec.LookPath("tmux"); terr != nil {
-		return fmt.Errorf("cannot keep the link running: no systemd and no tmux. %s, then run `handloom join` again, or run `handloom link run` yourself", installHint("tmux"))
-	}
-	cmd := fmt.Sprintf("HANDLOOM_HOME=%s exec %s link run", shellQuote(home), shellQuote(exe))
-	if out, terr := exec.Command("tmux", "new-session", "-d", "-s", "handloom-link", "sh", "-c", cmd).CombinedOutput(); terr != nil {
-		return fmt.Errorf("could not start the link in tmux: %v: %s", terr, strings.TrimSpace(string(out)))
-	}
-	e.say("the link runs in the tmux session handloom-link. It will not restart after a reboot: run `handloom link install` on a machine with systemd for that")
-	return nil
+	return e.installDetached(why)
 }
 
 // installServiceQuiet is installService with its own chatter muted, so join can say it in its own words.
@@ -147,20 +142,18 @@ func firstLine(s string) string {
 
 // installHint says how to install a missing tool on this machine, without doing it.
 func installHint(tool string) string {
-	has := func(bin string) bool { _, err := exec.LookPath(bin); return err == nil }
-	switch {
-	case runtime.GOOS == "darwin" && has("brew"):
-		return "brew install " + tool
-	case runtime.GOOS == "darwin":
-		return "install Homebrew (https://brew.sh), then brew install " + tool
-	case has("apt-get"):
-		return "sudo apt-get install -y " + tool
-	case has("dnf"):
-		return "sudo dnf install -y " + tool
-	case has("apk"):
-		return "sudo apk add " + tool
-	case has("pacman"):
-		return "sudo pacman -S " + tool
+	f := &fixer{goos: goos, euid: os.Geteuid(), osRelease: func() string { b, _ := os.ReadFile("/etc/os-release"); return string(b) }, has: hasTool}
+	cmds, needsRoot, problem := f.plan([]string{tool})
+	if problem != "" {
+		return problem
 	}
-	return "install " + tool + " with your package manager"
+	var parts []string
+	for _, c := range cmds {
+		parts = append(parts, commandLine(c))
+	}
+	s := strings.Join(parts, " && ")
+	if needsRoot {
+		s += " (as root)"
+	}
+	return s
 }

@@ -92,6 +92,17 @@ func (e *env) uninstallPlan(exe, home string, purge bool) []uninstallStep {
 			}
 		}
 	}
+	if _, err := os.Stat(linkPidFile()); err == nil {
+		steps = append(steps, uninstallStep{"stop the link running in the background (" + linkPidFile() + ")", func() error { _, err := stopDetached(); return err }})
+	}
+	if uh, err := os.UserHomeDir(); err == nil {
+		for _, f := range []string{".profile", ".bash_profile", ".zprofile"} {
+			path := filepath.Join(uh, f)
+			if b, err := os.ReadFile(path); err == nil && strings.Contains(string(b), profileBegin) {
+				steps = append(steps, uninstallStep{"remove the start-at-login line from " + path, func() error { _, err := editProfile(path, withoutProfileBlock); return err }})
+			}
+		}
+	}
 	if out, err := exec.Command("tmux", "list-sessions", "-F", "#{session_name}").Output(); err == nil && strings.Contains("\n"+string(out), "\nhandloom-link\n") {
 		steps = append(steps, uninstallStep{"stop the link running in the tmux session handloom-link", func() error {
 			return exec.Command("tmux", "kill-session", "-t", "handloom-link").Run()

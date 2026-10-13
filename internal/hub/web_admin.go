@@ -92,6 +92,15 @@ func (q *webReq) stepUp() error {
 // installScriptURL is the installer that can also join a machine to this hub in one go.
 const installScriptURL = "https://raw.githubusercontent.com/afiffattouh/handloom/main/install.sh"
 
+// installWindowsURL is the Windows installer: it sets up WSL (Linux inside Windows) and runs install.sh there.
+const installWindowsURL = "https://raw.githubusercontent.com/afiffattouh/handloom/main/install.ps1"
+
+// windowsJoinCmd is the line to paste in PowerShell. TLS 1.2 is switched on first because Windows
+// PowerShell 5.1 may not offer it by itself, and GitHub needs it.
+func windowsJoinCmd(hub, token string) string {
+	return fmt.Sprintf("[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; & ([scriptblock]::Create((irm %s))) -Hub %s -Token %s", installWindowsURL, hub, token)
+}
+
 type deviceView struct {
 	Name     string
 	Status   string
@@ -108,6 +117,7 @@ type devicesView struct {
 	CanAdmin bool
 	NewName  string // a device that was just added
 	JoinCmd  string // shown once: install if needed, join, keep the link running, check the machine
+	WinCmd   string // the same, for Windows PowerShell
 	AltCmd   string // the same, for a machine that already has handloom
 	Base     string
 	TTL      string
@@ -121,7 +131,7 @@ func (q *webReq) devicesView(fresh *devicesView) (*devicesView, error) {
 	}
 	v := &devicesView{CanAdmin: q.isOwner(), Base: h.publicBase(q.r), TTL: humanDur(h.opt.JoinTTL)}
 	if fresh != nil {
-		v.NewName, v.JoinCmd, v.AltCmd = fresh.NewName, fresh.JoinCmd, fresh.AltCmd
+		v.NewName, v.JoinCmd, v.WinCmd, v.AltCmd = fresh.NewName, fresh.JoinCmd, fresh.WinCmd, fresh.AltCmd
 	}
 	for _, d := range ds {
 		dv := deviceView{Name: d.Name, Agents: d.Agents}
@@ -197,7 +207,7 @@ func (h *Hub) webDeviceAdd(q *webReq) error {
 	base := h.publicBase(q.r)
 	one := fmt.Sprintf("curl -fsSL %s | sh -s -- join %s %s", installScriptURL, base, tok)
 	alt := fmt.Sprintf("handloom join %s %s", base, tok)
-	return q.devicesPage(200, "", &devicesView{NewName: name, JoinCmd: one, AltCmd: alt})
+	return q.devicesPage(200, "", &devicesView{NewName: name, JoinCmd: one, WinCmd: windowsJoinCmd(base, tok), AltCmd: alt})
 }
 
 func (q *webReq) deviceError(err error) error {

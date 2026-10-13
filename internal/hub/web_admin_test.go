@@ -3,6 +3,7 @@ package hub
 import (
 	"encoding/json"
 	"fmt"
+	"html"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -325,6 +326,24 @@ func TestAddingAMachineShowsOneCommandAndTheListSaysWhenItIsReady(t *testing.T) 
 		}
 	}
 	m := joinCmdRE.FindStringSubmatch(added.body)
+	// one line per system: Linux and macOS in Terminal, Windows in PowerShell (the page shows it HTML-escaped)
+	win := html.UnescapeString(added.body)
+	for _, want := range []string{
+		"Linux or macOS (Terminal)", "Windows (PowerShell)",
+		"& ([scriptblock]::Create((irm https://raw.githubusercontent.com/afiffattouh/handloom/main/install.ps1))) -Hub " + testOrigin + " -Token " + m[2],
+		"[Net.SecurityProtocolType]::Tls12", "wsl --install", "What the line does",
+	} {
+		if !strings.Contains(win, want) {
+			t.Errorf("the add page lacks %q", want)
+		}
+	}
+	if strings.Count(win, m[2]) < 3 { // the Linux line, the program's own line, the Windows line
+		t.Errorf("the token should be in all three lines: found %d times", strings.Count(win, m[2]))
+	}
+	// the page stays script-free: the platform choice is a plain <details>, and nothing is inline
+	if strings.Contains(added.body, "onclick") || strings.Contains(added.body, "<script>") || !strings.Contains(added.body, `<details id="join-windows">`) {
+		t.Errorf("the add page must work without inline scripts")
+	}
 	// waiting: the fragment says so and carries the marker the page's script polls on
 	frag := e.req("GET", "/devices/fragment", nil, c, nil)
 	if frag.status != 200 || !strings.Contains(frag.body, `data-pending="box"`) || strings.Contains(frag.body, "<html") {

@@ -27,8 +27,8 @@ for t in $TARGETS; do
   rm -rf "$work"
   echo "built $name"
 done
-cp "$ROOT/install.sh" "$OUT/install.sh"
+cp "$ROOT/install.sh" "$OUT/install.sh"; cp "$ROOT/install.ps1" "$OUT/install.ps1"
 # .deb and .rpm packages too, when nfpm is installed (CI installs it)
 if [ "${PACKAGES:-}" = 1 ]; then "$ROOT/scripts/package-linux.sh" "$VERSION" "$OUT"; fi
-(cd "$OUT" && files="$(ls *.tar.gz *.zip *.deb *.rpm install.sh 2>/dev/null || true)" && { command -v sha256sum >/dev/null && sha256sum $files || shasum -a 256 $files; } > checksums.txt)
+(cd "$OUT" && files="$(ls *.tar.gz *.zip *.deb *.rpm install.sh install.ps1 2>/dev/null || true)" && { command -v sha256sum >/dev/null && sha256sum $files || shasum -a 256 $files; } > checksums.txt)
 echo "wrote $OUT/checksums.txt"

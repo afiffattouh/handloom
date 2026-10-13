@@ -161,6 +161,9 @@ func (l *Link) Run(ctx context.Context) error {
 // listen opens the unix socket, owner-only. A stale socket file left by a
 // dead link is replaced; a live one is an error.
 func listen(path string) (net.Listener, error) {
+	if err := prepareSocketDir(filepath.Dir(path)); err != nil {
+		return nil, err
+	}
 	if conn, err := net.DialTimeout("unix", path, time.Second); err == nil {
 		conn.Close()
 		return nil, fmt.Errorf("a link is already running on %s", path)

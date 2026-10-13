@@ -102,13 +102,24 @@ docker compose -f docker-compose.caddy.yml logs handloom | grep -E "Admin token|
 
 Open `https://handloom.example.com/setup`, enter the setup code and make your owner account. Keep the admin token somewhere safe. On Dokploy, see [docs/deploy.md](docs/deploy.md).
 
-**2. Join each machine** that will run agents. In the web UI go to Machines, Add a machine, and paste the one command it shows on that machine. It installs Handloom if needed, joins the hub, keeps the link running (as a service, or in tmux where there is no systemd) and checks the machine, saying what to fix. The page shows the machine as **ready** when it is.
+**2. Join each machine** that will run agents. In the web UI go to Machines, Add a machine, give it a name, and paste the one line the page shows on that machine. The page shows a line for each system; the paths are below. When the machine is ready, the page says so by itself. More detail, and what to do when something is missing, is in [docs/add-a-machine.md](docs/add-a-machine.md).
+
+**Linux.** Open a terminal and paste the line. It installs Handloom, joins the hub, keeps the link running and checks the machine. If `git` or `tmux` is missing it shows the install command for your system and asks before running it.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/afiffattouh/handloom/main/install.sh | sh -s -- join https://handloom.example.com <join-token>
 ```
 
-Already have the program? `handloom join https://handloom.example.com <join-token>` does the same. The machine needs `git`, `tmux` and at least one logged-in agent CLI (Claude Code, Codex, OMP, Pi or OpenCode); if something is missing the command prints the exact install command for your system. Other ways to install the program (Homebrew, packages, a container) are under [Install](#install).
+**macOS.** The same line, in Terminal. The link runs as a launch agent, so it starts when you log in and restarts if it stops. Homebrew is needed for `tmux` (`brew install tmux`; the command offers it).
+
+**Windows.** Paste this in PowerShell (a normal window, not as administrator). Handloom's agents run in Linux, and Windows has Linux built in (WSL2); the line sets that up, installs Handloom inside it, joins the hub and makes the link start whenever you sign in. A PC with no WSL yet needs a one-time `wsl --install` (Windows asks for permission, then restarts); the line explains it, and you paste the same line again afterwards.
+
+```powershell
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; & ([scriptblock]::Create((irm https://raw.githubusercontent.com/afiffattouh/handloom/main/install.ps1))) -Hub https://handloom.example.com -Token <join-token>
+```
+
+On every system the machine also needs at least one agent CLI that is signed in (Claude Code, Codex, OMP, Pi or OpenCode). Handloom never installs those for you: `handloom doctor` says in plain words what is missing and prints the official install line and the sign-in step (on Windows, install them in the Linux side). `handloom doctor --fix` installs `git` and `tmux` with the machine's package manager, after showing the command and asking. Already have the program? `handloom join https://handloom.example.com <join-token>` does the same. Other ways to install the program (Homebrew, packages, a container) are under [Install](#install).
+
 
 **3. Add profiles.** In the web UI: Profiles, Starter library, add a lead and a worker and choose their CLI. Or from the command line:
 
@@ -129,13 +140,16 @@ Every release has binaries, packages and a signed checksum file on the [releases
 | Route | Platforms | Notes |
 | --- | --- | --- |
 | `install.sh` | Linux, macOS (amd64, arm64) | Checks the download against `checksums.txt` (and its Sigstore signature if `cosign` is installed). Installs to `/usr/local/bin` if you can write there, else `~/.local/bin`. Never uses sudo. |
+| `install.ps1` | Windows 10 (2004+) and 11, through WSL2 | Sets up Linux inside Windows if needed and runs `install.sh` there. See [Windows](#windows). |
 | Homebrew | macOS, Linux | `brew tap afiffattouh/handloom https://github.com/afiffattouh/handloom && brew install handloom` |
 | `.deb`, `.rpm` | Linux (amd64, arm64) | Installs `handloom` and `hl` in `/usr/bin`. |
 | Tarball or zip | Linux, macOS, Windows | Unpack and put `handloom` on your PATH. |
 | Container image | Linux (amd64, arm64) | `ghcr.io/afiffattouh/handloom`, for the hub. |
 | From source | anywhere Go runs | `go build -o handloom ./cmd/handloom` |
 
-**Windows** gets the command line, the terminal console (`handloom tui`) and the MCP server, to use a hub that runs elsewhere. The link (the part that starts agents) needs tmux and is not supported on Windows. The Windows build has not been tried on a Windows machine.
+### Windows
+
+A Windows PC joins a hub through WSL2 (Linux inside Windows): `install.ps1` does the set-up (see Quick start, step 2), and the link runs in Linux. Native Windows without WSL is not supported for the link (it needs tmux). The Windows zip (command line, terminal console, MCP server) still works for using a hub that runs elsewhere. Neither `install.ps1` nor the Windows build has been run on a real Windows machine yet.
 
 **Verifying a download.** The checksums are signed by the release workflow with Sigstore, and every file has a build provenance attestation:
 
@@ -294,7 +308,7 @@ Handloom is used for real work by its author and is pre-1.0. Honest about what i
 - **Proven with real agents:** Claude Code, Codex, OMP, Pi and OpenCode as workers; Claude Code and OMP as leads; parallel workers; a forced merge conflict resolved by a lead; fully local jobs on a local model. Evidence is in [docs/evidence](docs/evidence) and [DECISIONS.md](DECISIONS.md).
 - **Released:** signed multi-platform binaries, deb/rpm packages, a container image and a Homebrew formula (see [Install](#install)); version 0.1.2 adds search.
 - **Proven on a clean machine:** a Linux amd64 VPS with nothing of Handloom on it: install from a release, join, run the link as a service, register an agent, then `handloom uninstall --purge` left the machine identical to before.
-- **Not proven yet:** phone push against a real ntfy topic; macOS (the link needs tmux and has only been run on Linux so far); the Windows build (command line, console and MCP only) has not been run on Windows.
+- **Not proven yet:** phone push against a real ntfy topic; macOS (the launchd service, the path and socket handling and the install script are checked by unit tests only; the link has only been run on Linux so far); Windows (`install.ps1` and the Windows build have not been run on a Windows machine).
 - **Planned, tracked as [issues](https://github.com/afiffattouh/handloom/issues):** a remote MCP endpoint, container isolation, schedules and a knowledge librarian.
 
 ## Documentation
@@ -302,6 +316,7 @@ Handloom is used for real work by its author and is pre-1.0. Honest about what i
 | | |
 | --- | --- |
 | [docs/setup.md](docs/setup.md) | Step-by-step setup: domain, https, tokens, first job |
+| [docs/add-a-machine.md](docs/add-a-machine.md) | Joining a Linux, macOS or Windows machine with one pasted line, and what to do when something is missing |
 | [docs/overview.html](docs/overview.html) | The whole picture on one page: topology, architecture, flow, teams, knowledge (open in a browser) |
 | [docs/collaborate.md](docs/collaborate.md) | Working on one project together: machines, splitting by job, publishing to the shared remote, overlap warnings |
 | [docs/tui.md](docs/tui.md) · [docs/mcp.md](docs/mcp.md) | The terminal console · using Handloom from an AI app |

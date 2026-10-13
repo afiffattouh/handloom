@@ -5,6 +5,8 @@ package client
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,6 +16,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -128,7 +131,43 @@ func Home() string {
 	return filepath.Join(dir, ".config", "handloom")
 }
 
-func SocketPath() string { return filepath.Join(Home(), "link.sock") }
+// SocketPath is where the link listens. Normally that is link.sock in the link's folder, but a unix
+// socket path has a hard length limit (103 characters on macOS, 107 on Linux); a long folder name
+// gets a short path in /tmp instead (see SocketPathNote).
+func SocketPath() string {
+	p, _ := socketPathFor(Home(), runtime.GOOS, os.Getuid())
+	return p
+}
+
+// SocketPathNote is a plain sentence when the socket had to move to a shorter path, else "".
+func SocketPathNote() string {
+	if p, short := socketPathFor(Home(), runtime.GOOS, os.Getuid()); short {
+		return "the link's folder path is too long for a unix socket on this system, so the socket is at " + p + " instead"
+	}
+	return ""
+}
+
+// socketMax is the longest socket path the system accepts (sun_path is 104 bytes on macOS, 108 on
+// Linux, and one byte is the end marker).
+func socketMax(goos string) int {
+	switch goos {
+	case "darwin", "freebsd", "openbsd", "netbsd":
+		return 103
+	}
+	return 107
+}
+
+// socketPathFor picks the socket path for a link folder: link.sock in it, or, when that is too long,
+// /tmp/handloom-<uid>/<8 hex of the folder's hash>.sock. The hash keeps two links (two
+// HANDLOOM_HOME folders) of one user apart, and every process computes the same answer.
+func socketPathFor(home, goos string, uid int) (path string, short bool) {
+	p := filepath.Join(home, "link.sock")
+	if len(p) <= socketMax(goos) {
+		return p, false
+	}
+	sum := sha256.Sum256([]byte(filepath.Clean(home)))
+	return filepath.Join("/tmp", fmt.Sprintf("handloom-%d", uid), hex.EncodeToString(sum[:4])+".sock"), true
+}
 
 type LinkConfig struct {
 	Hub        string `json:"hub"`

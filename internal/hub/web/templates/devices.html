@@ -5,8 +5,17 @@
 {{if .JoinCmd}}
 <article class="card attention">
   <div class="ch"><div class="lead"><svg class="icon sev-info"><use href="#i-server"/></svg><div><h3>Add {{.NewName}}</h3><p class="desc">On that machine, run this once. It installs Handloom if it is not there, joins this hub, keeps the link running and checks the machine. This page shows the machine as ready when it is. The token works for {{.TTL}} and is not shown again.</p></div></div></div>
-  <div class="cc"><div class="inset wrap sel" tabindex="0">{{.JoinCmd}}</div>
-  <p class="desc">Already installed <code>handloom</code> there? Run <code>{{.AltCmd}}</code> instead. Works on Linux and macOS; the machine needs <code>git</code> and <code>tmux</code>, and the command says what is missing.</p></div>
+  <div class="cc">
+  <h4 id="join-unix">Linux or macOS (Terminal)</h4>
+  <div class="inset wrap sel" tabindex="0" aria-labelledby="join-unix">{{.JoinCmd}}</div>
+  <p class="desc">Already installed <code>handloom</code> there? Run <code>{{.AltCmd}}</code> instead. The machine needs <code>git</code> and <code>tmux</code>; if they are missing the command offers to install them (it asks first) or shows the exact line.</p>
+  <details id="join-windows">
+    <summary><strong>Windows (PowerShell)</strong></summary>
+    <p class="desc">Open PowerShell (not as administrator) and paste this line. Windows 10 (version 2004 or newer) or Windows 11.</p>
+    <div class="inset wrap sel" tabindex="0">{{.WinCmd}}</div>
+    <p class="desc">Handloom runs its agents in Linux, and Windows has Linux built in (WSL). This line checks for WSL (if it is missing it explains the one-time <code>wsl --install</code>, which needs administrator permission and a restart, and you paste the same line again afterwards), installs Handloom inside Linux, joins this hub there, and makes the link start by itself when you sign in. Agent programs such as Claude Code must be installed in the Linux side: <code>handloom doctor</code> there prints the exact line.</p>
+  </details>
+  <p class="desc"><strong>What the line does:</strong> it downloads the installer, which checks its download against the release's checksums, installs Handloom, joins this hub with the one-time token, keeps the link running and checks the machine. It never uses <code>sudo</code> by itself. Safe to paste again.</p></div>
 </article>
 {{end}}
 

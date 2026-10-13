@@ -6,8 +6,25 @@ import (
 	"os/exec"
 	"os/user"
 	"path/filepath"
+	"runtime"
 	"strings"
 )
+
+// What the service code asks of the machine, so tests can pretend to be another system.
+var (
+	goos    = runtime.GOOS
+	getuid  = os.Getuid
+	runCmd  = func(name string, args ...string) ([]byte, error) { return exec.Command(name, args...).CombinedOutput() }
+	hasTool = func(name string) bool { _, err := exec.LookPath(name); return err == nil }
+	pathHas = func(p string) bool { _, err := os.Stat(p); return err == nil }
+)
+
+// systemdAvailable says whether systemd runs here as the init system. systemctl can be installed
+// on a machine that does not run it (WSL without systemd, containers), and then every unit
+// would fail. HANDLOOM_NO_SYSTEMD=1 pretends there is none (for tests and for people who want it).
+func systemdAvailable(goos string, hasSystemctl bool, bootedDirExists bool, forcedOff string) bool {
+	return goos == "linux" && hasSystemctl && bootedDirExists && forcedOff == ""
+}
 
 // service is one handloom daemon run by systemd.
 type service struct {
@@ -63,8 +80,20 @@ func systemdQuote(words []string) string {
 	return strings.Join(out, " ")
 }
 
-// unitPath says where the unit goes and whether it is a system unit.
+func systemdUp() bool {
+	return systemdAvailable(goos, hasTool("systemctl"), pathHas("/run/systemd/system"), os.Getenv("HANDLOOM_NO_SYSTEMD"))
+}
+
+// unitPath says where the service file goes and whether it is a system service: a systemd unit on
+// Linux, a LaunchAgent plist on macOS (always for the user).
 func unitPath(name string) (path string, system bool, err error) {
+	if goos == "darwin" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", false, err
+		}
+		return launchdPlistPath(home, name), false, nil
+	}
 	if os.Geteuid() == 0 {
 		return "/etc/systemd/system/" + name + ".service", true, nil
 	}
@@ -79,7 +108,7 @@ func systemctl(system bool, args ...string) error {
 	if !system {
 		args = append([]string{"--user"}, args...)
 	}
-	out, err := exec.Command("systemctl", args...).CombinedOutput()
+	out, err := runCmd("systemctl", args...)
 	if err != nil {
 		return fmt.Errorf("systemctl %s: %v: %s", strings.Join(args, " "), err, strings.TrimSpace(string(out)))
 	}
@@ -88,9 +117,11 @@ func systemctl(system bool, args ...string) error {
 
 // install writes the unit and starts the service now and at every boot.
 func (e *env) installService(s service) error {
-	if _, err := exec.LookPath("systemctl"); err != nil {
-		return fmt.Errorf("no systemd on this machine: keep `handloom %s` running another way, for example in tmux",
-			strings.Join(s.args, " "))
+	if goos == "darwin" {
+		return e.installLaunchd(s)
+	}
+	if !systemdUp() {
+		return fmt.Errorf("systemd is not running here (as on WSL without systemd, or in a container)")
 	}
 	bin, err := os.Executable()
 	if err != nil {
@@ -140,6 +171,9 @@ func (e *env) installService(s service) error {
 }
 
 func (e *env) uninstallService(name string) error {
+	if goos == "darwin" {
+		return e.uninstallLaunchd(name)
+	}
 	path, system, err := unitPath(name)
 	if err != nil {
 		return err

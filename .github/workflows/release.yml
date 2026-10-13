@@ -1,7 +1,7 @@
 name: release
 # Pushing a tag such as v0.1.0 (or v0.1.0-rc1 for a pre-release) builds everything and publishes:
 #   - a GitHub release with tarballs (Linux, macOS), zips (Windows), .deb and .rpm packages,
-#     checksums.txt, a Sigstore signature of it, and install.sh
+#     checksums.txt, a Sigstore signature of it, and install.sh and install.ps1
 #   - the container image ghcr.io/<owner>/handloom (linux/amd64 and linux/arm64)
 #   - (full releases only) the Homebrew formula in Formula/handloom.rb
 # Running it by hand (Actions, release, Run workflow) builds and signs the same files and keeps them as

@@ -80,10 +80,12 @@ Projects (a name and a shared git remote that any machine can get; the code and 
 Device:
   handloom link join <hub-url> <join-token>           exchange a join token for a device credential
   handloom link run                                   run the link daemon in the foreground
-  handloom link install | uninstall                   run it as a systemd service, now and at boot
+  handloom link install | uninstall                   run it as a service (systemd on Linux, launchd on macOS), now and at boot or login;
+                                                  where there is no service manager, install keeps it running in the background and starts it at login
+  handloom link start [--quiet] [--wait] | stop       start the link in the background if it is not running (no service); stop one that start made
   handloom link status
   handloom git-credential get|store|erase             git's credential helper for projects the hub holds (set up by the link; answers only for the hub)
-  handloom doctor                                     is this machine ready? checks the link, git, tmux and the agent CLIs
+  handloom doctor [--fix]                             is this machine ready? checks the link, git, tmux and the agent CLIs; --fix installs git and tmux (asks first)
   handloom adapter install <kind> --name N [--dir D]  install an agent adapter in a project
                                                   (kinds: claude, codex, pi, omp, opencode)
   handloom run <name> -- <command...>                 start an agent CLI as a registered, wakeable agent

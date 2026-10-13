@@ -4,11 +4,34 @@
 #   HANDLOOM_VERSION=v0.1.0 sh install.sh        a specific release (default: the latest)
 #   HANDLOOM_INSTALL_DIR=/opt/bin sh install.sh  where to put it (default: /usr/local/bin if you can write there, else ~/.local/bin)
 #   curl -fsSL .../install.sh | sh -s -- join <hub-url> <join-token>   install, then join this machine to a hub in one go
+#   sh install.sh --help
 # It checks the download against the release's checksums.txt and installs nothing if they differ.
 # It never uses sudo: if you want /usr/local/bin, run it as a user who can write there, or set HANDLOOM_INSTALL_DIR.
+# Linux and macOS only, in plain POSIX sh (no GNU-only options). Windows: use install.ps1 (it runs this inside WSL).
 set -eu
 
 REPO="afiffattouh/handloom"
+usage() {
+  cat <<'HELP'
+Installs Handloom (the handloom program and its short name, hl) from a GitHub release.
+
+  sh install.sh                          install the latest release
+  sh install.sh join <hub-url> <token>   install, then join this machine to your hub and start its link
+                                         (the web page Machines, Add a machine, shows this line ready to paste)
+  sh install.sh --help                   this text
+
+  join also takes:  --no-service  keep the link running in the background instead of as a service
+                    --no-start    only join; do not start the link or check the machine
+
+Settings (environment):
+  HANDLOOM_VERSION=v0.1.0       install a specific release (default: the latest)
+  HANDLOOM_INSTALL_DIR=/opt/bin where to put it (default: /usr/local/bin if you can write there, else ~/.local/bin)
+
+It checks the download against the release's checksums.txt (and its Sigstore signature if cosign is
+installed) and installs nothing if they differ. It never uses sudo. On Windows, use install.ps1.
+HELP
+}
+case "${1:-}" in -h|--help|help) usage; exit 0 ;; esac
 mode=install; JOIN_HUB=""; JOIN_TOKEN=""
 if [ "${1:-}" = join ]; then
   [ $# -ge 3 ] || { printf 'usage: sh install.sh join <hub-url> <join-token> [--no-service] [--no-start]\n' >&2; exit 1; }
@@ -18,7 +41,11 @@ say() { printf '%s\n' "$*"; }
 die() { printf 'handloom install: %s\n' "$*" >&2; exit 1; }
 
 os="$(uname -s | tr 'A-Z' 'a-z')"
-case "$os" in linux|darwin) ;; *) die "this install script supports Linux and macOS (found: $os). Windows is not supported yet." ;; esac
+case "$os" in
+  linux|darwin) ;;
+  mingw*|msys*|cygwin*) die "this is Windows. Use install.ps1 in PowerShell: it sets up Linux (WSL) and runs this inside it. See https://github.com/$REPO#windows" ;;
+  *) die "this install script supports Linux and macOS (found: $os)." ;;
+esac
 case "$(uname -m)" in
   x86_64|amd64) arch=amd64 ;;
   aarch64|arm64) arch=arm64 ;;
@@ -42,7 +69,7 @@ elif [ "$version" = latest ]; then
 fi
 
 asset="handloom_${version}_${os}_${arch}.tar.gz"
-tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
+tmp="$(mktemp -d 2>/dev/null || mktemp -d -t handloom)" || die "cannot make a temporary folder"; trap 'rm -rf "$tmp"' EXIT
 say "Downloading handloom $version for $os/$arch ..."
 fetch "$base/$asset" "$tmp/$asset" || die "could not download $base/$asset"
 fetch "$base/checksums.txt" "$tmp/checksums.txt" || die "could not download the checksums"
@@ -85,14 +112,20 @@ fi
 say "Installed: $("$dir/handloom" version)"
 case ":$PATH:" in *":$dir:"*) ;; *) say "Note: $dir is not on your PATH. Add it: export PATH=\"$dir:\$PATH\"" ;; esac
 if [ "$mode" = join ]; then
-  # the program is not on PATH yet in this shell, and the service it installs copies PATH: put its folder first
+  # Piped from curl, this script is the shell's input, so the program would have no one to ask (it may
+  # want to install git or tmux, and asks first). If there is a terminal, hand it over; if not, it
+  # only prints the commands.
+  if [ ! -t 0 ] && [ -z "${HANDLOOM_NO_TTY:-}" ] && (: </dev/tty) 2>/dev/null; then
+    # the program is not on PATH yet in this shell, and the service it installs copies PATH: put its folder first
+    PATH="$dir:$PATH" exec "$dir/handloom" join "$JOIN_HUB" "$JOIN_TOKEN" "$@" </dev/tty
+  fi
   PATH="$dir:$PATH" exec "$dir/handloom" join "$JOIN_HUB" "$JOIN_TOKEN" "$@"
 fi
 cat <<NEXT
 
 Next:
-  handloom link join <hub-url> <join-token>   join this machine to your hub (token: web UI, Machines, Add a machine)
+  handloom join <hub-url> <join-token>        join this machine to your hub and start its link (token: web UI, Machines, Add a machine)
   handloom login <hub-url>                    sign in for the terminal console, then: handloom tui
-  handloom doctor                             check git, tmux and your agent CLIs
+  handloom doctor [--fix]                     check git, tmux and your agent CLIs, and install git and tmux if they are missing
 Docs: https://github.com/$REPO#quick-start
 NEXT

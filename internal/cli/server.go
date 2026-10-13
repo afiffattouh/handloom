@@ -317,6 +317,11 @@ func (e *env) link(args []string) error {
 		if err != nil {
 			return err
 		}
+		// a service starts programs with almost no PATH: add the usual places for tmux, git and agent CLIs
+		os.Setenv("PATH", addToolDirs(os.Getenv("PATH"), toolDirs(goos, userHome()), isDir))
+		if note := client.SocketPathNote(); note != "" {
+			fmt.Fprintln(e.err, "Note: "+note)
+		}
 		l := link.New(link.Options{
 			Isolation: *isolation,
 			Hub:       cfg.Hub, Device: cfg.Device, Credential: cfg.Credential, Socket: client.SocketPath(),
@@ -338,12 +343,23 @@ func (e *env) link(args []string) error {
 		if err != nil {
 			return err
 		}
+		if goos == "linux" && !systemdUp() {
+			// no service manager (WSL without systemd, a container): background process and a login line
+			return e.installDetached("systemd is not running here, so the link is kept running in the background instead")
+		}
 		return e.installService(service{
 			name: "handloom-link", description: "Handloom link (device daemon)",
 			args: []string{"link", "run"}, env: map[string]string{"HANDLOOM_HOME": home},
 		})
 	case "uninstall":
-		return e.uninstallService("handloom-link")
+		if err := e.uninstallService("handloom-link"); err != nil {
+			return err
+		}
+		return e.uninstallDetached()
+	case "start":
+		return e.linkStart(args)
+	case "stop":
+		return e.linkStop(args)
 	case "status":
 		fs := e.flags("link status")
 		if _, err := fs.need(args, 0, 0, "link status"); err != nil {

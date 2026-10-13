@@ -533,6 +533,9 @@ func jobLine(j api.Job) string {
 	if j.PRMerged {
 		repo += " [pull request merged]"
 	}
+	if j.MergedInto != "" {
+		repo += " [merged into " + j.MergedInto + "]"
+	}
 	return fmt.Sprintf("job #%-3d %-9s %s%s%s  (lead: %s; tasks: %d open, %d claimed, %d submitted, %d done)",
 		j.ID, j.Status, j.Title, conf, repo, lead, n.Open, n.Claimed, n.Submitted, n.Done)
 }
@@ -543,6 +546,13 @@ var (
 	publishPoll = time.Second
 )
 
+func shortSHA(s string) string {
+	if len(s) > 8 {
+		return s[:8]
+	}
+	return s
+}
+
 func publishLine(p api.Publish) string {
 	s := fmt.Sprintf("%s to %s as %s", p.Status, p.Remote, p.Branch)
 	if p.URL != "" {
@@ -550,6 +560,9 @@ func publishLine(p api.Publish) string {
 		if p.PRWords != "" {
 			s += " (" + p.PRWords + ")"
 		}
+	}
+	if p.MergedInto != "" {
+		s += ", merged into " + p.MergedInto
 	}
 	if p.Status == "done" && p.Behind > 0 {
 		s += fmt.Sprintf(" (the base moved: %d new commit(s) on %s)", p.Behind, p.Remote)
@@ -562,7 +575,7 @@ func publishLine(p api.Publish) string {
 
 func (e *env) job(args []string) error {
 	if len(args) == 0 {
-		return usageErr("usage: handloom job new|list|show|publish|resume|close")
+		return usageErr("usage: handloom job new|list|show|publish|merge|resume|close")
 	}
 	sub := args[0]
 	fs := e.flags("job " + sub)
@@ -578,6 +591,7 @@ func (e *env) job(args []string) error {
 	leadName := fs.String("lead-name", "", "new: a name for that lead (default lead-<job id>)")
 	cancel := fs.Bool("cancel", false, "close: cancel the job and its unfinished tasks")
 	remote := fs.String("remote", "", "publish: the remote to push to (default origin)")
+	branch := fs.String("branch", "", "merge: the published branch to merge (default: the job's latest)")
 	pr := fs.Bool("pr", false, "publish: also open a pull request (needs gh on the job's machine)")
 	project := fs.String("project", "", "new: the Handloom project (a shared repository) to work on; the machine gets its own copy first if it has none")
 	tenant := fs.String("tenant", "", "the hub's tenancy (rarely used; the default one is meant)")
@@ -723,6 +737,31 @@ func (e *env) job(args []string) error {
 		if p.Status == "failed" {
 			return fmt.Errorf("publishing failed")
 		}
+	case "merge":
+		id, err := jobID("merge <id> [--branch B]")
+		if err != nil {
+			return err
+		}
+		var j api.Job
+		if err := c.Get(fmt.Sprintf("/v1/jobs/%d", id), &j); err != nil {
+			return err
+		}
+		if j.Codebase == "" {
+			return fmt.Errorf("job %d does not belong to a project, so there is nothing to merge; Handloom merges for projects it holds itself (handloom project new NAME)", id)
+		}
+		var m api.CodebaseMerge
+		if err := c.Post("/v1/codebases/"+j.Codebase+"/merge", api.CodebaseMergeReq{Job: id, Branch: *branch}, &m); err != nil {
+			return err
+		}
+		e.print(m, func() {
+			switch m.How {
+			case "already merged":
+				fmt.Fprintf(e.out, "Job #%d was already in %s of %s; nothing changed.\n", m.Job, m.Into, m.Project)
+			default:
+				fmt.Fprintf(e.out, "Merged job #%d (%s) into %s of %s: %s, now at %s.\n", m.Job, m.Branch, m.Into, m.Project, m.How, shortSHA(m.Commit))
+			}
+			fmt.Fprintln(e.out, "Other machines get it when their next job on the project starts.")
+		})
 	case "resume":
 		id, err := jobID("resume <id> --lead AGENT")
 		if err != nil {

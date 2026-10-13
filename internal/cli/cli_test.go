@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -42,7 +43,7 @@ func newRig(t *testing.T) *rig {
 	if err != nil {
 		t.Fatal(err)
 	}
-	srv := httptest.NewServer(hub.New(db, hub.Options{AllowFileRemotes: true}).Handler())
+	srv := httptest.NewServer(hub.New(db, hub.Options{AllowFileRemotes: true, DataDir: t.TempDir()}).Handler())
 	t.Cleanup(srv.Close)
 	r := &rig{t: t, hubURL: srv.URL, admin: admin}
 
@@ -68,7 +69,7 @@ func newRig(t *testing.T) *rig {
 	done := make(chan struct{})
 	go func() {
 		link.New(link.Options{Hub: cfg.Hub, Device: cfg.Device, Credential: cfg.Credential,
-			Socket: client.SocketPath(), Log: log.New(io.Discard, "", 0), PollWait: 1,
+			Socket: client.SocketPath(), Log: log.New(io.Discard, "", 0), PollWait: 1, Binary: testBinary(t),
 			// Never start real terminals from a test.
 			Tmux: func(context.Context, string, ...string) (string, error) { return "", nil }}).Run(ctx)
 		close(done)
@@ -1089,4 +1090,24 @@ func TestJobShowAndListSayHowTheBaseAndThePullRequestAre(t *testing.T) {
 	if out := run("job", "show", "4", "--json"); !strings.Contains(out, `"pr_merged": true`) && !strings.Contains(out, `"pr_merged":true`) {
 		t.Errorf("job show --json lacks pr_merged: %s", out)
 	}
+}
+
+var (
+	binOnce sync.Once
+	binPath string
+)
+
+// testBinary is the real handloom binary, built once: git runs it as the credential helper of a hosted project.
+func testBinary(t *testing.T) string {
+	binOnce.Do(func() {
+		dir, err := os.MkdirTemp("", "handloom-bin-")
+		if err != nil {
+			return
+		}
+		out := filepath.Join(dir, "handloom")
+		if err := exec.Command("go", "build", "-o", out, "handloom/cmd/handloom").Run(); err == nil {
+			binPath = out
+		}
+	})
+	return binPath
 }

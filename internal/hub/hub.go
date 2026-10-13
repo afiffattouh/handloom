@@ -37,6 +37,7 @@ type Options struct {
 	TrustProxy        bool             // take the client address from the proxy's X-Forwarded-For
 	SessionIdle       time.Duration    // web session idle timeout; default 12h
 	SessionMax        time.Duration    // web session absolute lifetime; default 7 days
+	DataDir           string           // the hub's data folder; hosted projects (D106) keep their repositories in <DataDir>/git
 	AllowFileRemotes  bool             // accept file:// addresses as a project's remote (tests and trials only)
 	AllowConfidential bool             // this hub may host confidential jobs (private, trusted deployments only)
 	RequireRunToken   bool             // refuse agent requests that carry only the device credential and a claimed name
@@ -61,6 +62,7 @@ type Hub struct {
 	rate   map[string]*bucket
 	pages  map[string]*template.Template
 	tails  tailStore       // screens wanted from and read off agents' terminals; memory only
+	gitMu  sync.Mutex      // one merge into a hosted repository at a time (D106)
 	dyn    notify.Notifier // ntfy from Settings, plus the configured notifier; nil when Settings has none
 }
 
@@ -206,6 +208,9 @@ func (h *Hub) Handler() http.Handler {
 	}
 
 	mux.HandleFunc("POST /v1/devices/join", h.handleJoin)
+	// Hosted projects (D106): git over HTTP for the code the hub holds. Not under /v1 and not a web
+	// page: it has its own sign-in (a machine's credential as the password) and no CSRF or body limit.
+	mux.HandleFunc("/git/", h.handleGit)
 	mux.HandleFunc("GET /v1/events", h.handleEvents)
 
 	h.webRoutes(mux)
@@ -238,6 +243,8 @@ func (h *Hub) Handler() http.Handler {
 	v1("GET /codebases", codebaseList)
 	v1("POST /codebases", codebaseAttach)
 	v1("POST /codebases/create", codebaseCreate)
+	v1("POST /codebases/host", codebaseHost)
+	v1("POST /codebases/{name}/merge", codebaseMerge)
 	v1("GET /codebases/{name}", codebaseGet)
 	v1("POST /codebases/{name}/clone", codebaseClone)
 	v1("GET /device/project-requests", deviceCodebaseRequests)
@@ -328,6 +335,17 @@ type apiError struct {
 	status int
 	code   string
 	msg    string
+}
+
+// keepErr is an error answer whose request still commits: the audit row about a refused merge stays.
+type keepErr struct{ *apiError }
+
+func (e keepErr) Unwrap() error { return e.apiError }
+
+// keepsWrites says whether err asks for the request's writes to be kept.
+func keepsWrites(err error) bool {
+	var k keepErr
+	return errors.As(err, &k)
 }
 
 func (e *apiError) Error() string { return e.msg }
@@ -432,8 +450,15 @@ func (h *Hub) handle(fn func(*call) (any, error)) http.HandlerFunc {
 			err = tx.Commit()
 		}
 		if err != nil {
-			tx.Rollback()
 			var ae *apiError
+			if keepsWrites(err) {
+				if cerr := tx.Commit(); cerr != nil {
+					h.opt.Log.Printf("commit after a refusal: %v", cerr)
+				}
+				h.writeErr(w, err)
+				return
+			}
+			tx.Rollback()
 			if errors.As(err, &ae) && ae.status == 403 {
 				h.auditDenied(c.p, r, ae)
 			}

@@ -2,7 +2,7 @@
 # An upgrade with work in flight: a hub and a link of an OLDER release, a job with a task claimed, a task
 # submitted and a question open; then the hub is replaced by the new build on the same data (the link still old),
 # then the link too. Nothing may be lost, the old link must keep working against the new hub, and the work must
-# finish. Needs: go, gh (to fetch the older release), curl, python3, tmux.
+# finish; and a project the hub holds (D106) is made on the upgraded hub. Needs: go, gh (to fetch the older release), curl, python3, tmux, git.
 #   OLD=v0.1.0-rc2 test/e2e/upgrade.sh
 set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -58,6 +58,12 @@ say "then the link is upgraded too"
 stop_pid "$LINK"; start_link "$NEWBIN" && ok "the new link started with the old credential" || bad "the new link did not start"
 human "$NEWBIN" task accept 2 >/dev/null 2>&1 && ok "accepting the work finished across the upgrade works" || bad "accept failed"
 agent "$NEWBIN" lead task list --json >/dev/null 2>&1 && ok "the agent verbs work through the new link" || bad "the agent verbs failed"
+say "a project the hub holds can be made right after the upgrade (D106), and a machine can use it with plain git"
+human "$NEWBIN" project new up-demo --device up-dev > "$OUT/hosted.txt" 2>&1 && ok "project new up-demo (hosted) worked on the upgraded hub" || bad "hosted project after the upgrade: $(cat "$OUT/hosted.txt")"
+UPC="$HANDLOOM_HOME/projects/up-demo"
+[ "$(git -C "$UPC" remote get-url origin 2>/dev/null)" = "$H/git/up-demo.git" ] && ok "the machine's copy came through its own credential" || bad "no copy at $UPC"
+git -C "$UPC" fetch -q origin 2>/dev/null && ok "plain git fetch works in it without a prompt" || bad "git fetch in the hosted copy failed"
+[ "$(git -C "$OUT/data/git/up-demo.git" show main:README.md 2>/dev/null)" = "# up-demo" ] && ok "the hub holds the code in its data folder" || bad "no repository in the hub's data folder"
 human "$NEWBIN" digest | sed 's/^/    /'
 human "$NEWBIN" digest --json | python3 -c 'import json,sys; d=json.load(sys.stdin); sys.exit(0 if any(i["kind"]=="escalation" for i in d["needs_you"]) else 1)' && ok "the open question still needs the person" || bad "the question is gone from the digest"
 [ "$fails" = 0 ] && { echo "PASS"; exit 0; } || { echo "FAIL ($fails)"; exit 1; }

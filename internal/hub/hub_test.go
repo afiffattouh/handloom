@@ -438,6 +438,7 @@ func TestScopeTableMatchesDesign(t *testing.T) {
 		ActSpawn:            "yes no no yes",
 		ActPublish:          "no no no yes", // added with publishing (D103): only a person pushes a job's work to the shared remote
 		ActProjectManage:    "no no no yes", // added with projects (D104): only a person attaches, creates or clones a shared repository; creating one is outward-facing
+		ActProjectMerge:     "no no no yes", // added with hosted projects (D106): only a person puts a published job into the main branch of the code the hub holds; an agent never merges its own work
 	}
 	if len(scopeTable) != len(want) {
 		t.Fatalf("scope table has %d actions, want %d", len(scopeTable), len(want))

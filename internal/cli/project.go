@@ -61,7 +61,7 @@ func (e *env) project(args []string) error {
 		}
 		e.print(cbs, func() {
 			if len(cbs) == 0 {
-				fmt.Fprintln(e.out, "No projects yet. Add one with: handloom project new NAME --remote URL   or   handloom project new NAME --create")
+				fmt.Fprintln(e.out, "No projects yet. Make one the hub holds with: handloom project new NAME   (or attach a repository: --remote URL; or make one on GitHub: --create)")
 			}
 			for _, p := range cbs {
 				fmt.Fprintln(e.out, projectLine(p))
@@ -74,6 +74,9 @@ func (e *env) project(args []string) error {
 		}
 		e.print(p, func() {
 			fmt.Fprintln(e.out, projectLine(p))
+			if p.Hosted {
+				fmt.Fprintf(e.out, "  held by Handloom: %s on the hub's disk (include the git folder of the data directory in backups)\n", sizeWords(p.SizeBytes))
+			}
 			for _, k := range p.Clones {
 				line := fmt.Sprintf("  %s: %s", k.Device, k.Status)
 				if k.Path != "" {
@@ -86,8 +89,30 @@ func (e *env) project(args []string) error {
 			}
 		})
 	case sub == "new" && len(pos) == 1:
-		if (*remote == "") == !*create {
-			return usageErr("usage: handloom project new NAME --remote URL [--base B] [--device D]   or   handloom project new NAME --create [--owner O] [--public] [--device D]")
+		if *remote != "" && *create {
+			return usageErr("usage: handloom project new NAME [--device D]   or   handloom project new NAME --remote URL [--base B] [--device D]   or   handloom project new NAME --create [--owner O] [--public] [--device D]")
+		}
+		if *remote == "" && !*create {
+			// No address and no GitHub: the hub holds the code itself (D106).
+			if *owner != "" || *public || *base != "" {
+				return usageErr("--owner and --public go with --create, and --base with --remote; a project the hub holds takes only a name")
+			}
+			var p api.Codebase
+			if err := c.Post("/v1/codebases/host", api.CodebaseHostReq{Name: pos[0]}, &p); err != nil {
+				return err
+			}
+			e.print(p, func() {
+				fmt.Fprintf(e.out, "Created project %s on the hub (the hub holds its code; no GitHub needed): %s\n", p.Name, p.Remote)
+				fmt.Fprintln(e.out, "Machines get their own copy with: handloom project clone "+p.Name+" --device NAME. Keep the hub's git folder in your backups.")
+			})
+			if *device != "" {
+				path, err := e.ensureClone(c, pos[0], *device)
+				if err != nil {
+					return err
+				}
+				fmt.Fprintf(e.out, "%s has its copy at %s.\n", *device, path)
+			}
+			return nil
 		}
 		if *create {
 			private := !*public
@@ -137,7 +162,7 @@ func (e *env) project(args []string) error {
 			fmt.Fprintf(e.out, "Project %s is ready on %s at %s.\n", pos[0], *device, path)
 		})
 	default:
-		return usageErr("usage: handloom project new NAME (--remote URL | --create) | list | show NAME | clone NAME --device D")
+		return usageErr("usage: handloom project new NAME [--remote URL | --create] | list | show NAME | clone NAME --device D")
 	}
 	return nil
 }
@@ -155,7 +180,22 @@ func projectLine(p api.Codebase) string {
 	if len(have) > 0 {
 		machines = "on " + strings.Join(have, ", ")
 	}
+	if p.Hosted {
+		remote += " (held by Handloom)"
+	}
 	return fmt.Sprintf("%-20s %s  %s", p.Name, remote, machines)
+}
+
+func sizeWords(n int64) string {
+	switch {
+	case n < 1<<10:
+		return fmt.Sprintf("%d bytes", n)
+	case n < 1<<20:
+		return fmt.Sprintf("%.1f KB", float64(n)/(1<<10))
+	case n < 1<<30:
+		return fmt.Sprintf("%.1f MB", float64(n)/(1<<20))
+	}
+	return fmt.Sprintf("%.1f GB", float64(n)/(1<<30))
 }
 
 // ensureClone has the machine fetch its own copy of the project, unless it has one, and waits.

@@ -63,17 +63,18 @@ func (f *fakeDriver) count() int {
 }
 
 type fixture struct {
-	t      *testing.T
-	link   *Link
-	driver *fakeDriver
-	now    time.Time
-	mu     sync.Mutex
-	admin  *client.Client
-	lead   *client.Client // through the link socket
-	worker *client.Client
-	human  *client.Client
-	url    string // the hub
-	cred   string // this device's credential
+	t       *testing.T
+	link    *Link
+	driver  *fakeDriver
+	now     time.Time
+	mu      sync.Mutex
+	admin   *client.Client
+	lead    *client.Client // through the link socket
+	worker  *client.Client
+	human   *client.Client
+	url     string // the hub
+	dataDir string // the hub's data folder (hosted projects keep their repositories in <dataDir>/git)
+	cred    string // this device's credential
 }
 
 func (f *fixture) clock() time.Time {
@@ -104,7 +105,8 @@ func newFixture(t *testing.T) *fixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	h := hub.New(db, hub.Options{Now: f.clock, MsgRate: 1000, AllowFileRemotes: true})
+	f.dataDir = t.TempDir()
+	h := hub.New(db, hub.Options{Now: f.clock, MsgRate: 1000, AllowFileRemotes: true, DataDir: f.dataDir})
 	srv := httptest.NewServer(h.Handler())
 	t.Cleanup(srv.Close)
 

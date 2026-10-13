@@ -32,6 +32,7 @@ func (c *call) baseView(j *api.Job) {
 	var n int
 	c.tx.QueryRow(`SELECT count(*) FROM publish WHERE job_id = ? AND pr_state = 'merged'`, j.ID).Scan(&n)
 	j.PRMerged = n > 0
+	c.tx.QueryRow(`SELECT merged_into FROM publish WHERE job_id = ? AND merged_into != '' ORDER BY id DESC LIMIT 1`, j.ID).Scan(&j.MergedInto)
 }
 
 // jobBase is the device's account of the start of a job from its project. Its own device, once.

@@ -14,10 +14,14 @@ import (
 
 // A project (D104) is a name and a shared git remote that any machine can get
 // on demand. Inside the program it is called a codebase, because the hub's
-// table "project" is the tenancy. The hub keeps only the name, the remote's
+// table "project" is the tenancy. The hub keeps the name, the remote's
 // address and, per machine, where the clone is and how it went. Cloning and
-// creating a repository happen on a machine, under that machine's own git
-// and gh login: the code and the credentials never reach the hub.
+// creating a repository on GitHub (or any other host) happen on a machine,
+// under that machine's own git and gh login: the code and those credentials
+// never reach the hub. The one exception is a hosted project (D106, hosted.go),
+// which a person chooses on purpose: then the hub itself keeps the repository,
+// on its disk next to the database, and the machines use their device
+// credential to reach it.
 
 var (
 	codebaseNameRE = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,39}$`)
@@ -116,12 +120,13 @@ type cbRow struct {
 	name, remote, base string
 	createdBy          string
 	created            int64
+	hosted             bool
 }
 
 func (c *call) codebaseByName(name string) (*cbRow, error) {
 	r := &cbRow{}
-	err := c.tx.QueryRow(`SELECT id, name, remote, base_branch, created_by, created_at FROM codebase WHERE name = ?`, name).
-		Scan(&r.id, &r.name, &r.remote, &r.base, &r.createdBy, &r.created)
+	err := c.tx.QueryRow(`SELECT id, name, remote, base_branch, created_by, created_at, hosted FROM codebase WHERE name = ?`, name).
+		Scan(&r.id, &r.name, &r.remote, &r.base, &r.createdBy, &r.created, &r.hosted)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, notFound("no project %q: see the list with: handloom project list", name)
 	}
@@ -129,7 +134,7 @@ func (c *call) codebaseByName(name string) (*cbRow, error) {
 }
 
 func (c *call) codebaseView(r *cbRow) (api.Codebase, error) {
-	out := api.Codebase{Name: r.name, Remote: r.remote, Base: r.base, CreatedBy: r.createdBy, CreatedAt: store.Time(r.created), Clones: []api.CodebaseClone{}}
+	out := api.Codebase{Name: r.name, Remote: r.remote, Base: r.base, CreatedBy: r.createdBy, CreatedAt: store.Time(r.created), Hosted: r.hosted, Clones: []api.CodebaseClone{}}
 	rows, err := c.tx.Query(`SELECT d.name, k.path, k.status, k.detail, k.updated_at FROM codebase_clone k JOIN device d ON d.id = k.device_id
 		WHERE k.codebase_id = ? ORDER BY d.name`, r.id)
 	if err != nil {
@@ -158,14 +163,14 @@ func codebaseList(c *call) (any, error) {
 }
 
 func (c *call) codebases() ([]api.Codebase, error) {
-	rows, err := c.tx.Query(`SELECT id, name, remote, base_branch, created_by, created_at FROM codebase ORDER BY name`)
+	rows, err := c.tx.Query(`SELECT id, name, remote, base_branch, created_by, created_at, hosted FROM codebase ORDER BY name`)
 	if err != nil {
 		return nil, err
 	}
 	var rs []*cbRow
 	for rows.Next() {
 		r := &cbRow{}
-		if err := rows.Scan(&r.id, &r.name, &r.remote, &r.base, &r.createdBy, &r.created); err != nil {
+		if err := rows.Scan(&r.id, &r.name, &r.remote, &r.base, &r.createdBy, &r.created, &r.hosted); err != nil {
 			rows.Close()
 			return nil, err
 		}
@@ -191,7 +196,11 @@ func codebaseGet(c *call) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	return c.codebaseView(r)
+	v, err := c.codebaseView(r)
+	if err == nil && r.hosted {
+		v.SizeBytes = c.h.repoSize(r.name)
+	}
+	return v, err
 }
 
 func codebaseAttach(c *call) (any, error) {
@@ -393,7 +402,7 @@ func deviceCodebaseRequests(c *call) (any, error) {
 	if c.p.kind != kindDevice || c.p.agentName != "" {
 		return nil, forbidden("only a machine's link may list its project requests")
 	}
-	rows, err := c.tx.Query(`SELECT q.id, cb.name, q.kind, cb.remote, cb.base_branch, q.owner, q.private FROM codebase_request q JOIN codebase cb ON cb.id = q.codebase_id
+	rows, err := c.tx.Query(`SELECT q.id, cb.name, q.kind, cb.remote, cb.base_branch, q.owner, q.private, cb.hosted FROM codebase_request q JOIN codebase cb ON cb.id = q.codebase_id
 		WHERE q.device_id = ? AND q.status = 'pending' ORDER BY q.id LIMIT 5`, c.p.deviceID)
 	if err != nil {
 		return nil, err
@@ -402,7 +411,7 @@ func deviceCodebaseRequests(c *call) (any, error) {
 	out := []api.PendingCodebaseRequest{}
 	for rows.Next() {
 		var p api.PendingCodebaseRequest
-		if err := rows.Scan(&p.ID, &p.Name, &p.Kind, &p.Remote, &p.Base, &p.Owner, &p.Private); err != nil {
+		if err := rows.Scan(&p.ID, &p.Name, &p.Kind, &p.Remote, &p.Base, &p.Owner, &p.Private, &p.Hosted); err != nil {
 			return nil, err
 		}
 		out = append(out, p)

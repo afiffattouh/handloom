@@ -319,6 +319,7 @@ type Job struct {
 	BaseCommit   string    `json:"base_commit,omitempty"`  // the short id of the base branch when the job started
 	PullRequest  string    `json:"pull_request,omitempty"` // where the latest published pull request stands, in words (D105)
 	PRMerged     bool      `json:"pr_merged,omitempty"`    // a pull request of this job was merged
+	MergedInto   string    `json:"merged_into,omitempty"`  // the branch of a hosted project this job's work was merged into (D106)
 }
 
 // Base states of a job that works on a project (D105).
@@ -751,22 +752,25 @@ type PublishReq struct {
 
 // Publish is one request to publish a job's work, and what came of it.
 type Publish struct {
-	ID          int64      `json:"id"`
-	Job         int64      `json:"job"`
-	RequestedBy string     `json:"requested_by"`
-	Remote      string     `json:"remote"`
-	Branch      string     `json:"branch"` // the branch pushed to the remote
-	PR          bool       `json:"pr"`
-	Status      string     `json:"status"` // pending | done | failed
-	Detail      string     `json:"detail,omitempty"`
-	URL         string     `json:"url,omitempty"`          // the pull request, when one was opened
-	Behind      int        `json:"behind,omitempty"`       // commits the base branch is behind on the remote
-	PRState     string     `json:"pr_state,omitempty"`     // open | merged | closed, as the machine last saw it (D105)
-	PRReview    string     `json:"pr_review,omitempty"`    // approved | changes_requested | review_required
-	PRMergeable string     `json:"pr_mergeable,omitempty"` // true | false | unknown
-	PRWords     string     `json:"pr_words,omitempty"`     // the three above in words
-	At          time.Time  `json:"at"`
-	DoneAt      *time.Time `json:"done_at,omitempty"`
+	ID           int64      `json:"id"`
+	Job          int64      `json:"job"`
+	RequestedBy  string     `json:"requested_by"`
+	Remote       string     `json:"remote"`
+	Branch       string     `json:"branch"` // the branch pushed to the remote
+	PR           bool       `json:"pr"`
+	Status       string     `json:"status"` // pending | done | failed
+	Detail       string     `json:"detail,omitempty"`
+	URL          string     `json:"url,omitempty"`          // the pull request, when one was opened
+	Behind       int        `json:"behind,omitempty"`       // commits the base branch is behind on the remote
+	PRState      string     `json:"pr_state,omitempty"`     // open | merged | closed, as the machine last saw it (D105)
+	PRReview     string     `json:"pr_review,omitempty"`    // approved | changes_requested | review_required
+	PRMergeable  string     `json:"pr_mergeable,omitempty"` // true | false | unknown
+	PRWords      string     `json:"pr_words,omitempty"`     // the three above in words
+	MergedInto   string     `json:"merged_into,omitempty"`  // hosted project: the branch this publish was merged into (D106)
+	MergedAt     *time.Time `json:"merged_at,omitempty"`
+	MergedCommit string     `json:"merged_commit,omitempty"`
+	At           time.Time  `json:"at"`
+	DoneAt       *time.Time `json:"done_at,omitempty"`
 }
 
 // PendingPublish is a publish a device has been asked to do, with what it needs.
@@ -778,6 +782,7 @@ type PendingPublish struct {
 	PR     bool          `json:"pr"`
 	Repo   string        `json:"repo"`
 	Base   string        `json:"base,omitempty"`
+	Hosted bool          `json:"hosted,omitempty"` // the project is held by the hub (D106): no pull request, the owner merges it
 	Title  string        `json:"title"`
 	Body   string        `json:"body,omitempty"`
 	Tasks  []PublishTask `json:"tasks"` // accepted tasks and who did them: no evidence, no handoff notes
@@ -830,7 +835,9 @@ func OverlapText(refs []JobRef) string {
 // The hub keeps only this and where each machine's clone is; the code and the git login stay on the machines.
 type Codebase struct {
 	Name      string          `json:"name"`
-	Remote    string          `json:"remote"` // empty while a repository the hub was asked to create is not made yet
+	Remote    string          `json:"remote"`               // empty while a repository the hub was asked to create is not made yet
+	Hosted    bool            `json:"hosted,omitempty"`     // the hub holds the code (D106)
+	SizeBytes int64           `json:"size_bytes,omitempty"` // hosted: disk used by the repository
 	Base      string          `json:"base,omitempty"`
 	CreatedBy string          `json:"created_by"`
 	CreatedAt time.Time       `json:"created_at"`
@@ -851,6 +858,27 @@ type CodebaseReq struct {
 	Name   string `json:"name"`
 	Remote string `json:"remote"`
 	Base   string `json:"base,omitempty"`
+}
+
+// CodebaseHostReq makes a project the hub holds itself (D106): no address, no GitHub, no login.
+type CodebaseHostReq struct {
+	Name string `json:"name"`
+}
+
+// CodebaseMergeReq asks the hub to merge a job's published branch into the base branch of a hosted project.
+type CodebaseMergeReq struct {
+	Job    int64  `json:"job"`
+	Branch string `json:"branch,omitempty"` // default: the job's latest published branch
+}
+
+// CodebaseMerge is the answer to a merge.
+type CodebaseMerge struct {
+	Project string `json:"project"`
+	Job     int64  `json:"job"`
+	Branch  string `json:"branch"`
+	Into    string `json:"into"`
+	Commit  string `json:"commit"`
+	How     string `json:"how"` // fast-forward | merge commit | already merged
 }
 
 // CodebaseCreateReq asks a machine to create a repository under its own login.
@@ -891,6 +919,7 @@ type PendingCodebaseRequest struct {
 	Base    string `json:"base,omitempty"`
 	Owner   string `json:"owner,omitempty"`
 	Private bool   `json:"private"`
+	Hosted  bool   `json:"hosted,omitempty"` // the remote is on the hub (D106): the link sets up its credential helper
 }
 
 // CodebaseReport is the device's account of one request.

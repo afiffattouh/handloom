@@ -16,7 +16,7 @@ func TestProjectsPageAndForms(t *testing.T) {
 	c, tok := e.owner()
 
 	r := e.req("GET", "/projects", nil, c, nil)
-	for _, want := range []string{"No projects yet", "Attach a repository", "Create a repository", `name="a_remote"`, `name="c_private" value="1" checked`, `<option value="d1"`, `href="/projects"`} {
+	for _, want := range []string{"No projects yet", "I already have a repository", "Make it on GitHub", "Let Handloom hold the code", `name="h_name"`, `name="a_remote"`, `name="c_private" value="1" checked`, `<option value="d1"`, `href="/projects"`} {
 		if !strings.Contains(r.body, want) {
 			t.Errorf("empty page lacks %q", want)
 		}

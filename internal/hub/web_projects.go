@@ -2,6 +2,7 @@ package hub
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -16,6 +17,7 @@ import (
 type projectView struct {
 	api.Codebase
 	RemoteLink bool     // an https address: shown as a link; anything else stays plain text
+	Size       string   // hosted: disk used on the hub
 	CloneTo    []string // machines that do not have a copy (or whose attempt failed)
 }
 
@@ -59,7 +61,10 @@ func (q *webReq) projectsPage(status int, errMsg, which string, form map[string]
 		v.Form["c_device"] = devs[0]
 	}
 	for _, cb := range cbs {
-		pv := projectView{Codebase: cb, RemoteLink: strings.HasPrefix(cb.Remote, "https://")}
+		pv := projectView{Codebase: cb, RemoteLink: strings.HasPrefix(cb.Remote, "https://") && !cb.Hosted}
+		if cb.Hosted {
+			pv.Size = humanBytes(q.c.h.repoSize(cb.Name))
+		}
 		have := map[string]string{}
 		for _, k := range cb.Clones {
 			have[k.Device] = k.Status
@@ -74,6 +79,7 @@ func (q *webReq) projectsPage(status int, errMsg, which string, form map[string]
 		v.Projects = append(v.Projects, pv)
 	}
 	notice := map[string]string{
+		"hosted":   "Project created on this hub. Have a machine fetch its copy with Clone, or start a job from it.",
 		"attached": "Project added.",
 		"creating": "Asked the machine to create the repository. It shows here, with its address, when the machine has done it (usually within a minute): reload this page.",
 		"cloning":  "Asked the machine to fetch its own copy. It shows as ready here when it is done (usually within a minute): reload this page.",
@@ -105,6 +111,31 @@ func (q *webReq) projectFailed(err error, which string, form map[string]string) 
 	q.c.tx = tx
 	q.projectsPage(status, msg, which, form)
 	return errHandled
+}
+
+// humanBytes is a size for people: 3.2 MB.
+func humanBytes(n int64) string {
+	switch {
+	case n < 1<<10:
+		return fmt.Sprintf("%d bytes", n)
+	case n < 1<<20:
+		return fmt.Sprintf("%.1f KB", float64(n)/(1<<10))
+	case n < 1<<30:
+		return fmt.Sprintf("%.1f MB", float64(n)/(1<<20))
+	}
+	return fmt.Sprintf("%.1f GB", float64(n)/(1<<30))
+}
+
+func (h *Hub) webProjectHost(q *webReq) error {
+	f := q.r.PostForm
+	if err := q.c.allow(ActProjectManage); err != nil {
+		return q.projectFailed(err, "host", f1(f))
+	}
+	if _, err := q.c.hostCodebase(f.Get("h_name")); err != nil {
+		return q.projectFailed(err, "host", f1(f))
+	}
+	http.Redirect(q.w, q.r, "/projects?done=hosted", http.StatusSeeOther)
+	return nil
 }
 
 func (h *Hub) webProjectAttach(q *webReq) error {

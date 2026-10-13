@@ -193,6 +193,10 @@ type jobView2 struct {
 	CanPublish bool          // a person who may push, on a repo job with merged work
 	NoMerged   bool          // a repo job with nothing merged yet: say why there is no button
 	RepoJob    bool
+	Hosted     string // the hosted project (D106) this job works on, or ""
+	CanMerge   bool   // a person who may merge, a hosted project, a finished publish not merged yet
+	MergedInto string // the branch the job's work was merged into
+	Confid     bool
 }
 
 type publishView struct {
@@ -274,6 +278,23 @@ func (q *webReq) jobPage(status int, errMsg string, id int64) error {
 		}
 		v.CanPublish = q.c.allow(ActPublish) == nil && merged && t.status != api.StatusCancelled
 		v.NoMerged = !merged
+		if name, hosted := q.c.hostedFor(id); hosted {
+			v.Hosted, v.Confid = name, t.confidential
+			v.CanPublish = v.CanPublish && !t.confidential
+			for _, p := range pubs {
+				if p.MergedInto != "" {
+					v.MergedInto = p.MergedInto
+				}
+			}
+			if len(pubs) > 0 {
+				for _, p := range pubs {
+					if p.Status == "done" {
+						v.CanMerge = p.MergedInto == "" && !t.confidential && q.c.allow(ActProjectMerge) == nil
+						break
+					}
+				}
+			}
+		}
 	}
 	targets = append(targets, fmt.Sprintf("job:%d", id))
 	for _, a := range agents {
@@ -318,7 +339,7 @@ func (q *webReq) jobPage(status int, errMsg string, id int64) error {
 			v.Attach = append(v.Attach, attachView{s.Name, "tmux -L handloom attach -t handloom:" + s.Name})
 		}
 	}
-	notice := map[string]string{"started": "Job started. Its lead is starting; this page updates as work arrives.", "closed": "Job closed.", "resumed": "Job resumed with the new lead.", "published": "Publishing asked for: the machine that holds the repository is pushing the branch. The result appears under Publish."}[q.r.URL.Query().Get("done")]
+	notice := map[string]string{"started": "Job started. Its lead is starting; this page updates as work arrives.", "closed": "Job closed.", "resumed": "Job resumed with the new lead.", "merged": "Merged. The work is now in the project's main branch; other machines pick it up when their next job starts.", "published": "Publishing asked for: the machine that holds the repository is pushing the branch. The result appears under Publish."}[q.r.URL.Query().Get("done")]
 	if q.r.URL.Query().Get("done") == "started" && v.Overlap != "" {
 		notice += " " + v.Overlap
 	}
@@ -350,7 +371,11 @@ func (q *webReq) jobAction(redirect string, fn func(id int64) error) error {
 		if errors.As(err, &ae) {
 			status, msg = ae.status, ae.msg
 		}
-		q.c.tx.Rollback()
+		if keepsWrites(err) {
+			q.c.tx.Commit() // the audit row about a refused merge stays
+		} else {
+			q.c.tx.Rollback()
+		}
 		tx, terr := q.c.h.db.Begin()
 		if terr != nil {
 			return terr
@@ -374,6 +399,20 @@ func (h *Hub) webJobClose(q *webReq) error {
 func (h *Hub) webJobResume(q *webReq) error {
 	return q.jobAction("resumed", func(id int64) error {
 		_, err := q.c.resumeJob(id, q.r.PostForm.Get("lead"))
+		return err
+	})
+}
+
+func (h *Hub) webJobMerge(q *webReq) error {
+	return q.jobAction("merged", func(id int64) error {
+		if err := q.c.allow(ActProjectMerge); err != nil {
+			return err
+		}
+		name, hosted := q.c.hostedFor(id)
+		if !hosted {
+			return conflict("job %d does not belong to a project that Handloom holds, so there is nothing for Handloom to merge", id)
+		}
+		_, err := q.c.mergeHosted(name, api.CodebaseMergeReq{Job: id})
 		return err
 	})
 }

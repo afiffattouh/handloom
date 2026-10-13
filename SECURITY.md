@@ -1,6 +1,6 @@
 # Security
 
-Handloom stores credentials hashed, keeps the hub free of git, shells and models, and lets only people approve work (see `docs/protocol.md` and the guard rails in `docs/overview.html`).
+Handloom stores credentials hashed, keeps the hub free of shells and models (it runs git only for a project a person chose to let it hold, D106, and refuses confidential jobs there), and lets only people approve work (see `docs/protocol.md` and the guard rails in `docs/overview.html`).
 
 **Reporting a problem.** Please do not open a public issue for a vulnerability. Use GitHub's private vulnerability reporting on this repository (Security, then "Report a vulnerability"), with what you saw, what you expected and how to reproduce it. You will get an answer, not silence.
 

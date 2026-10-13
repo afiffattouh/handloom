@@ -23,7 +23,7 @@
 
 | | |
 | --- | --- |
-| **Projects** | A name plus a shared git remote. Attach a repository or have a machine create one; any machine fetches its own copy on demand, with its own login. |
+| **Projects** | A name plus a shared git repository. With no GitHub at all, the hub can hold it for you; or attach one that exists, or have a machine create one on GitHub. Any machine fetches its own copy on demand. |
 | **Jobs with a lead** | Each job has its own lead agent, a team of workers, tasks with owners and dependencies, and a brief that says what done looks like. |
 | **Profiles and skills** | What an agent may do and know, as versioned, hash-pinned profiles: tools, denied commands, allowed paths, skills. 41 ready-made starters (engineering, design, research, consulting, marketing, sales, finance, HR) and a form that asks "what should it do?" in plain words. |
 | **Any agent CLI, any model** | Claude Code, Codex, OMP, Pi and OpenCode, including models running on your own machine. Handloom limits each as far as that CLI allows and says plainly what it cannot enforce. |
@@ -66,7 +66,7 @@
 4. **The lead reviews.** It can accept only work whose check passed. The link merges accepted branches into `job/<id>/integration` and re-checks; a conflict goes back to the lead.
 5. **You decide.** Questions land in your inbox (and on your phone). When every task is done you look at the result, close the job, and merge the integration branch yourself. Nothing touches your own branches.
 
-The hub never runs git, a shell or a model, so it can be small and public. Everything that runs code lives on machines you own, and the device's word beats the agent's word.
+The hub never runs a shell or a model, and it runs git only for a project you chose to let it hold (below), so it can be small and public. Everything that runs code lives on machines you own, and the device's word beats the agent's word.
 
 **One job, from your sentence to a branch you can merge.** Read down: each box sits in the lane of whoever does it, and dashed boxes are waiting, not working.
 
@@ -210,7 +210,7 @@ One hub serves one team. Everyone signs in to the same web UI and everyone's mac
 
 Agents are not people: they can never start or close a job, answer a question or change a profile, whoever started them.
 
-**Working on one project together.** A *project* is a name and a shared git remote: attach an existing repository, or have a machine create one with `gh`, and any machine can get its own copy on request (`handloom project clone`, or just `handloom job new --project NAME --device D`), under that machine's own git login. The hub never holds the code or a login. Each machine keeps its own clone and the team shares code through git. A finished job's work can be pushed to the shared remote (`handloom job publish <id> --pr`, or the Publish card on the job page), never forced, and starting a job warns when other open jobs use the same repository on the same machine. A job of a project starts from the latest code of its main branch when the machine can fast-forward to it safely (never rewriting local work), and a published pull request's status (open, approved, merged) shows on the job. See [docs/collaborate.md](docs/collaborate.md).
+**Working on one project together.** A *project* is a name and a shared git remote: attach an existing repository, or have a machine create one with `gh`, and any machine can get its own copy on request (`handloom project clone`, or just `handloom job new --project NAME --device D`), under that machine's own git login. For a repository kept on GitHub or any git host, the hub never holds the code or a login; each machine keeps its own clone and the team shares code through git. A team with no GitHub can let the hub hold the code instead (`handloom project new NAME`, or the Projects page): machines then fetch and push with the credential they already have, can only add branches named `handloom/...`, and you merge a finished job into the main branch with one command or button (`handloom job merge <id>`). That is the one case where the hub stores code, so confidential jobs are refused there and the hub's `git` folder must be in your backups. A finished job's work can be pushed to the shared remote (`handloom job publish <id> --pr`, or the Publish card on the job page), never forced, and starting a job warns when other open jobs use the same repository on the same machine. A job of a project starts from the latest code of its main branch when the machine can fast-forward to it safely (never rewriting local work), and a published pull request's status (open, approved, merged) shows on the job. See [docs/collaborate.md](docs/collaborate.md).
 
 **A day in a team**
 

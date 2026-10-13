@@ -276,6 +276,9 @@ func activityText(actor, action, target, payload string) (string, bool) {
 		return fmt.Sprintf("job %s was closed (%s)", strings.TrimPrefix(target, "job:"), str("status")), true
 	case "publish.pr_merged":
 		return fmt.Sprintf("pull request merged for job %s", strings.TrimPrefix(target, "job:")), true
+	case "project.merge":
+		job, _ := p["job"].(float64)
+		return fmt.Sprintf("job %d merged into %s", int64(job), strings.TrimPrefix(target, "project:")), true
 	case "publish.pr_closed":
 		return fmt.Sprintf("pull request closed without merging for job %s", strings.TrimPrefix(target, "job:")), true
 	case "job.lead_lost":

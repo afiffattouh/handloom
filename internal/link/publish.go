@@ -109,10 +109,22 @@ func (l *Link) publish(ctx context.Context, p api.PendingPublish) api.PublishRep
 		return failed("the push was refused and nothing was forced: %s", gitMessage(out, err))
 	}
 	detail := fmt.Sprintf("pushed %s to %s as %s", integ, p.Remote, p.Branch)
+	rep := api.PublishReport{Status: "done", Behind: behind}
+	if p.Hosted {
+		// The hub holds this project (D106): there is no pull request; the owner merges it. Not a failure.
+		detail = fmt.Sprintf("pushed; ask the owner to merge it with: handloom job merge %d, or the Merge button on the job's page", p.Job)
+		if behind > 0 {
+			detail += fmt.Sprintf(" (%s moved on since this job started: %d new commit%s, so the merge may need care)", base, behind, plural(behind))
+		}
+		if len(notes) > 0 {
+			detail += "; " + strings.Join(notes, "; ")
+		}
+		rep.Detail = detail
+		return rep
+	}
 	if behind > 0 {
 		notes = append(notes, fmt.Sprintf("the base moved: %d new commit%s on %s/%s; the pull request may conflict", behind, plural(behind), p.Remote, base))
 	}
-	rep := api.PublishReport{Status: "done", Behind: behind}
 
 	if p.PR {
 		gh, err := exec.LookPath("gh")

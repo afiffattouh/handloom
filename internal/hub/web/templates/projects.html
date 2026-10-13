@@ -1,13 +1,14 @@
 {{define "content"}}
 {{with .Extra}}
-<div class="page-head"><div><h1>Projects</h1><p class="desc">A project is a name and a shared git repository, usually on GitHub. Any machine can get its own copy on request, and a job can then start from it without anyone cloning by hand. The code and the git logins stay on the machines: this page keeps only the name, the address and where each machine's copy is. Each machine uses its own login, so each person's own access applies.</p></div></div>
+<div class="page-head"><div><h1>Projects</h1><p class="desc">A project is a name and a shared git repository. Any machine can get its own copy on request, and a job can then start from it without anyone cloning by hand. With no GitHub, Handloom can hold the repository itself. For a repository kept elsewhere, such as GitHub, the code and the git logins stay on the machines: this page keeps only the name, the address and where each machine's copy is, and each machine uses its own login.</p></div></div>
 
 <section class="card" aria-labelledby="plist"><div class="ch"><div><h2 id="plist">Your projects ({{len .Projects}})</h2></div></div>
   <div class="cc flush">
   {{range .Projects}}
     <div class="stack proj">
       <p class="text"><strong>{{.Name}}</strong>
-        {{if not .Remote}}<span class="desc">· the repository is not made yet</span>
+        {{if .Hosted}}<span class="badge outline">held by Handloom</span> <span class="desc">·</span> <span class="mono">{{.Remote}}</span> <span class="desc">· {{.Size}} on the hub's disk</span>
+        {{else if not .Remote}}<span class="desc">· the repository is not made yet</span>
         {{else if .RemoteLink}}<span class="desc">·</span> <a href="{{.Remote}}" rel="noopener noreferrer" class="mono">{{.Remote}}</a>
         {{else}}<span class="desc">·</span> <span class="mono">{{.Remote}}</span>{{end}}
         {{if .Base}}<span class="desc">· main branch {{.Base}}</span>{{end}}</p>
@@ -21,6 +22,7 @@
       {{end}}
       </ul>
       {{else}}<p class="desc">No machine has a copy yet.</p>{{end}}
+      {{if .Hosted}}<p class="desc">Jobs are published to a branch named handloom/job-... and merged into {{if .Base}}{{.Base}}{{else}}main{{end}} from the job's page. Include the hub's <code>git</code> folder in backups.</p>{{end}}
       {{if and $.Extra.CanManage .CloneTo}}
       <form method="post" action="/projects/{{.Name}}/clone" class="inline">
         <input type="hidden" name="csrf" value="{{$.CSRF}}">
@@ -31,13 +33,22 @@
       {{end}}
     </div>
   {{else}}
-    <div class="empty">No projects yet. Attach a repository that exists, or have a machine create one.</div>
+    <div class="empty">No projects yet. Let Handloom hold one, attach a repository that exists, or have a machine create one on GitHub.</div>
   {{end}}
   </div>
 </section>
 
 {{if .CanManage}}
-<section class="card" aria-labelledby="pattach"><div class="ch"><div><h2 id="pattach">Attach a repository</h2><p class="desc">For a repository that already exists. Use its web address (https://github.com/owner/name) or its ssh address (git@github.com:owner/name). Do not put a password or a token in it: the machines log in for themselves.</p></div></div>
+<section class="card" aria-labelledby="phost"><div class="ch"><div><h2 id="phost">Let Handloom hold the code</h2><p class="desc">The simplest way to share code with your team: no GitHub, no keys, no passwords. The hub keeps the repository on its own disk and each machine reaches it with the credential it already has. Machines can add branches and nothing else; you merge finished jobs yourself. Confidential jobs cannot use it, because that code would sit on the hub. The hub's <code>git</code> folder must be part of your backups.</p></div></div>
+  <form method="post" action="/projects/host" class="cc stack">
+    <input type="hidden" name="csrf" value="{{$.CSRF}}">
+    {{if eq .Which "host"}}{{if $.Error}}<p class="sev-bad" role="alert">{{$.Error}}</p>{{end}}{{end}}
+    <label>Name <input name="h_name" required maxlength="40" value="{{index .Form "h_name"}}" placeholder="billing-app" autocomplete="off"></label>
+    <div class="acts"><button type="submit">Create the project</button></div>
+  </form>
+</section>
+
+<section class="card" aria-labelledby="pattach"><div class="ch"><div><h2 id="pattach">I already have a repository</h2><p class="desc">Attach a repository that already exists, for example on GitHub. Use its web address (https://github.com/owner/name) or its ssh address (git@github.com:owner/name). Do not put a password or a token in it: the machines log in for themselves.</p></div></div>
   <form method="post" action="/projects/attach" class="cc stack">
     <input type="hidden" name="csrf" value="{{$.CSRF}}">
     {{if eq .Which "attach"}}{{if $.Error}}<p class="sev-bad" role="alert">{{$.Error}}</p>{{end}}{{end}}
@@ -48,7 +59,7 @@
   </form>
 </section>
 
-<section class="card" aria-labelledby="pcreate"><div class="ch"><div><h2 id="pcreate">Create a repository</h2><p class="desc">A machine makes a new GitHub repository with the <code>gh</code> tool, under its own login, with a first commit so that jobs have a branch to start from. The machine needs <code>gh</code> installed and <code>gh auth login</code> done. Only a person can do this; agents and AI apps cannot.</p></div></div>
+<section class="card" aria-labelledby="pcreate"><div class="ch"><div><h2 id="pcreate">Make it on GitHub</h2><p class="desc">A machine makes a new GitHub repository with the <code>gh</code> tool, under its own login, with a first commit so that jobs have a branch to start from. The machine needs <code>gh</code> installed and <code>gh auth login</code> done. Only a person can do this; agents and AI apps cannot.</p></div></div>
   <form method="post" action="/projects/create" class="cc stack">
     <input type="hidden" name="csrf" value="{{$.CSRF}}">
     {{if eq .Which "create"}}{{if $.Error}}<p class="sev-bad" role="alert">{{$.Error}}</p>{{end}}{{end}}

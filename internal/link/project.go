@@ -175,11 +175,21 @@ func (l *Link) cloneProject(ctx context.Context, p api.PendingCodebaseRequest) a
 	if p.Remote == "" {
 		return projectFailed("the project has no repository address yet")
 	}
+	if p.Hosted {
+		if err := l.hostedRemoteOK(p.Remote); err != nil {
+			return projectFailed("%v", err)
+		}
+	}
 	state, why := l.existing(ctx, dir, p.Remote)
 	switch state {
 	case "other":
 		return projectFailed("%s", why)
 	case "same":
+		if p.Hosted {
+			if err := l.configureHosted(ctx, dir, p.Remote); err != nil {
+				return projectFailed("%v", err)
+			}
+		}
 		return api.CodebaseReport{Status: "done", Path: dir, Base: l.defaultBranch(ctx, dir), Detail: "this machine already had it"}
 	}
 	if err := os.MkdirAll(filepath.Dir(dir), 0o700); err != nil {
@@ -187,6 +197,13 @@ func (l *Link) cloneProject(ctx context.Context, p api.PendingCodebaseRequest) a
 	}
 	how := "git"
 	var out string
+	if p.Hosted {
+		how = "git, with this machine's credential for the hub"
+		if out, err = l.cloneHosted(ctx, p.Remote, dir); err != nil {
+			return projectFailed("this machine could not get the project from the hub (is its link joined and not revoked?): %s", gitMessage(out, err))
+		}
+		return api.CodebaseReport{Status: "done", Path: dir, Base: l.defaultBranch(ctx, dir), Detail: "fetched with " + how}
+	}
 	if slug := githubSlug(p.Remote); slug != "" {
 		if gh, lerr := exec.LookPath("gh"); lerr == nil {
 			how = "gh"

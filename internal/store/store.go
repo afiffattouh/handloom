@@ -416,6 +416,12 @@ ALTER TABLE publish ADD COLUMN pr_state TEXT NOT NULL DEFAULT '';
 ALTER TABLE publish ADD COLUMN pr_review TEXT NOT NULL DEFAULT '';
 ALTER TABLE publish ADD COLUMN pr_mergeable TEXT NOT NULL DEFAULT '';
 ALTER TABLE publish ADD COLUMN pr_checked_at INTEGER;
+`, `
+-- D106: a project the hub itself holds (a bare repository under <data>/git, not in this file), and the merge of a job's published branch into its main branch.
+ALTER TABLE codebase ADD COLUMN hosted INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE publish ADD COLUMN merged_into TEXT NOT NULL DEFAULT '';
+ALTER TABLE publish ADD COLUMN merged_at INTEGER;
+ALTER TABLE publish ADD COLUMN merged_commit TEXT NOT NULL DEFAULT '';
 `}
 
 // Open opens (and migrates) the database at path. Use ":memory:" in tests.

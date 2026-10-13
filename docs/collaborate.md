@@ -6,8 +6,19 @@ This is how a small team works on one code project with Handloom: what is shared
 
 - **One hub.** Everyone signs in to the same web UI with their own account (the owner invites people; see [setup](setup.md)). Everyone sees the same jobs, inbox and activity.
 - **Machines belong to the hub.** Each person's laptop, a shared build machine or a local-model box joins the hub with `handloom join`. Which machine runs a job is chosen when the job starts.
-- **The code is shared through git, not through Handloom.** Each machine that runs jobs for the project has its own clone of the repository, and the team's shared remote (GitHub, a company server, a bare repository on a shared disk) is how the clones meet. Handloom never pulls or pushes on its own, except when a person asks it to publish a job.
-- **A project is the name Handloom gives to that shared remote.** The hub keeps the project's name, the remote's address and, for each machine, where its clone is and whether it is ready. It never holds the code or anyone's git login.
+- **The code is shared through git.** Each machine that runs jobs for the project has its own clone of the repository, and the team's shared remote (GitHub, a company server, a bare repository on a shared disk, or the hub itself, see below) is how the clones meet. Handloom never pulls or pushes on its own, except when a person asks it to publish a job.
+- **A project is the name Handloom gives to that shared remote.** The hub keeps the project's name, the remote's address and, for each machine, where its clone is and whether it is ready. For a remote you attach or have created on GitHub it never holds the code or anyone's git login. For a project you let the hub hold, it keeps the code (next section).
+
+## No GitHub: let the hub hold the code
+
+If your team has no GitHub, no ssh keys and no wish to set any up, the hub can keep the repository itself. Nothing to configure on the machines: each one already has the credential it got when it joined, and Handloom sets git up to use it.
+
+1. **Make the project.** `handloom project new billing` (no address), or **Let Handloom hold the code** on the Projects page. Add `--device laptop-ana` to have that machine fetch its copy straight away. The project starts with one commit (a README) on `main`.
+2. **Every machine gets its copy** the usual way (`handloom project clone billing --device laptop-ben`, or just start a job with `--project billing`). Plain `git fetch` and `git push` in that copy then work with no password, and no credential is written into the repository's address or files.
+3. **Work and publish as usual.** `handloom job publish 7` pushes the job's branch to the hub as `handloom/job-7-...` and says so; there are no pull requests here.
+4. **Merge.** The owner or a member merges a published job into `main`: `handloom job merge 7`, or the **Merge** button on the job's page. The hub does the merge itself (a fast-forward when it can, otherwise a merge commit "Merge job 7: ..."). If the work conflicts with what is in `main`, nothing changes and the answer names the files; start a new job from the current `main` and publish again. Other machines get the new `main` at the start of their next job, as for any project.
+
+**The limits are on purpose.** Machines can only add branches named `handloom/...` and move them forward: the hub refuses pushes to `main`, tags, deletes and rewrites, in a sentence that says what to do instead. Only a person merges; an agent or an AI app cannot. **Confidential jobs are refused**: the code would sit on the hub, so publishing one to a hosted project says so, and the answer is to keep that work on the machine or use a repository you control. The code is in the hub's data folder (`git/`), not in its database: **include that folder in your backups** ([deploy](deploy.md)). Hosting needs `git` on the hub (the container image and the `.deb`/`.rpm` packages have it) and a public address for the hub: set `HANDLOOM_BASE_URL` to the address your machines joined with. Not done: copying a hosted project to GitHub from the hub, deleting a hosted project, and access that differs between people of one hub.
 
 ## Projects: getting the repository onto a machine
 

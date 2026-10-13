@@ -70,6 +70,15 @@ func (c *call) publishJob(id int64, req api.PublishReq) (api.Publish, error) {
 	if t.status == api.StatusCancelled {
 		return api.Publish{}, conflict("job %d was cancelled", id)
 	}
+	if name, hosted := c.hostedFor(id); hosted {
+		// D106: the code of a hosted project sits on the hub, so a confidential job's work must not go there.
+		if t.confidential {
+			return api.Publish{}, conflict("job %d is confidential, and confidential work must not sit on the hub, so it cannot be published to the hosted project %s. Keep it on the machine, or move the project to a repository you control (handloom project new NAME --remote URL) and start the job there", id, name)
+		}
+		if req.PR {
+			return api.Publish{}, badRequest("project %s is held by Handloom, which has no pull requests: publish the branch, then merge it with: handloom job merge %d", name, id)
+		}
+	}
 	req.Remote = strings.TrimSpace(req.Remote)
 	if req.Remote == "" {
 		req.Remote = "origin"
@@ -104,15 +113,16 @@ func (c *call) publishJob(id int64, req api.PublishReq) (api.Publish, error) {
 	return c.onePublish(pid)
 }
 
-const publishSelect = `SELECT id, job_id, requested_by, remote, branch, open_pr, status, detail, url, behind, pr_state, pr_review, pr_mergeable, created_at, done_at FROM publish `
+const publishSelect = `SELECT id, job_id, requested_by, remote, branch, open_pr, status, detail, url, behind, pr_state, pr_review, pr_mergeable, created_at, done_at, merged_into, merged_at, merged_commit FROM publish `
 
 func scanPublish(s scanner) (api.Publish, error) {
 	var p api.Publish
 	var at int64
-	var done sql.NullInt64
-	if err := s.Scan(&p.ID, &p.Job, &p.RequestedBy, &p.Remote, &p.Branch, &p.PR, &p.Status, &p.Detail, &p.URL, &p.Behind, &p.PRState, &p.PRReview, &p.PRMergeable, &at, &done); err != nil {
+	var done, mergedAt sql.NullInt64
+	if err := s.Scan(&p.ID, &p.Job, &p.RequestedBy, &p.Remote, &p.Branch, &p.PR, &p.Status, &p.Detail, &p.URL, &p.Behind, &p.PRState, &p.PRReview, &p.PRMergeable, &at, &done, &p.MergedInto, &mergedAt, &p.MergedCommit); err != nil {
 		return p, err
 	}
+	p.MergedAt = store.TimePtr(mergedAt)
 	p.At = store.Time(at)
 	p.PRWords = api.PRWords(p.PRState, p.PRReview, p.PRMergeable)
 	if done.Valid {
@@ -167,7 +177,7 @@ func devicePublishes(c *call) (any, error) {
 	if c.p.kind != kindDevice {
 		return nil, forbidden("only a device may list its publishes")
 	}
-	rows, err := c.tx.Query(`SELECT p.id, p.job_id, p.remote, p.branch, p.open_pr, j.repo, j.base, j.title, j.body FROM publish p JOIN task j ON j.id = p.job_id
+	rows, err := c.tx.Query(`SELECT p.id, p.job_id, p.remote, p.branch, p.open_pr, j.repo, j.base, j.title, j.body, COALESCE((SELECT cb.hosted FROM codebase cb WHERE cb.id = j.codebase_id), 0) FROM publish p JOIN task j ON j.id = p.job_id
 		WHERE p.device_id = ? AND p.status = 'pending' ORDER BY p.id LIMIT 5`, c.p.deviceID)
 	if err != nil {
 		return nil, err
@@ -175,7 +185,7 @@ func devicePublishes(c *call) (any, error) {
 	out := []api.PendingPublish{}
 	for rows.Next() {
 		var p api.PendingPublish
-		if err := rows.Scan(&p.ID, &p.Job, &p.Remote, &p.Branch, &p.PR, &p.Repo, &p.Base, &p.Title, &p.Body); err != nil {
+		if err := rows.Scan(&p.ID, &p.Job, &p.Remote, &p.Branch, &p.PR, &p.Repo, &p.Base, &p.Title, &p.Body, &p.Hosted); err != nil {
 			rows.Close()
 			return nil, err
 		}

@@ -49,6 +49,17 @@ Stage one is built: a project is a name and a shared remote; attach or create it
 - Stage three: warn across machines. "The base moved" while a job runs (the remote's main has new commits), and shared-file warnings between open jobs of one project on different machines (compare changed files, not repository paths). Needs a periodic fetch by the link and a small report of changed paths per job, never file contents.
 - Left undone from stage one: removing a project or forgetting one machine's copy; a different folder than `<link folder>/projects/<name>`; GitLab and other hosts for *creating* repositories (attaching and cloning work with any git host); a project page that refreshes by itself while a machine works.
 
+## Hosted projects (D106)
+
+Built: a project the hub holds itself (a bare repository per project under the data folder, served over git's HTTP protocol to machines with their device credential), a hook that lets machines add branches named `handloom/...` and nothing else, and a merge by a person (`handloom job merge`, the Merge button). Planned, not built:
+
+- Mirroring a hosted project to GitHub or another host from the hub (today a team that outgrows the hub clones it once and pushes it elsewhere by hand, then attaches the new address as a new project).
+- Deleting a hosted project, and shrinking its repository (`git gc` runs on git's own schedule only).
+- Access that differs between people or machines of one hub: every machine of the hub can reach every hosted project.
+- Windows machines (the credential helper is a shell command written for sh).
+- A merge that asks the author to resolve conflicts, or a merge queue; a merge preview (the files a job changes) on the job page.
+- Hub backups that include the git folder in one command (today they are separate, see deploy).
+
 ## Working on one project together (D103)
 
 Left undone: pull a teammate's published branch into a clone from Handloom; run one job's agents on several machines; warn on overlap by changed files rather than by repository; an MCP tool for publishing (kept out on purpose: it is an approval-class action).

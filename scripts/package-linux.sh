@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Builds .deb and .rpm packages from the linux tarballs in a release directory (needs nfpm on the PATH).
+# The packages depend on git (packaging/nfpm.yaml): hosted projects (D106) are served with git http-backend.
 #   scripts/package-linux.sh v0.1.0 dist
 set -euo pipefail
 VERSION="${1:?usage: package-linux.sh <version> <release dir>}"; DIR="${2:?release dir}"

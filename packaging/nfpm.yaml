@@ -13,9 +13,10 @@ description: |
 vendor: Handloom
 homepage: https://github.com/afiffattouh/handloom
 license: Apache-2.0
-depends: []
-recommends:
+# git is needed: the hub serves the code of hosted projects with git http-backend (D106), and every machine runs git.
+depends:
   - git
+recommends:
   - tmux
 scripts:
   preremove: ${ROOT}/packaging/preremove.sh

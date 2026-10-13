@@ -21,6 +21,7 @@ const (
 	ActSpawn            Action = "spawn"             // ask for an agent to be started
 	ActPublish          Action = "publish"           // push a job's work to the shared remote (D103)
 	ActProjectManage    Action = "project.manage"    // attach, create or clone a project: a shared git remote (D104)
+	ActProjectMerge     Action = "project.merge"     // merge a published job into the main branch of a hosted project (D106)
 )
 
 const (
@@ -41,6 +42,7 @@ var scopeTable = map[Action]map[string]bool{
 	ActSpawn:            {api.RoleLead: true, subjectHuman: true},
 	ActPublish:          {subjectHuman: true},
 	ActProjectManage:    {subjectHuman: true},
+	ActProjectMerge:     {subjectHuman: true},
 }
 
 // Allowed reports whether subject (a role, or "human") may perform action.

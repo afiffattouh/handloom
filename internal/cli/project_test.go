@@ -1,7 +1,10 @@
 package cli
 
 import (
+	"bytes"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -117,7 +120,7 @@ func TestProjectsThroughTheCLI(t *testing.T) {
 	}{
 		{[]string{"project", "new", "bad", "--remote", "https://user:secret@github.com/a/b"}, "password or token", 1},
 		{[]string{"project", "new", "bad", "--remote", "/home/me/repo"}, "not a shared address", 1},
-		{[]string{"project", "new", "bad"}, "usage", 2},
+		{[]string{"project", "new", "bad", "--public"}, "go with --create", 2},
 		{[]string{"project", "new", "bad", "--remote", "https://github.com/a/b", "--create"}, "usage", 2},
 		{[]string{"project", "new", "bad", "--remote", "https://github.com/a/b", "--public"}, "go with --create", 2},
 		{[]string{"project", "show", "nothing"}, "no project", 1},
@@ -166,5 +169,157 @@ func TestProjectCreateThroughTheCLI(t *testing.T) {
 	// The next job starts from it.
 	if started := r.as(r.human, "job", "new", "First work", "--project", "fresh", "--device", "dev"); !strings.Contains(started, "[project fresh, ") {
 		t.Fatalf("job: %s", started)
+	}
+}
+
+// A project the hub holds (D106): `project new NAME` with no address makes it, a machine gets its copy
+// through its own credential, and plain git works in the copy with no prompt.
+func TestHostedProjectThroughTheCLI(t *testing.T) {
+	if testBinary(t) == "" {
+		t.Skip("could not build the handloom binary (the credential helper)")
+	}
+	fastWaits(t)
+	r := newRig(t)
+	if out := r.as(r.human, "project", "new", "demo", "--device", "dev"); !strings.Contains(out, "Created project demo on the hub") || !strings.Contains(out, r.hubURL+"/git/demo.git") || !strings.Contains(out, "dev has its copy at") {
+		t.Fatalf("new: %s", out)
+	}
+	dir := filepath.Join(os.Getenv("HANDLOOM_HOME"), "projects", "demo")
+	if got := cliGit(t, dir, "remote", "get-url", "origin"); got != r.hubURL+"/git/demo.git" {
+		t.Fatalf("origin %q", got)
+	}
+	list := r.as(r.human, "project", "list")
+	show := r.as(r.human, "project", "show", "demo")
+	if !strings.Contains(list, "held by Handloom") || !strings.Contains(show, "held by Handloom:") || !strings.Contains(show, "git folder") {
+		t.Fatalf("list %q show %q", list, show)
+	}
+	var js api.Codebase
+	if err := json.Unmarshal([]byte(r.as(r.human, "project", "show", "demo", "--json")), &js); err != nil || !js.Hosted || js.SizeBytes <= 0 {
+		t.Fatalf("json: %v %+v", err, js)
+	}
+	// Plain git in the copy, no prompt and no token anywhere.
+	env := append(os.Environ(), "GIT_TERMINAL_PROMPT=0", "GIT_CONFIG_GLOBAL=/dev/null", "GIT_CONFIG_NOSYSTEM=1")
+	run := func(args ...string) (string, error) {
+		cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
+		cmd.Env = append(env, "GIT_AUTHOR_NAME=T", "GIT_AUTHOR_EMAIL=t@example.test", "GIT_COMMITTER_NAME=T", "GIT_COMMITTER_EMAIL=t@example.test")
+		out, err := cmd.CombinedOutput()
+		return string(out), err
+	}
+	os.WriteFile(filepath.Join(dir, "x.txt"), []byte("x\n"), 0o644)
+	if out, err := run("add", "-A"); err != nil {
+		t.Fatal(out)
+	}
+	if out, err := run("commit", "-q", "-m", "x"); err != nil {
+		t.Fatal(out)
+	}
+	if out, err := run("push", "-q", "origin", "HEAD:refs/heads/handloom/job-1-x"); err != nil {
+		t.Fatalf("push: %s", out)
+	}
+	if out, err := run("push", "origin", "HEAD:refs/heads/main"); err == nil || !strings.Contains(out, "cannot be pushed to") {
+		t.Fatalf("push to main: %v %s", err, out)
+	}
+	cfg, _ := os.ReadFile(filepath.Join(dir, ".git", "config"))
+	if strings.Contains(string(cfg), "hvd_") {
+		t.Fatal("the copy's config has a credential")
+	}
+	// The same name twice, and the options that do not belong to a hosted project.
+	t.Setenv("HANDLOOM_HUB", r.hubURL)
+	t.Setenv("HANDLOOM_TOKEN", r.human)
+	defer t.Setenv("HANDLOOM_TOKEN", "")
+	if code, _, errs := r.exec("project", "new", "demo"); code == 0 || !strings.Contains(errs, "already a project") {
+		t.Fatalf("again: %d %s", code, errs)
+	}
+	if code, _, errs := r.exec("project", "new", "x", "--base", "dev"); code != 2 || !strings.Contains(errs, "takes only a name") {
+		t.Fatalf("--base: %d %s", code, errs)
+	}
+	// The helper command itself answers git's protocol and prints nothing else.
+	old := gitCredentialIn
+	t.Cleanup(func() { gitCredentialIn = old })
+	gitCredentialIn = strings.NewReader("protocol=http\nhost=" + strings.TrimPrefix(r.hubURL, "http://") + "\n\n")
+	code, out, errs := r.exec("git-credential", "get")
+	if code != 0 || !strings.HasPrefix(out, "username=handloom\npassword=hvd_") || errs != "" {
+		t.Fatalf("git-credential get: %d %q %q", code, out, errs)
+	}
+	gitCredentialIn = strings.NewReader("protocol=http\nhost=github.com\n\n")
+	if code, out, errs := r.exec("git-credential", "get"); code != 0 || out != "" || errs != "" {
+		t.Fatalf("git-credential for another host: %d %q %q", code, out, errs)
+	}
+	gitCredentialIn = strings.NewReader("protocol=http\nhost=x\nusername=handloom\npassword=hvd_x\n\n")
+	if code, out, errs := r.exec("git-credential", "store"); code != 0 || out != "" || errs != "" {
+		t.Fatalf("git-credential store: %d %q %q", code, out, errs)
+	}
+}
+
+// `job merge` asks the job's project to merge and says what happened; the hub's refusals reach the person in words.
+func TestJobMergeThroughTheCLI(t *testing.T) {
+	answer := api.CodebaseMerge{Project: "demo", Job: 7, Branch: "handloom/job-7-add-it", Into: "main", Commit: "0123456789abcdef", How: "merge commit"}
+	var got api.CodebaseMergeReq
+	var mode string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.URL.Path == "/v1/jobs/7":
+			json.NewEncoder(w).Encode(api.Job{ID: 7, Title: "Add it", Status: "open", Codebase: "demo", MergedInto: map[bool]string{true: "main"}[mode == "merged"]})
+		case r.URL.Path == "/v1/jobs":
+			json.NewEncoder(w).Encode([]api.Job{{ID: 7, Title: "Add it", Status: "open", Codebase: "demo", MergedInto: map[bool]string{true: "main"}[mode == "merged"]}})
+		case r.URL.Path == "/v1/tasks" || r.URL.Path == "/v1/jobs/7/publishes":
+			w.Write([]byte("[]"))
+		case r.URL.Path == "/v1/jobs/8":
+			json.NewEncoder(w).Encode(api.Job{ID: 8, Title: "No project", Status: "open"})
+		case r.URL.Path == "/v1/codebases/demo/merge" && r.Method == "POST":
+			json.NewDecoder(r.Body).Decode(&got)
+			switch mode {
+			case "conflict":
+				w.WriteHeader(409)
+				json.NewEncoder(w).Encode(api.Error{Error: "job 7 conflicts with the current main in: README.md. Nothing was changed.", Code: "conflict"})
+			case "already":
+				a := answer
+				a.How = "already merged"
+				json.NewEncoder(w).Encode(a)
+			default:
+				json.NewEncoder(w).Encode(answer)
+			}
+		default:
+			w.WriteHeader(404)
+			json.NewEncoder(w).Encode(api.Error{Error: "not found", Code: "not_found"})
+		}
+	}))
+	t.Cleanup(srv.Close)
+	t.Setenv("HANDLOOM_HUB", srv.URL)
+	t.Setenv("HANDLOOM_TOKEN", "x")
+	t.Setenv("HANDLOOM_HOME", t.TempDir())
+	run := func(args ...string) (int, string, string) {
+		var out, errb bytes.Buffer
+		code := Main(args, &out, &errb)
+		return code, out.String(), errb.String()
+	}
+	code, out, errs := run("job", "merge", "7")
+	if code != 0 || got.Job != 7 || got.Branch != "" || !strings.Contains(out, "Merged job #7 (handloom/job-7-add-it) into main of demo: merge commit, now at 01234567.") || !strings.Contains(out, "next job") {
+		t.Fatalf("merge: %d %q %q %+v", code, out, errs, got)
+	}
+	if code, _, _ := run("job", "merge", "7", "--branch", "handloom/job-7-add-it"); code != 0 || got.Branch != "handloom/job-7-add-it" {
+		t.Fatalf("--branch: %d %+v", code, got)
+	}
+	mode = "already"
+	if code, out, _ := run("job", "merge", "7"); code != 0 || !strings.Contains(out, "was already in main of demo; nothing changed") {
+		t.Fatalf("already: %d %q", code, out)
+	}
+	mode = "conflict"
+	if code, _, errs := run("job", "merge", "7"); code != 1 || !strings.Contains(errs, "README.md") || !strings.Contains(errs, "Nothing was changed") {
+		t.Fatalf("conflict: %d %q", code, errs)
+	}
+	if code, _, errs := run("job", "merge", "8"); code != 1 || !strings.Contains(errs, "does not belong to a project") {
+		t.Fatalf("no project: %d %q", code, errs)
+	}
+	if code, _, errs := run("job", "merge"); code != 2 || !strings.Contains(errs, "usage: handloom job merge") {
+		t.Fatalf("usage: %d %q", code, errs)
+	}
+	mode = "merged"
+	if code, out, _ := run("job", "list"); code != 0 {
+		t.Fatalf("list: %d", code)
+	} else if !strings.Contains(out, "[merged into main]") {
+		t.Fatalf("job list: %q", out)
+	}
+	if code, out, _ := run("job", "show", "7"); code != 0 || !strings.Contains(out, "[merged into main]") {
+		t.Fatalf("show: %d %q", code, out)
 	}
 }

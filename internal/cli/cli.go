@@ -56,6 +56,7 @@ Agent verbs (run inside an agent's shell, through the local link):
   handloom job resume <id> --lead AGENT                                 (human) a new lead takes over a job whose lead is gone
   handloom job close <id> [--cancel]                                    (human)
   handloom job publish <id> [--remote R] [--pr]                         (human) push a finished job's branch to the shared remote (never forced); --pr also opens a pull request with gh
+  handloom job merge <id> [--branch B]                                  (human) a project the hub holds: merge the job's published branch into the main branch
   handloom task list [--status S] [--job N]
   handloom task show <id>
   handloom task create <title> [--body B] [--assign A] [--depends 1,2]      (lead, human)
@@ -70,6 +71,7 @@ Agent verbs (run inside an agent's shell, through the local link):
   handloom state <idle|working|blocked|offline>       report agent state (adapters do this)
 
 Projects (a name and a shared git remote that any machine can get; the code and git logins stay on the machines):
+  handloom project new NAME [--device D]                                    (human) let the hub hold the code: no GitHub, no keys; --device also fetches a copy there
   handloom project new NAME --remote URL [--base B] [--device D]            (human) attach a repository that exists; --device also fetches it there
   handloom project new NAME --create [--owner O] [--public] [--device D]    (human) make the repository with gh on that machine, under its login (private unless --public)
   handloom project list | show NAME                  the projects and which machines have a copy
@@ -80,6 +82,7 @@ Device:
   handloom link run                                   run the link daemon in the foreground
   handloom link install | uninstall                   run it as a systemd service, now and at boot
   handloom link status
+  handloom git-credential get|store|erase             git's credential helper for projects the hub holds (set up by the link; answers only for the hub)
   handloom doctor                                     is this machine ready? checks the link, git, tmux and the agent CLIs
   handloom adapter install <kind> --name N [--dir D]  install an agent adapter in a project
                                                   (kinds: claude, codex, pi, omp, opencode)
@@ -127,6 +130,9 @@ Every verb takes --json. Agents are identified by $HANDLOOM_AGENT, or by a
 .handloom/agent file in the working directory or a parent.
 `
 
+// gitCredentialIn is what `git-credential` reads (git writes the request to standard input); tests replace it.
+var gitCredentialIn io.Reader = os.Stdin
+
 type env struct {
 	out, err io.Writer
 	json     bool
@@ -160,6 +166,13 @@ func Main(args []string, stdout, stderr io.Writer) int {
 		err = e.human(rest)
 	case "project":
 		err = e.project(rest)
+	case "git-credential":
+		// git's credential helper for projects the hub holds (D106): `get` answers with this machine's credential for the hub only.
+		op := ""
+		if len(rest) > 0 {
+			op = rest[0]
+		}
+		err = client.GitCredential(op, gitCredentialIn, stdout)
 	case "agent":
 		err = e.agent(rest)
 	case "audit":

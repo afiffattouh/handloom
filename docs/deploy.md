@@ -60,7 +60,7 @@ The admin token printed on first start stays in the container log, which anyone 
 
 | Variable | Meaning |
 |---|---|
-| `HANDLOOM_BASE_URL` | public URL; links in notifications point here |
+| `HANDLOOM_BASE_URL` | public URL; links in notifications point here, and so does the address of a project the hub holds (set it to the address your machines joined with) |
 | `HANDLOOM_NTFY_URL`, `HANDLOOM_NTFY_TOPIC`, `HANDLOOM_NTFY_TOKEN` | phone push through ntfy (the push has a generic line and a link, never the question) |
 | `HANDLOOM_WEBHOOK_URL` | the same notification as JSON |
 | `HANDLOOM_INSECURE` | `1` allows the web UI over plain http on a private network |
@@ -78,11 +78,13 @@ docker compose start handloom
 
 A backup holds hashed tokens and all hub data (mode 0600): keep it private. Never copy `handloom.db` and its `-wal` file by hand while the hub runs.
 
+**Projects the hub holds (D106).** `hub backup` copies the database only. The code of a hosted project is a bare git repository in the data folder, `/data/git/<name>.git`, and it is not in the database or in `hub backup`: include the whole `git` folder in your backups (a volume snapshot, or `tar -C /data -czf git.tgz git`; take it when nobody is pushing if you can, and note that the machines' own clones also hold the history they fetched). A restore of the database without the `git` folder leaves the projects listed but empty of code, and merging says so. Disk use of each hosted project is on the Projects page and in `handloom project show`.
+
 Before an upgrade changes the schema the hub writes `/data/backups/pre-vN.db` first. A hub refuses to start on a database whose schema is newer than itself. To roll back: restore the snapshot and run the old image tag. Pin image tags; do not run `:latest`.
 
 ## Images
 
-The Dockerfile cross-compiles in the builder stage, so `docker build --platform linux/amd64 .` works from an arm64 machine. The result is a static binary on distroless (about 14 MB), running as a non-root user.
+The Dockerfile cross-compiles in the builder stage, so `docker build --platform linux/amd64 .` works from an arm64 machine. The result is a static binary on a small image that also has `git` (the hub serves the code of projects it holds with `git http-backend`, D106), running as a non-root user (uid 65532). The `git` files are unpacked for the target architecture on the build machine, so no emulation is needed; that part of the Dockerfile has not been built by the test suite, so build once and check `docker run --rm --entrypoint /usr/bin/git <image> --version` before relying on it. The `.deb` and `.rpm` packages depend on `git` for the same reason.
 
 ## Deploying from your own machine (how the live hub runs)
 

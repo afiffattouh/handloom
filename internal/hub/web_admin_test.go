@@ -158,16 +158,16 @@ func TestMembersAndInvites(t *testing.T) {
 	if r := e.req("GET", "/invite/"+inv[1], nil, nil, nil); r.status != 404 {
 		t.Fatalf("an invite worked twice: %d", r.status)
 	}
-	// A member sees the devices page without the add form, and cannot reach settings.
-	if r := e.req("GET", "/devices", nil, done.cookie, nil); r.status != 200 || strings.Contains(r.body, "Add a device") {
+	// A member sees the machines page with the add form (D108), and cannot reach settings.
+	if r := e.req("GET", "/devices", nil, done.cookie, nil); r.status != 200 || !strings.Contains(r.body, "Add a machine") {
 		t.Fatalf("member devices page: %d", r.status)
 	}
 	if r := e.req("GET", "/settings", nil, done.cookie, nil); r.status != 403 {
 		t.Fatalf("member settings: %d", r.status)
 	}
 	mtok := csrfOf(t, e.req("GET", "/inbox", nil, done.cookie, nil).body)
-	if r := e.post("/devices", done.cookie, mtok, url.Values{"name": {"x"}, "current_password": {pw}}); r.status != 403 {
-		t.Fatalf("member adds a device: %d", r.status)
+	if r := e.post("/devices", done.cookie, mtok, url.Values{"name": {"x"}, "current_password": {pw}}); r.status != 200 {
+		t.Fatalf("member adds a machine: %d", r.status)
 	}
 	if r := e.post("/settings/members", done.cookie, mtok, url.Values{"name": {"x"}, "role": {"member"}, "current_password": {pw}}); r.status != 403 {
 		t.Fatalf("member adds a person: %d", r.status)

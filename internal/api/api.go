@@ -74,6 +74,13 @@ type Device struct {
 	Joined     bool       `json:"joined"`
 	LastSeenAt *time.Time `json:"last_seen_at,omitempty"`
 	RevokedAt  *time.Time `json:"revoked_at,omitempty"`
+	Owner      string     `json:"owner,omitempty"`  // the person the machine belongs to (D108); empty when it is shared by the owner
+	Shared     bool       `json:"shared,omitempty"` // no person owns it: only owners may use it
+}
+
+// DeviceAssignReq hands a machine to a person (D108). Owners only.
+type DeviceAssignReq struct {
+	To string `json:"to"`
 }
 
 type Agent struct {

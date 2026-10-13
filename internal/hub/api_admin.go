@@ -271,6 +271,9 @@ func (c *call) watchAllowed(a *agentRow) error {
 	if c.p.kind == kindHuman && c.p.role == store.RoleViewer || c.p.kind == kindDevice {
 		return forbidden("only an owner or a member may look at an agent's terminal")
 	}
+	if err := c.useDevice(a.deviceID); err != nil { // its screen is read on its machine
+		return err
+	}
 	if a.jobID.Valid {
 		if j, err := c.task(a.jobID.Int64); err == nil && j.confidential && !c.h.opt.AllowConfidential {
 			return forbidden("this agent works on a confidential job, and this hub is not set up to carry that material")

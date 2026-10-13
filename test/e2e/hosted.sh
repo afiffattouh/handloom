@@ -46,6 +46,7 @@ ADMIN="$(grep -o 'hva_[A-Za-z0-9_-]*' "$OUT/hub.log" | head -1)"
 admin() { HANDLOOM_HUB="$H" HANDLOOM_TOKEN="$ADMIN" $CLEAN "$BIN" "$@"; }
 JT="$(admin device add $DEV --json | python3 -c 'import json,sys;print(json.load(sys.stdin)["token"])')"
 HT="$(admin human add tester --json | python3 -c 'import json,sys;print(json.load(sys.stdin)["token"])')"
+admin device assign $DEV --to tester >/dev/null || { echo "could not hand the machine to tester"; exit 1; }   # machines belong to people (D108): the admin token made it, so it is handed over
 human() { HANDLOOM_HUB="$H" HANDLOOM_TOKEN="$HT" $CLEAN "$BIN" "$@"; }
 agent() { local a="$1"; shift; HANDLOOM_AGENT="$a" $CLEAN "$BIN" "$@"; }
 $CLEAN "$BIN" link join "$H" "$JT" >/dev/null
@@ -128,6 +129,20 @@ human spawn beta --job "$J2" --device $DEV --wait 60s > "$OUT/spawn-beta.txt" 2>
 grep -q "is running" "$OUT/spawn-beta.txt" && ok "the second job's agent started" || bad "beta did not start: $(cat "$OUT/spawn-beta.txt")"
 human job show "$J2" | tee "$OUT/show2.txt" | grep -Eq "^Base: fresh: main moved forward [0-9]+ commits? to " && ok "the second job's base shows: fresh, main moved forward" || bad "job show $J2: $(cat "$OUT/show2.txt")"
 [ -f "$HANDLOOM_HOME/work/job-$J2/beta/greeting.txt" ] && ok "the second job's worktree has the merged work" || bad "the worktree lacks the merged work"
+
+say "machines belong to people (D108): a second member cannot use the first member's machine, and can use their own"
+BT="$(admin human add bea --json | python3 -c 'import json,sys;print(json.load(sys.stdin)["token"])')"
+bea() { HANDLOOM_HUB="$H" HANDLOOM_TOKEN="$BT" $CLEAN "$BIN" "$@"; }
+bea spawn intruder --device $DEV --wait 0 > "$OUT/bea-spawn.txt" 2>&1 && bad "bea started an agent on tester's machine" || { grep -q "That machine belongs to" "$OUT/bea-spawn.txt" && ok "refused in words: $(head -c 140 "$OUT/bea-spawn.txt")" || bad "refused, but not in words: $(cat "$OUT/bea-spawn.txt")"; }
+bea job new "Not on your machine" --repo "$OUT" --device $DEV > "$OUT/bea-job.txt" 2>&1 && bad "bea started a job on tester's machine" || { grep -q "That machine belongs to" "$OUT/bea-job.txt" && ok "a job on someone else's machine is refused too" || bad "job refusal: $(cat "$OUT/bea-job.txt")"; }
+bea device list | grep -q "$DEV" && bad "bea sees tester's machine in the list" || ok "bea's machine list does not show tester's machine"
+BJT="$(bea device add bea-box --json | python3 -c 'import json,sys;print(json.load(sys.stdin)["token"])')"
+HANDLOOM_HOME="$OUT/home-bea" $CLEAN "$BIN" link join "$H" "$BJT" >/dev/null 2>&1 && ok "bea added a machine of her own and joined it" || bad "bea's machine did not join"
+bea device list | grep -q "bea-box" && ok "bea sees her own machine" || bad "bea's list lacks her machine"
+bea spawn mine --device bea-box --wait 0 > "$OUT/bea-own.txt" 2>&1 && ok "bea asked for an agent on her own machine" || bad "bea on her own machine: $(cat "$OUT/bea-own.txt")"
+bea spawn mine2 --wait 0 > "$OUT/bea-own2.txt" 2>&1 && ok "with one machine of her own, bea need not name it" || bad "bea without --device: $(cat "$OUT/bea-own2.txt")"
+admin device list | grep -q "bea-box.*belongs to bea" && ok "the owner's list says whose each machine is" || bad "admin list: $(admin device list)"
+human spawn x1 --device bea-box --wait 0 > "$OUT/tester-on-bea.txt" 2>&1 && bad "tester started an agent on bea's machine" || ok "and tester cannot use bea's machine either"
 
 say "the hub's database holds no code and no machine credential; the logs hold no credential"
 grep -aq "hi from the job" "$OUT/data/"handloom.db* 2>/dev/null && bad "the job's code is in the hub's database" || ok "the code is not in the hub's database"

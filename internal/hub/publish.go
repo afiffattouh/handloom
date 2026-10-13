@@ -70,6 +70,9 @@ func (c *call) publishJob(id int64, req api.PublishReq) (api.Publish, error) {
 	if t.status == api.StatusCancelled {
 		return api.Publish{}, conflict("job %d was cancelled", id)
 	}
+	if err := c.useDevice(t.deviceID.Int64); err != nil { // the machine that holds the branch pushes it
+		return api.Publish{}, err
+	}
 	if name, hosted := c.hostedFor(id); hosted {
 		// D106: the code of a hosted project sits on the hub, so a confidential job's work must not go there.
 		if t.confidential {

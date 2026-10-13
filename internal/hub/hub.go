@@ -27,6 +27,7 @@ import (
 )
 
 type Options struct {
+	Version           string           // the release number shown in the web footer; empty shows only the protocol
 	Lease             time.Duration    // task lease; default 15 minutes
 	Sweep             time.Duration    // how often expired leases are collected; default 5 seconds
 	Unclaimed         time.Duration    // tell the lead when an assigned task stays unclaimed this long; default 10 minutes
@@ -216,9 +217,14 @@ func (h *Hub) Handler() http.Handler {
 	h.webRoutes(mux)
 
 	v1("GET /whoami", whoami)
-	v1("POST /admin/devices", adminDeviceAdd)
-	v1("GET /admin/devices", adminDeviceList)
-	v1("POST /admin/devices/{name}/revoke", adminDeviceRevoke)
+	// Machines belong to people (D108). The /admin paths are the older spelling of the same calls.
+	v1("POST /devices", deviceAdd)
+	v1("GET /devices", deviceList)
+	v1("POST /devices/{name}/revoke", deviceRevoke)
+	v1("POST /devices/{name}/assign", deviceAssign)
+	v1("POST /admin/devices", deviceAdd)
+	v1("GET /admin/devices", deviceList)
+	v1("POST /admin/devices/{name}/revoke", deviceRevoke)
 	v1("POST /admin/humans", adminHumanAdd)
 	v1("POST /admin/projects", adminProjectAdd)
 	v1("GET /projects", projectList)
@@ -829,7 +835,7 @@ func (h *Hub) allowRate(key string, burst, perMinute float64, now time.Time) boo
 // look at the picture and start work; accepting, answering, closing and every
 // setting stay with the person's own token and the web UI.
 var operatorCalls = map[string]bool{
-	"GET /v1/whoami": true, "GET /v1/digest": true, "GET /v1/metrics": true, "GET /v1/search": true, "GET /v1/lessons": true, "GET /v1/projects": true, "GET /v1/codebases": true, "GET /v1/codebases/{name}": true,
+	"GET /v1/whoami": true, "GET /v1/devices": true, "GET /v1/digest": true, "GET /v1/metrics": true, "GET /v1/search": true, "GET /v1/lessons": true, "GET /v1/projects": true, "GET /v1/codebases": true, "GET /v1/codebases/{name}": true,
 	"GET /v1/jobs": true, "GET /v1/jobs/{id}": true, "POST /v1/jobs": true, "GET /v1/jobs/{id}/publishes": true,
 	"GET /v1/tasks": true, "GET /v1/tasks/{id}": true,
 	"GET /v1/agents": true, "GET /v1/agents/{name}/screen": true,

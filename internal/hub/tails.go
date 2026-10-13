@@ -1,6 +1,7 @@
 package hub
 
 import (
+	"errors"
 	"net/http"
 	"sort"
 	"strings"
@@ -151,6 +152,13 @@ func tailPut(c *call) (any, error) {
 func (q *webReq) watchAllowed(a *agentRow) (bool, string) {
 	if q.human.Role == "viewer" {
 		return false, "Viewers cannot look at an agent's terminal."
+	}
+	if err := q.c.useDevice(a.deviceID); err != nil { // its screen is read on its machine (D108)
+		var ae *apiError
+		if errors.As(err, &ae) {
+			return false, ae.msg
+		}
+		return false, "You cannot look at this agent's terminal."
 	}
 	if a.jobID.Valid {
 		if j, err := q.c.task(a.jobID.Int64); err == nil && j.confidential && !q.c.h.opt.AllowConfidential {

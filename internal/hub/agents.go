@@ -530,74 +530,27 @@ func (c *call) adminOnly() error {
 	return nil
 }
 
-func adminDeviceAdd(c *call) (any, error) {
-	if err := c.adminOnly(); err != nil {
-		return nil, err
-	}
-	var req api.NameReq
-	if err := c.decode(&req); err != nil {
-		return nil, err
-	}
-	if err := checkName("device", req.Name); err != nil {
-		return nil, err
-	}
-	tok, err := c.addDevice(req.Name)
-	if err != nil {
-		return nil, err
-	}
-	return api.TokenResp{Name: req.Name, Token: tok}, nil
-}
-
-// addDevice creates a device and returns its one-time join token, which
-// expires after Options.JoinTTL. Callers check the caller's authority.
+// addDevice creates a device owned by the caller (a person) and returns its one-time join token,
+// which expires after Options.JoinTTL. The admin token's devices have no owner: they are shared
+// by the owner (D108). Callers check the caller's authority (mayAddDevice).
 func (c *call) addDevice(name string) (string, error) {
 	tok := store.NewToken(store.PrefixJoin)
-	if _, err := c.tx.Exec(`INSERT INTO device(name, join_hash, join_expires_at, created_at) VALUES (?, ?, ?, ?)`,
-		name, store.HashToken(tok), store.Millis(c.now.Add(c.h.opt.JoinTTL)), store.Millis(c.now)); err != nil {
+	var owner any
+	ownerName := ""
+	if c.p.kind == kindHuman {
+		id, err := c.humanID()
+		if err != nil {
+			return "", err
+		}
+		if id > 0 {
+			owner, ownerName = id, c.p.name
+		}
+	}
+	if _, err := c.tx.Exec(`INSERT INTO device(name, join_hash, join_expires_at, created_at, owner_id) VALUES (?, ?, ?, ?, ?)`,
+		name, store.HashToken(tok), store.Millis(c.now.Add(c.h.opt.JoinTTL)), store.Millis(c.now), owner); err != nil {
 		return "", conflict("device %q already exists", name)
 	}
-	return tok, c.audit("device.add", "device:"+name, nil)
-}
-
-func (c *call) revokeDevice(name string) error {
-	res, err := c.tx.Exec(`UPDATE device SET revoked_at = ?, join_hash = NULL WHERE name = ? AND revoked_at IS NULL`,
-		store.Millis(c.now), name)
-	if err != nil {
-		return err
-	}
-	if n, _ := res.RowsAffected(); n == 0 {
-		return notFound("no active device %q", name)
-	}
-	return c.audit("device.revoke", "device:"+name, nil)
-}
-
-func adminDeviceList(c *call) (any, error) {
-	if err := c.adminOnly(); err != nil {
-		return nil, err
-	}
-	rows, err := c.tx.Query(`SELECT name, credential_hash IS NOT NULL, last_seen_at, revoked_at FROM device ORDER BY name`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := []api.Device{}
-	for rows.Next() {
-		var d api.Device
-		var seen, revoked sql.NullInt64
-		if err := rows.Scan(&d.Name, &d.Joined, &seen, &revoked); err != nil {
-			return nil, err
-		}
-		d.LastSeenAt, d.RevokedAt = store.TimePtr(seen), store.TimePtr(revoked)
-		out = append(out, d)
-	}
-	return out, rows.Err()
-}
-
-func adminDeviceRevoke(c *call) (any, error) {
-	if err := c.adminOnly(); err != nil {
-		return nil, err
-	}
-	return nil, c.revokeDevice(c.r.PathValue("name"))
+	return tok, c.audit("device.add", "device:"+name, map[string]any{"owner": ownerName})
 }
 
 func adminHumanAdd(c *call) (any, error) {

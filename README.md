@@ -202,7 +202,7 @@ It never touches a hub's data folder or backups, your repositories, or the `.han
 
 ## Teams
 
-One hub serves one team. Everyone signs in to the same web UI and everyone's machines can join it. The owner invites people (an invite link, their own password) and decides what each can touch.
+One hub serves one team. Everyone signs in to the same web UI, and each person adds their own machines to it: a machine belongs to the person who added it, and agents run only on your own machines. The owner invites people (an invite link, their own password) and decides what each can touch.
 
 <p align="center">
   <picture>
@@ -219,7 +219,8 @@ One hub serves one team. Everyone signs in to the same web UI and everyone's mac
 | Accept or send back submitted work | yes | yes | no |
 | Start an agent by hand | yes | yes | no |
 | Create and edit profiles | yes | no | no |
-| Add or revoke machines | yes | no | no |
+| Add a machine (it becomes yours), revoke your own | yes | yes | no |
+| See and use any machine, revoke any, hand one to a person | yes | no | no |
 | Invite people, change roles, set alerts | yes | no | no |
 
 Agents are not people: they can never start or close a job, answer a question or change a profile, whoever started them.
@@ -237,11 +238,11 @@ Agents are not people: they can never start or close a job, answer a question or
 
 **Ways to organise it**
 
-- **One team, one hub.** The default. Everyone shares the inbox and the machines.
+- **One team, one hub.** The default. Everyone shares the inbox, the jobs and the projects; each person adds and uses their own machines. A machine the owner shares (a build box, a machine added with the admin token or before this rule) is usable by the owner until the owner hands it to a person (`handloom device assign NAME --to PERSON`, or Machines on the web).
 - **Just you, several machines.** The same product with one person: a laptop, a desktop and a server, one inbox on your phone.
 - **A separate hub per trust boundary.** Only when a contract says client data must not share a system. Most teams do not need this: separate clients by job, repository and knowledge repository.
 
-**What a team should know today.** There is no per-person or per-team isolation inside one hub: every signed-in person sees every job, and every member can start a job on any joined machine. The profile is the limit, and only the owner writes profiles. A machine belongs to the hub, not to a person. There is one alert topic for the whole hub. See [#13](https://github.com/afiffattouh/handloom/issues/13).
+**What a team should know today.** There is no per-person or per-team isolation inside one hub: every signed-in person sees every job, and a member can start a job, an agent, a project copy or a publish only on a machine they own (the owner may use any), so one person's agent never runs with another's agent-CLI logins and files. Two people cannot share one machine, and there is no per-project access control (any machine can still fetch and push to a project the hub holds); both are later work. Agents and their machine names stay visible on the shared board. The profile is the limit, and only the owner writes profiles. There is one alert topic for the whole hub. See [#13](https://github.com/afiffattouh/handloom/issues/13).
 
 ## Client knowledge
 

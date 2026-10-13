@@ -102,39 +102,58 @@ func windowsJoinCmd(hub, token string) string {
 }
 
 type deviceView struct {
-	Name     string
-	Status   string
-	Seen     string
-	Agents   int
-	Revoked  bool
-	Pending  bool
-	Ready    bool // joined, and its link has called in lately
-	Settling bool // waiting to join, or joined and its link has not called in yet: the page keeps looking
+	Name      string
+	Owner     string // who it belongs to; empty when the owner shares it
+	Shared    bool
+	CanRevoke bool
+	Assign    bool // the owner may hand it to a person
+	Status    string
+	Seen      string
+	Agents    int
+	Revoked   bool
+	Pending   bool
+	Ready     bool // joined, and its link has called in lately
+	Settling  bool // waiting to join, or joined and its link has not called in yet: the page keeps looking
 }
 
 type devicesView struct {
-	Devices  []deviceView
-	CanAdmin bool
-	NewName  string // a device that was just added
-	JoinCmd  string // shown once: install if needed, join, keep the link running, check the machine
-	WinCmd   string // the same, for Windows PowerShell
-	AltCmd   string // the same, for a machine that already has handloom
-	Base     string
-	TTL      string
+	Devices   []deviceView
+	CanAdd    bool     // owners and members add machines; each belongs to the person who added it
+	ShowOwner bool     // the owner sees whose each machine is
+	People    []string // who a machine can be handed to (owners and members)
+	NewName   string   // a device that was just added
+	JoinCmd   string   // shown once: install if needed, join, keep the link running, check the machine
+	WinCmd    string   // the same, for Windows PowerShell
+	AltCmd    string   // the same, for a machine that already has handloom
+	Base      string
+	TTL       string
 }
 
 func (q *webReq) devicesView(fresh *devicesView) (*devicesView, error) {
 	h := q.c.h
-	ds, err := store.ListDevices(q.c.tx)
+	ds, err := store.ListDevices(q.c.tx, q.c.deviceScope())
 	if err != nil {
 		return nil, err
 	}
-	v := &devicesView{CanAdmin: q.isOwner(), Base: h.publicBase(q.r), TTL: humanDur(h.opt.JoinTTL)}
+	v := &devicesView{CanAdd: q.human.Role != store.RoleViewer, ShowOwner: q.isOwner(), Base: h.publicBase(q.r), TTL: humanDur(h.opt.JoinTTL)}
 	if fresh != nil {
 		v.NewName, v.JoinCmd, v.WinCmd, v.AltCmd = fresh.NewName, fresh.JoinCmd, fresh.WinCmd, fresh.AltCmd
 	}
+	if q.isOwner() {
+		hs, err := store.ListHumans(q.c.tx)
+		if err != nil {
+			return nil, err
+		}
+		for _, x := range hs {
+			if x.Role != store.RoleViewer {
+				v.People = append(v.People, x.Name)
+			}
+		}
+	}
 	for _, d := range ds {
-		dv := deviceView{Name: d.Name, Agents: d.Agents}
+		dv := deviceView{Name: d.Name, Agents: d.Agents, Owner: d.Owner, Shared: !d.OwnerID.Valid || d.Owner == ""}
+		dv.CanRevoke = !d.Revoked.Valid && (q.isOwner() || (d.OwnerID.Valid && q.human.ID == d.OwnerID.Int64))
+		dv.Assign = q.isOwner() && !d.Revoked.Valid
 		switch {
 		case d.Revoked.Valid:
 			dv.Status, dv.Revoked = "revoked "+ago(q.now, store.Time(d.Revoked.Int64)), true
@@ -168,7 +187,7 @@ func (q *webReq) devicesPage(status int, errMsg string, fresh *devicesView) erro
 	if err != nil {
 		return err
 	}
-	q.page(status, "devices", pageData{Title: "Machines", Error: errMsg, Notice: map[string]string{"revoked": "Device revoked."}[q.r.URL.Query().Get("done")], Extra: v})
+	q.page(status, "devices", pageData{Title: "Machines", Error: errMsg, Notice: map[string]string{"revoked": "Device revoked.", "assigned": "The machine was handed over."}[q.r.URL.Query().Get("done")], Extra: v})
 	return nil
 }
 
@@ -190,8 +209,8 @@ func (h *Hub) webDevicesFragment(q *webReq) error {
 }
 
 func (h *Hub) webDeviceAdd(q *webReq) error {
-	if !q.isOwner() {
-		return q.refuse("Only the owner can add devices.")
+	if q.human.Role == store.RoleViewer {
+		return q.refuse("Viewers cannot add machines.")
 	}
 	if err := q.stepUp(); err != nil {
 		return q.deviceError(err)
@@ -220,13 +239,26 @@ func (q *webReq) deviceError(err error) error {
 }
 
 func (h *Hub) webDeviceRevoke(q *webReq) error {
-	if !q.isOwner() {
-		return q.refuse("Only the owner can revoke devices.")
+	if q.human.Role == store.RoleViewer {
+		return q.refuse("Viewers cannot revoke machines.")
 	}
 	if err := q.c.revokeDevice(q.r.PathValue("name")); err != nil {
 		return q.deviceError(err)
 	}
 	http.Redirect(q.w, q.r, "/devices?done=revoked", http.StatusSeeOther)
+	return nil
+}
+
+// webDeviceAssign hands a machine to a person: the owner's control for a machine that is shared or
+// that someone no longer needs.
+func (h *Hub) webDeviceAssign(q *webReq) error {
+	if !q.isOwner() {
+		return q.refuse("Only the owner can hand a machine to a person.")
+	}
+	if err := q.c.assignDevice(q.r.PathValue("name"), q.r.PostForm.Get("to")); err != nil {
+		return q.deviceError(err)
+	}
+	http.Redirect(q.w, q.r, "/devices?done=assigned", http.StatusSeeOther)
 	return nil
 }
 

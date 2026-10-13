@@ -491,3 +491,16 @@ func TestResetPasswordSignsOutEverywhere(t *testing.T) {
 		t.Fatal("reset is not audited")
 	}
 }
+
+func TestFooterShowsTheReleaseAndTheProtocol(t *testing.T) {
+	e := newWebEnv(t, Options{Version: "v9.8.7"})
+	c, _ := e.owner()
+	if body := e.req("GET", "/jobs", nil, c, nil).body; !strings.Contains(body, "v9.8.7 · handloom/1") {
+		t.Fatalf("the footer lacks the release number")
+	}
+	e2 := newWebEnv(t, Options{})
+	c2, _ := e2.owner()
+	if body := e2.req("GET", "/jobs", nil, c2, nil).body; strings.Contains(body, " · handloom/1") || !strings.Contains(body, "handloom/1") {
+		t.Fatalf("without a version the footer should show the protocol alone")
+	}
+}

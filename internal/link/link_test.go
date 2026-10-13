@@ -116,6 +116,10 @@ func newFixture(t *testing.T) *fixture {
 	var join api.JoinResp
 	f.must(client.Direct(srv.URL, "").Post("/v1/devices/join", api.JoinReq{JoinToken: tok.Token}, &join))
 	f.must(f.admin.Post("/v1/admin/humans", api.NameReq{Name: "afif"}, &tok))
+	// The machine was added with the admin token, so it is shared by the owner (D108): make afif the owner.
+	if _, err := db.Exec(`UPDATE human SET role = 'owner' WHERE name = 'afif'`); err != nil {
+		t.Fatal(err)
+	}
 	f.human = client.Direct(srv.URL, tok.Token)
 	f.url, f.cred = srv.URL, join.Credential
 

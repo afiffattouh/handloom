@@ -52,7 +52,7 @@ func (q *webReq) startSteps() ([]startStep, error) {
 	if q.human.Role == store.RoleViewer {
 		return nil, nil
 	}
-	ds, err := store.ListDevices(q.c.tx)
+	ds, err := store.ListDevices(q.c.tx, q.c.deviceScope())
 	if err != nil {
 		return nil, err
 	}

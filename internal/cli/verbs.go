@@ -20,7 +20,8 @@ import (
 
 func (e *env) device(args []string) error {
 	fs := e.flags("device")
-	pos, err := fs.need(args, 1, 2, "device add <name> | list | revoke <name>")
+	to := fs.String("to", "", "assign: the person the machine goes to")
+	pos, err := fs.need(args, 1, 2, "device add <name> | list | revoke <name> | assign <name> --to <person>")
 	if err != nil {
 		return err
 	}
@@ -31,7 +32,7 @@ func (e *env) device(args []string) error {
 	switch {
 	case pos[0] == "add" && len(pos) == 2:
 		var tok api.TokenResp
-		if err := c.Post("/v1/admin/devices", api.NameReq{Name: pos[1]}, &tok); err != nil {
+		if err := c.Post("/v1/devices", api.NameReq{Name: pos[1]}, &tok); err != nil {
 			return err
 		}
 		e.print(tok, func() {
@@ -40,7 +41,7 @@ func (e *env) device(args []string) error {
 		})
 	case pos[0] == "list" && len(pos) == 1:
 		var devices []api.Device
-		if err := c.Get("/v1/admin/devices", &devices); err != nil {
+		if err := c.Get("/v1/devices", &devices); err != nil {
 			return err
 		}
 		e.print(devices, func() {
@@ -56,16 +57,31 @@ func (e *env) device(args []string) error {
 				if d.LastSeenAt != nil {
 					seen = "last seen " + ago(*d.LastSeenAt)
 				}
-				fmt.Fprintf(e.out, "%-20s %-11s %s\n", d.Name, status, seen)
+				who := "belongs to " + d.Owner
+				if d.Shared {
+					who = "shared by the owner"
+				}
+				fmt.Fprintf(e.out, "%-20s %-11s %-22s %s\n", d.Name, status, who, seen)
+			}
+			if len(devices) == 0 {
+				fmt.Fprintln(e.out, "No machines of yours yet. Add one with: handloom device add NAME")
 			}
 		})
 	case pos[0] == "revoke" && len(pos) == 2:
-		if err := c.Post("/v1/admin/devices/"+url.PathEscape(pos[1])+"/revoke", nil, nil); err != nil {
+		if err := c.Post("/v1/devices/"+url.PathEscape(pos[1])+"/revoke", nil, nil); err != nil {
 			return err
 		}
 		fmt.Fprintf(e.out, "Device %s revoked.\n", pos[1])
+	case pos[0] == "assign" && len(pos) == 2:
+		if *to == "" {
+			return usageErr("usage: handloom device assign <name> --to <person>")
+		}
+		if err := c.Post("/v1/devices/"+url.PathEscape(pos[1])+"/assign", api.DeviceAssignReq{To: *to}, nil); err != nil {
+			return err
+		}
+		fmt.Fprintf(e.out, "Machine %s now belongs to %s.\n", pos[1], *to)
 	default:
-		return usageErr("usage: handloom device add <name> | list | revoke <name>")
+		return usageErr("usage: handloom device add <name> | list | revoke <name> | assign <name> --to <person>")
 	}
 	return nil
 }

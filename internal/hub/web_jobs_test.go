@@ -96,6 +96,10 @@ func (e *webEnv) humanAPI() string {
 	e.t.Helper()
 	var tok api.TokenResp
 	e.apiOK(e.admin, "", "POST", "/v1/admin/humans", api.NameReq{Name: "apiuser"}, &tok)
+	// The test machines are added with the admin token, so they are shared by the owner (D108): give them to this member.
+	if _, err := e.hub.db.Exec(`UPDATE device SET owner_id = (SELECT id FROM human WHERE name = 'apiuser') WHERE owner_id IS NULL`); err != nil {
+		e.t.Fatal(err)
+	}
 	return tok.Token
 }
 

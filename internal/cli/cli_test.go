@@ -87,6 +87,10 @@ func newRig(t *testing.T) *rig {
 
 	json.Unmarshal([]byte(r.as(admin, "human", "add", "afif", "--json")), &tok)
 	r.human = tok.Token
+	// The machine was added with the admin token, so it is shared by the owner (D108); afif, a member, is given it.
+	if _, err := db.Exec(`UPDATE device SET owner_id = (SELECT id FROM human WHERE name = 'afif')`); err != nil {
+		t.Fatal(err)
+	}
 	return r
 }
 

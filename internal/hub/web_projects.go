@@ -31,7 +31,7 @@ type projectsView struct {
 }
 
 func (q *webReq) joinedDevices() ([]string, error) {
-	ds, err := store.ListDevices(q.c.tx)
+	ds, err := store.ListDevices(q.c.tx, q.c.deviceScope())
 	if err != nil {
 		return nil, err
 	}

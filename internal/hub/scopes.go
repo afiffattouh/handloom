@@ -22,6 +22,7 @@ const (
 	ActPublish          Action = "publish"           // push a job's work to the shared remote (D103)
 	ActProjectManage    Action = "project.manage"    // attach, create or clone a project: a shared git remote (D104)
 	ActProjectMerge     Action = "project.merge"     // merge a published job into the main branch of a hosted project (D106)
+	ActDeviceAdd        Action = "device.add"        // add a machine that belongs to the person adding it (D108)
 )
 
 const (
@@ -43,6 +44,7 @@ var scopeTable = map[Action]map[string]bool{
 	ActPublish:          {subjectHuman: true},
 	ActProjectManage:    {subjectHuman: true},
 	ActProjectMerge:     {subjectHuman: true},
+	ActDeviceAdd:        {subjectHuman: true},
 }
 
 // Allowed reports whether subject (a role, or "human") may perform action.

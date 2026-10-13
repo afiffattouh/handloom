@@ -127,6 +127,14 @@ func (c *call) resumeJob(id int64, lead string) (any, error) {
 	if next == nil || next.projectID != j.projectID {
 		return nil, notFound("no agent %q in this project", req.Lead)
 	}
+	if err := c.useDevice(next.deviceID); err != nil { // the new lead sits on a machine
+		return nil, err
+	}
+	if j.deviceID.Valid {
+		if err := c.useDevice(j.deviceID.Int64); err != nil {
+			return nil, err
+		}
+	}
 	old, err := scanAgent(c.tx.QueryRow(agentSelect+`WHERE a.project_id = ? AND a.role = 'lead' AND a.job_id = ?`, j.projectID, j.id))
 	if err != nil {
 		return nil, err

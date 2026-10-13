@@ -326,3 +326,87 @@ func TestSearchNotesOnThisMachineAndEarlierJobsOnTheHub(t *testing.T) {
 		t.Fatalf("json: %v %+v", err, res)
 	}
 }
+
+// Machines belong to people (D108), through the command line.
+func TestMachinesBelongToPeopleThroughTheCLI(t *testing.T) {
+	r := newRig(t) // afif is a member and owns the rig's machine "dev"
+	var ben api.TokenResp
+	json.Unmarshal([]byte(r.as(r.admin, "human", "add", "ben", "--json")), &ben)
+	join := func(tok string) {
+		var j api.JoinResp
+		if err := client.Direct(r.hubURL, "").Post("/v1/devices/join", api.JoinReq{JoinToken: tok}, &j); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// A member adds a machine with the same command, and owns it.
+	var add api.TokenResp
+	json.Unmarshal([]byte(r.as(ben.Token, "device", "add", "ben-box", "--json")), &add)
+	if !strings.HasPrefix(add.Token, "hvj_") {
+		t.Fatalf("add: %+v", add)
+	}
+	join(add.Token)
+	json.Unmarshal([]byte(r.as(r.admin, "device", "add", "build-box", "--json")), &add)
+	join(add.Token)
+
+	// Each person lists their own; the admin token (an owner's reach) lists all and says whose each is.
+	list := func(tok string) string { return r.as(tok, "device", "list") }
+	if got := list(ben.Token); !strings.Contains(got, "ben-box") || !strings.Contains(got, "belongs to ben") || strings.Contains(got, "dev ") || strings.Contains(got, "build-box") {
+		t.Fatalf("ben's list: %s", got)
+	}
+	if got := list(r.human); !strings.Contains(got, "dev") || strings.Contains(got, "ben-box") || strings.Contains(got, "build-box") {
+		t.Fatalf("afif's list: %s", got)
+	}
+	all := list(r.admin)
+	for _, want := range []string{"ben-box", "belongs to ben", "belongs to afif", "build-box", "shared by the owner"} {
+		if !strings.Contains(all, want) {
+			t.Errorf("the owner's list lacks %q:\n%s", want, all)
+		}
+	}
+	var asJSON []api.Device
+	json.Unmarshal([]byte(r.as(ben.Token, "device", "list", "--json")), &asJSON)
+	if len(asJSON) != 1 || asJSON[0].Owner != "ben" {
+		t.Fatalf("json list: %+v", asJSON)
+	}
+
+	// Using someone else's machine is refused in plain words, for a spawn and for a job.
+	r.t.Setenv("HANDLOOM_HUB", r.hubURL)
+	r.t.Setenv("HANDLOOM_TOKEN", ben.Token)
+	code, _, errs := r.exec("spawn", "x", "--device", "dev", "--wait", "0")
+	if code == 0 || !strings.Contains(errs, "That machine belongs to afif") || !strings.Contains(errs, "You can use your own machines: ben-box") {
+		t.Fatalf("spawn on afif's machine: %d %s", code, errs)
+	}
+	code, _, errs = r.exec("job", "new", "Fix", "--repo", "/srv/app", "--device", "build-box")
+	if code == 0 || !strings.Contains(errs, "shared by the owner") {
+		t.Fatalf("job on the shared machine: %d %s", code, errs)
+	}
+	if code, _, errs = r.exec("spawn", "y", "--device", "ben-box", "--wait", "0"); code != 0 {
+		t.Fatalf("spawn on his own machine: %s", errs)
+	}
+	r.t.Setenv("HANDLOOM_TOKEN", "")
+
+	// Only an owner hands a machine over.
+	r.t.Setenv("HANDLOOM_TOKEN", ben.Token)
+	if code, _, errs = r.exec("device", "assign", "build-box", "--to", "ben"); code == 0 || !strings.Contains(errs, "only the owner") {
+		t.Fatalf("a member hands a machine over: %d %s", code, errs)
+	}
+	if code, _, errs = r.exec("device", "assign", "build-box"); code == 0 || !strings.Contains(errs, "usage") {
+		t.Fatalf("assign without --to: %d %s", code, errs)
+	}
+	if code, _, errs = r.exec("device", "revoke", "dev"); code == 0 || !strings.Contains(errs, "belongs to afif") {
+		t.Fatalf("a member revokes someone else's machine: %d %s", code, errs)
+	}
+	r.t.Setenv("HANDLOOM_TOKEN", "")
+	if got := r.as(r.admin, "device", "assign", "build-box", "--to", "ben"); !strings.Contains(got, "build-box now belongs to ben") {
+		t.Fatalf("assign: %s", got)
+	}
+	if got := list(ben.Token); !strings.Contains(got, "build-box") {
+		t.Fatalf("after the hand-over: %s", got)
+	}
+	if got := r.as(ben.Token, "spawn", "z", "--device", "build-box", "--wait", "0"); !strings.Contains(got, "build-box") {
+		t.Fatalf("spawn on the handed-over machine: %s", got)
+	}
+	if got := r.as(ben.Token, "device", "revoke", "ben-box"); !strings.Contains(got, "revoked") {
+		t.Fatalf("revoke own: %s", got)
+	}
+}

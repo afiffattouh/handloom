@@ -422,6 +422,9 @@ ALTER TABLE codebase ADD COLUMN hosted INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE publish ADD COLUMN merged_into TEXT NOT NULL DEFAULT '';
 ALTER TABLE publish ADD COLUMN merged_at INTEGER;
 ALTER TABLE publish ADD COLUMN merged_commit TEXT NOT NULL DEFAULT '';
+`, `
+-- D108: machines belong to people. owner_id is the person who added the machine; NULL means it was made by the admin token or before this change ("shared by the owner": only owners use it). Nothing is backfilled.
+ALTER TABLE device ADD COLUMN owner_id INTEGER;
 `}
 
 // Open opens (and migrates) the database at path. Use ":memory:" in tests.

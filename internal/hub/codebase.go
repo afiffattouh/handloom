@@ -135,8 +135,10 @@ func (c *call) codebaseByName(name string) (*cbRow, error) {
 
 func (c *call) codebaseView(r *cbRow) (api.Codebase, error) {
 	out := api.Codebase{Name: r.name, Remote: r.remote, Base: r.base, CreatedBy: r.createdBy, CreatedAt: store.Time(r.created), Hosted: r.hosted, Clones: []api.CodebaseClone{}}
+	// A member sees the copies on their own machines only (D108).
+	where, wargs := c.deviceScope().Clause("d")
 	rows, err := c.tx.Query(`SELECT d.name, k.path, k.status, k.detail, k.updated_at FROM codebase_clone k JOIN device d ON d.id = k.device_id
-		WHERE k.codebase_id = ? ORDER BY d.name`, r.id)
+		WHERE k.codebase_id = ? AND `+where+` ORDER BY d.name`, append([]any{r.id}, wargs...)...)
 	if err != nil {
 		return out, err
 	}

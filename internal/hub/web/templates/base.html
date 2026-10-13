@@ -83,7 +83,7 @@
       {{if .Error}}<p class="error" role="alert"><svg class="icon"><use href="#i-circle-alert"/></svg>{{.Error}}</p>{{end}}
       {{template "content" .}}
     </main>
-    <footer class="footer"><div class="tb"><span>Handloom · your agents, on your machines</span><span class="mono">{{.Proto}}</span></div></footer>
+    <footer class="footer"><div class="tb"><span>Handloom · your agents, on your machines</span><span class="mono">{{if .Version}}{{.Version}} · {{end}}{{.Proto}}</span></div></footer>
   </div>
 </div>
 {{else}}

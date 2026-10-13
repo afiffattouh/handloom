@@ -2,7 +2,9 @@
 
 One pasted line turns a computer into a machine that can run agents for your hub. This page is for the person pasting it. Handloom does the configuration underneath: it installs itself, joins the hub, keeps the link running and checks what the machine needs.
 
-**Where:** in the web UI, Machines, Add a machine. Give the machine a name, confirm with your password, and the page shows the line for each system. The token inside it works once and for a short time (the page says how long). Make a new one if it expires.
+**Whose it is.** A machine belongs to the person who adds it. Owners and members can add machines; viewers cannot. You see only your own machines (the owner sees all of them, and whose each is), and agents you start run only on them, with the agent-CLI logins and files of that computer. Your teammates add their own computers the same way: do not paste your line on someone else's machine, and do not share one machine between two people. A machine the owner shares (one added with the admin token, or before this rule) is for the owner until the owner hands it to someone: `handloom device assign NAME --to PERSON`, or the Hand over control on the Machines page.
+
+**Where:** in the web UI, Machines, Add a machine (or `handloom device add NAME`, which prints the one-time token). Give the machine a name, confirm with your password, and the page shows the line for each system. The token inside it works once and for a short time (the page says how long). Make a new one if it expires.
 
 ## Linux
 
@@ -40,7 +42,7 @@ Handloom runs its agents in Linux. Windows 10 (version 2004 or newer) and Window
 
 The agent programs (Claude Code and the others) must be installed **in the Linux side**, not in Windows. Open it with `wsl -d Ubuntu`, run `handloom doctor`, and do what it says. Native Windows without WSL is not supported.
 
-To remove: `Unregister-ScheduledTask -TaskName 'Handloom link' -Confirm:$false`, then `handloom uninstall --purge` in Linux, then revoke the machine on the Machines page.
+To remove: `Unregister-ScheduledTask -TaskName 'Handloom link' -Confirm:$false`, then `handloom uninstall --purge` in Linux, then revoke the machine on the Machines page (`handloom device revoke NAME`). You can revoke your own; the owner can revoke any.
 
 ## When the page does not turn "ready"
 

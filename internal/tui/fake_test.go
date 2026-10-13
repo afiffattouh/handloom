@@ -33,6 +33,7 @@ type fakeAPI struct {
 	screen   api.Screen
 	profiles []api.ProfileInfo
 	starters []api.StarterInfo
+	devices  []api.Device // the machines the hub says this person may use; nil: the call gives nothing
 
 	// search
 	searchHits []api.SearchHit
@@ -88,7 +89,7 @@ func (f *fakeAPI) Starters() ([]api.StarterInfo, error) { return f.starters, nil
 func (f *fakeAPI) Starter(name string) (api.StarterFull, error) {
 	return api.StarterFull{StarterInfo: api.StarterInfo{Name: name}, WhatItCanDo: "This agent can read files."}, nil
 }
-func (f *fakeAPI) Devices() ([]api.Device, error) { return nil, nil }
+func (f *fakeAPI) Devices() ([]api.Device, error) { return f.devices, nil }
 func (f *fakeAPI) Search(q string) ([]api.SearchHit, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()

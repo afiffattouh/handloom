@@ -101,7 +101,8 @@ Hub and administration (HANDLOOM_HUB and HANDLOOM_TOKEN set to the hub URL and a
   handloom hub restore --from FILE [--data DIR] [--force]    hub must be stopped
   handloom healthcheck [--addr A]                     exit 0 if the hub answers /healthz (for containers)
   handloom hub install [--data DIR] [--addr A] | uninstall     run the hub as a systemd service
-  handloom device add <name> | list | revoke <name>   (admin)
+  handloom device add <name> | list | revoke <name>   (owner or member: your own machines; the owner sees all)
+  handloom device assign <name> --to <person>          (owner) give a machine to a person
   handloom human add <name>                           (admin)
   handloom project add <name> | tenants                (admin) the hub's own tenancy, rarely needed
   handloom agent role <name> <lead|worker|observer>   (admin, human)

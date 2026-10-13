@@ -569,7 +569,8 @@ handloom doctor         <i># what is missing?</i></pre>
       <tr><td>Accept or reject submitted work</td><td class="yes">yes</td><td class="yes">yes</td><td class="no">no</td></tr>
       <tr><td>Start an agent by hand</td><td class="yes">yes</td><td class="yes">yes</td><td class="no">no</td></tr>
       <tr><td>Create and edit profiles</td><td class="yes">yes</td><td class="no">no</td><td class="no">no</td></tr>
-      <tr><td>Add or revoke machines</td><td class="yes">yes</td><td class="no">no</td><td class="no">no</td></tr>
+      <tr><td>Add a machine (it becomes yours), revoke your own</td><td class="yes">yes</td><td class="yes">yes</td><td class="no">no</td></tr>
+      <tr><td>See and use any machine, revoke any, hand one to a person</td><td class="yes">yes</td><td class="no">no</td><td class="no">no</td></tr>
       <tr><td>Invite people, change roles, set alerts</td><td class="yes">yes</td><td class="no">no</td><td class="no">no</td></tr>
     </tbody>
   </table></div>
@@ -596,8 +597,8 @@ handloom doctor         <i># what is missing?</i></pre>
   <div class="limits">
     <h3>What a team should know today</h3>
     <ul>
-      <li>There is no per-person or per-team isolation inside one hub. Every signed-in person sees every job, and every member can start a job on any joined machine. The profile is the limit: it decides what the agent may do, and only the owner can write profiles.</li>
-      <li>A machine belongs to the hub, not to a person. Agents on a personal laptop use that laptop's own CLI logins.</li>
+      <li>There is no per-person or per-team isolation inside one hub. Every signed-in person sees every job. A member can start work only on a machine they own; the owner may use any. The profile is the limit: it decides what the agent may do, and only the owner can write profiles.</li>
+      <li>A machine belongs to the person who added it, and agents run only on your own machines, so they use that person's own CLI logins and files. Two people cannot share one machine, and a project the hub holds can be fetched by any machine.</li>
       <li>There is one alert topic for the whole hub, not one per person.</li>
       <li>The audit log records which person started, answered or closed things.</li>
     </ul>

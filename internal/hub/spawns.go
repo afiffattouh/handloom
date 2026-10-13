@@ -197,6 +197,9 @@ func (c *call) spawnFromRequest(req api.SpawnReq) (any, error) {
 		}
 		if req.Device == "" && jobDevice.Valid {
 			deviceID = jobDevice.Int64
+			if err := c.useDevice(deviceID); err != nil { // the job's machine may be someone else's
+				return nil, err
+			}
 		} else {
 			var err2 error
 			if deviceID, err2 = c.spawnDevice(req.Device); err2 != nil {
@@ -287,8 +290,10 @@ func spawnKindList() string {
 	return strings.Join(ks, ", ")
 }
 
-// spawnDevice picks the device for a human's request: the one named, or the
-// only joined one.
+// spawnDevice picks the device for a person's request: the one named, or the only joined one the
+// person may use. A member may use only the machines they own (D108); the owner may use any. Every
+// path that takes a machine from a person goes through here (or through useDevice for a machine a
+// job or an agent already sits on).
 func (c *call) spawnDevice(name string) (int64, error) {
 	var id int64
 	if name != "" {
@@ -296,9 +301,14 @@ func (c *call) spawnDevice(name string) (int64, error) {
 		if err != nil {
 			return 0, notFound("no joined device %q", name)
 		}
+		if err := c.useDevice(id); err != nil {
+			return 0, err
+		}
 		return id, nil
 	}
-	rows, err := c.tx.Query(`SELECT id FROM device WHERE credential_hash IS NOT NULL AND revoked_at IS NULL`)
+	sc := c.deviceScope()
+	where, args := sc.Clause("d")
+	rows, err := c.tx.Query(`SELECT d.id FROM device d WHERE d.credential_hash IS NOT NULL AND d.revoked_at IS NULL AND `+where, args...)
 	if err != nil {
 		return 0, err
 	}
@@ -312,7 +322,16 @@ func (c *call) spawnDevice(name string) (int64, error) {
 		ids = append(ids, d)
 	}
 	if len(ids) != 1 {
-		return 0, badRequest("name the device to start it on (--device); there are %d joined devices", len(ids))
+		if sc.All {
+			return 0, badRequest("name the device to start it on (--device); there are %d joined devices", len(ids))
+		}
+		if c.p.kind == kindHuman && c.p.role == store.RoleViewer {
+			return 0, forbidden("A viewer cannot use machines.")
+		}
+		if len(ids) == 0 {
+			return 0, badRequest("None of your machines is ready yet. Add one under Machines, run its join command, and try again.")
+		}
+		return 0, badRequest("name the machine to use (--device). You have %d that are ready.", len(ids))
 	}
 	return ids[0], nil
 }

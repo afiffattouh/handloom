@@ -67,8 +67,12 @@ func TestPublishingALifecycleAndWhoMayAsk(t *testing.T) {
 	var mem api.TokenResp
 	e.ok(caller{e.admin, ""}, "POST", "/v1/admin/humans", api.NameReq{Name: "mia"}, &mem)
 	e.hub.db.Exec(`UPDATE human SET role = 'member' WHERE name = 'mia'`)
+	// Mia has no machine of her own, and the branch sits on afif's (D108): refused in words, nothing recorded.
+	if msg := e.fail(403, caller{mem.Token, ""}, "POST", path, api.PublishReq{PR: true}); !strings.Contains(msg, "belongs to afif") || !strings.Contains(msg, "add one under Machines") {
+		t.Fatalf("a member publishing from someone else's machine: %s", msg)
+	}
 	var p api.Publish
-	e.ok(caller{mem.Token, ""}, "POST", path, api.PublishReq{PR: true}, &p)
+	e.ok(e.afif(), "POST", path, api.PublishReq{PR: true}, &p)
 	if p.Status != "pending" || p.Remote != "origin" || !p.PR || p.RequestedBy == "" || p.Branch != fmt.Sprintf("handloom/job-%d-stricter-parser-don-t-accept", j.ID) {
 		t.Fatalf("request: %+v", p)
 	}

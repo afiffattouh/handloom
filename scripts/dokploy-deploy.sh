@@ -25,7 +25,7 @@ api() { # api <get|post> <procedure> [json body]
 }
 
 say "build $PLATFORM image handloom-hub:$TAG"
-docker buildx build --platform "$PLATFORM" --build-arg VERSION="$TAG" -t "handloom-hub:$TAG" --load "$ROOT" >/dev/null
+docker buildx build --platform "$PLATFORM" --build-arg VERSION="$(git -C "$ROOT" describe --tags --always)" -t "handloom-hub:$TAG" --load "$ROOT" >/dev/null
 say "load it on $DOKPLOY_SSH"
 docker save "handloom-hub:$TAG" | ssh -o BatchMode=yes "$DOKPLOY_SSH" docker load
 

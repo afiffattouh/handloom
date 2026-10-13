@@ -72,7 +72,7 @@ The CLI and MCP server talk to the local `handloom link` over a unix socket. Age
 ## 6. Identity and auth
 
 - **Admin token.** Printed once by `handloom hub init`. Used to create devices and humans.
-- **Device.** `handloom device add <name>` (admin) returns a one-time join token. `handloom link join <hub-url> <join-token>` exchanges it for a long-lived device credential stored in the link's config (file mode 0600). Admin can revoke a device at any time.
+- **Device.** `handloom device add <name>` (an owner or a member, who then owns the machine; or the admin token, which makes a machine shared by the owner; D108) returns a one-time join token. `handloom link join <hub-url> <join-token>` exchanges it for a long-lived device credential stored in the link's config (file mode 0600). Its owner, any owner and the admin token can revoke a device at any time.
 - **Agent.** An agent registers through its device: `handloom register <name> --kind claude`. Name is unique per hub. `handloom register` records the agent's wake target from the environment (`$HERDR_PANE_ID`, `$TMUX_PANE`) and its session id, if the adapter knows it.
 - **Human.** `handloom human add <name>` (admin) returns a login token for the web board. Only humans can answer escalations.
 - **Roles.** `lead`, `worker`, `observer` for agents. One lead per project. Role is set by the human or admin, not by agents.

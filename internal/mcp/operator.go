@@ -38,6 +38,7 @@ func fixed(name, desc string, argv ...string) tool {
 func OperatorTools(allowApprovals bool) []tool {
 	ts := []tool{
 		fixed("handloom_digest", "What needs the person, what waits for review, and what is running. Start here.", "digest"),
+		fixed("handloom_machines", "List the person's own machines (the owner sees all): name, whether it has joined, who it belongs to. A job or an agent can only be started on a machine the person owns.", "device", "list"),
 		fixed("handloom_jobs", "List the jobs with their state and task counts.", "job", "list"),
 		reader("handloom_job", "Show one job: its brief, tasks and team.", map[string]any{"id": prop("integer", "job number")}, []string{"id"},
 			func(a args) ([]string, error) {

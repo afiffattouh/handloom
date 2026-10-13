@@ -40,6 +40,7 @@ type formDataMsg struct {
 	profiles []api.ProfileInfo
 	devices  []api.Device
 	perr     error
+	derr     error
 }
 
 func newInput(placeholder string) textinput.Model {
@@ -80,7 +81,7 @@ func (m *Model) openForm() tea.Cmd {
 	return func() tea.Msg {
 		var out formDataMsg
 		out.profiles, out.perr = a.Profiles()
-		out.devices, _ = a.Devices() // owners only; the others use the machines their agents are on
+		out.devices, out.derr = a.Devices() // the machines this person owns (the owner: all of them)
 		return out
 	}
 }
@@ -144,9 +145,13 @@ func (m *Model) gotFormData(d formDataMsg) {
 	}
 	curDev := f.devices[f.dIdx]
 	set := map[string]bool{}
-	for _, x := range f.devices {
-		if x != "" {
-			set[x] = true
+	// The hub's own list is the person's machines (the owner: all). Only when it could not be read are
+	// the machines the console has seen agents on kept as a guess.
+	if d.derr != nil || d.devices == nil {
+		for _, x := range f.devices {
+			if x != "" {
+				set[x] = true
+			}
 		}
 	}
 	for _, dv := range d.devices {
@@ -161,7 +166,7 @@ func (m *Model) gotFormData(d formDataMsg) {
 			f.dIdx = i
 		}
 	}
-	if curDev == "" && len(f.devices) == 2 {
+	if f.dIdx == 0 && len(f.devices) == 2 { // the only machine, also when the one that was guessed is not this person's
 		f.dIdx = 1
 	}
 	f.loaded = true

@@ -329,7 +329,7 @@ func (q *webReq) agentsPage(status int, errMsg string, form map[string]string) e
 		return err
 	}
 	v.Profiles = pl.([]api.ProfileInfo)
-	ds, err := store.ListDevices(q.c.tx)
+	ds, err := store.ListDevices(q.c.tx, q.c.deviceScope())
 	if err != nil {
 		return err
 	}

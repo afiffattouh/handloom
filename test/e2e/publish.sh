@@ -58,6 +58,7 @@ ADMIN="$(grep -o 'hva_[A-Za-z0-9_-]*' "$OUT/hub.log" | head -1)"
 admin() { HANDLOOM_HUB="$H" HANDLOOM_TOKEN="$ADMIN" $CLEAN "$BIN" "$@"; }
 JT="$(admin device add hltest-pub-dev --json | python3 -c 'import json,sys;print(json.load(sys.stdin)["token"])')"
 HT="$(admin human add tester --json | python3 -c 'import json,sys;print(json.load(sys.stdin)["token"])')"
+admin device assign hltest-pub-dev --to tester >/dev/null || { echo "could not hand the machine to tester"; exit 1; }   # machines belong to people (D108): the admin token made it, so it is handed over
 human() { HANDLOOM_HUB="$H" HANDLOOM_TOKEN="$HT" $CLEAN "$BIN" "$@"; }
 agent() { local a="$1"; shift; HANDLOOM_AGENT="$a" $CLEAN "$BIN" "$@"; }
 $CLEAN "$BIN" link join "$H" "$JT" >/dev/null

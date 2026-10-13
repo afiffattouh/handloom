@@ -71,7 +71,7 @@ All jobs with state, title, lead and how many tasks are open, claimed, waiting f
 | `c` | close the job as finished |
 | `C` | cancel the job and its unfinished tasks |
 
-The new-job form asks for a title, a brief, a lead profile (chosen from the hub's profiles), a machine (from the machines your agents are on, plus the device list when your account may see it), a repository and a check command. `tab` and `shift+tab` move between fields, `←` and `→` choose a profile or machine, `ctrl+s` (or `enter` on Start job) shows what will be started and waits for `y`. It calls the same endpoint as `handloom job new`; if the hub refuses, for example because a check command needs a repository, the reason is shown in the form and what you typed stays.
+The new-job form asks for a title, a brief, a lead profile (chosen from the hub's profiles), a machine (the machines you own; the owner sees all), a repository and a check command. `tab` and `shift+tab` move between fields, `←` and `→` choose a profile or machine, `ctrl+s` (or `enter` on Start job) shows what will be started and waits for `y`. It calls the same endpoint as `handloom job new`; if the hub refuses, for example because a check command needs a repository, the reason is shown in the form and what you typed stays.
 
 ## 4 Agents
 

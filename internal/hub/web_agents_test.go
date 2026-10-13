@@ -174,6 +174,10 @@ func TestStartAnAgentFromTheWeb(t *testing.T) {
 	e.agents() // a joined device d1
 	e.apiOK(e.admin, "", "POST", "/v1/profiles", api.ProfileReq{Name: "researcher", Spec: researcher()}, nil)
 	mc, mtok := e.member("mia", "member")
+	// d1 was added with the admin token, so it is shared by the owner (D108); hand it to mia.
+	if _, err := e.hub.db.Exec(`UPDATE device SET owner_id = (SELECT id FROM human WHERE name = 'mia')`); err != nil {
+		t.Fatal(err)
+	}
 
 	page := e.req("GET", "/agents", nil, mc, nil)
 	for _, want := range []string{"Start an agent", `<option value="researcher"`, `<option value="d1"`, "lead", "worker"} {

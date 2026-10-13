@@ -39,7 +39,7 @@ func TestApprovalsAreNotToolsUnlessThePersonTurnsThemOn(t *testing.T) {
 			t.Errorf("%s is offered without --allow-approvals", n)
 		}
 	}
-	for _, n := range []string{"handloom_digest", "handloom_job_new", "handloom_send", "handloom_screen", "handloom_metrics"} {
+	for _, n := range []string{"handloom_digest", "handloom_job_new", "handloom_send", "handloom_screen", "handloom_metrics", "handloom_machines"} {
 		if _, ok := plain[n]; !ok {
 			t.Errorf("%s is missing", n)
 		}
@@ -76,13 +76,14 @@ func TestOperatorToolsRunTheMatchingCommands(t *testing.T) {
 	call("handloom_tasks", `{"job":3,"status":"submitted"}`)
 	call("handloom_job_new", `{"title":"Fix it","lead_profile":"lead","brief":"do it","device":"GB10","repo":"/r","verify":"./check.sh"}`)
 	call("handloom_screen", `{"agent":"coder-1"}`)
+	call("handloom_machines", `{}`)
 	call("handloom_task_accept", `{"id":"#7"}`)
 	call("handloom_answer", `{"id":2,"answer":"yes"}`)
 	call("handloom_job_close", `{"id":3,"cancel":true}`)
 	want := []string{
 		"digest", "job show 3", "task list --job 3 --status submitted",
 		"job new Fix it --lead-profile lead --body do it --device GB10 --repo /r --verify ./check.sh",
-		"screen coder-1", "task accept 7", "answer 2 yes", "job close 3 --cancel",
+		"screen coder-1", "device list", "task accept 7", "answer 2 yes", "job close 3 --cancel",
 	}
 	if len(got) != len(want) {
 		t.Fatalf("ran %d commands, want %d: %v", len(got), len(want), got)

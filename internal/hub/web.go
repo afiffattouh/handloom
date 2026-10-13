@@ -54,6 +54,7 @@ type pageData struct {
 	Narrow  bool   // forms and text pages are narrower than dashboards
 	Crumbs  []crumb
 	Proto   string
+	Version string // the release this hub runs, for the footer
 }
 
 // crumb is one step of the path shown in the header; the last has no link.
@@ -230,6 +231,7 @@ func (h *Hub) webRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /devices", web(h.authed(h.webDevices)))
 	mux.HandleFunc("POST /devices", web(h.authed(h.webDeviceAdd)))
 	mux.HandleFunc("POST /devices/{name}/revoke", web(h.authed(h.webDeviceRevoke)))
+	mux.HandleFunc("POST /devices/{name}/assign", web(h.authed(h.webDeviceAssign)))
 	mux.HandleFunc("GET /command", web(h.authed(h.webCommand)))
 	mux.HandleFunc("GET /command/fragment", web(h.authed(h.webCommandFragment)))
 	mux.HandleFunc("GET /devices/fragment", web(h.authed(h.webDevicesFragment)))
@@ -510,7 +512,7 @@ func (q *webReq) page(status int, page string, d pageData) {
 	if q.human != nil {
 		d.Initial = strings.ToUpper(string([]rune(q.human.Name)[:1]))
 		d.Nav = q.navCounts()
-		d.Crumbs, d.Proto = []crumb{{"Handloom", "/"}}, api.Version
+		d.Crumbs, d.Proto, d.Version = []crumb{{"Handloom", "/"}}, api.Version, q.c.h.opt.Version
 		if s, ok := sections[d.Active]; ok {
 			d.Crumbs = append(d.Crumbs, s)
 			if d.Title != "" && d.Title != s.Label {
@@ -532,7 +534,8 @@ func (q *webReq) navCounts() navCounts {
 	}
 	q.c.tx.QueryRow(`SELECT count(*) FROM task WHERE kind = 'job' AND status = 'open'`).Scan(&n.Jobs)
 	q.c.tx.QueryRow(`SELECT count(*) FROM agent`).Scan(&n.Agents)
-	q.c.tx.QueryRow(`SELECT count(*) FROM device WHERE credential_hash IS NOT NULL AND revoked_at IS NULL`).Scan(&n.Devices)
+	where, args := q.c.deviceScope().Clause("d")
+	q.c.tx.QueryRow(`SELECT count(*) FROM device d WHERE d.credential_hash IS NOT NULL AND d.revoked_at IS NULL AND `+where, args...).Scan(&n.Devices)
 	return n
 }
 

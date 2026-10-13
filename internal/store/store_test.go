@@ -142,3 +142,52 @@ func TestResetAdminTokenReplacesTheOldOne(t *testing.T) {
 		t.Fatal("the new token is not the stored one")
 	}
 }
+
+// D108: a machine made before the change has no owner, and nothing is backfilled.
+func TestMachinesOfAnOlderDatabaseHaveNoOwner(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "handloom.db")
+	old, err := sql.Open("sqlite", "file:"+path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, m := range migrations[:len(migrations)-1] { // the schema as the release before this one had it
+		if _, err := old.Exec(m); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := old.Exec(`PRAGMA user_version = ` + strconv.Itoa(len(migrations)-1)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := old.Exec(`INSERT INTO device(name, credential_hash, created_at) VALUES ('build-box', 'x', 1)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := old.Exec(`INSERT INTO human(name, token_hash, created_at) VALUES ('mia', 'y', 1)`); err != nil {
+		t.Fatal(err)
+	}
+	old.Close()
+
+	db, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	all, err := ListDevices(db, DeviceScope{All: true})
+	if err != nil || len(all) != 1 || all[0].OwnerID.Valid || all[0].Owner != "" {
+		t.Fatalf("an older machine: %+v %v", all, err)
+	}
+	// Nobody but an owner sees it: a person's scope matches nothing of it, and a zero scope matches nothing.
+	var mia int64
+	db.QueryRow(`SELECT id FROM human WHERE name = 'mia'`).Scan(&mia)
+	for _, sc := range []DeviceScope{{Owner: mia}, {}} {
+		if got, err := ListDevices(db, sc); err != nil || len(got) != 0 {
+			t.Fatalf("scope %+v sees %+v %v", sc, got, err)
+		}
+	}
+	// And a machine can be given an owner afterwards.
+	if _, err := db.Exec(`UPDATE device SET owner_id = ?`, mia); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := ListDevices(db, DeviceScope{Owner: mia}); len(got) != 1 || got[0].Owner != "mia" {
+		t.Fatalf("after the hand-over: %+v", got)
+	}
+}

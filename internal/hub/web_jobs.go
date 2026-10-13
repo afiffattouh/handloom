@@ -83,7 +83,7 @@ func (q *webReq) jobForm(status int, errMsg string, form map[string]string) erro
 		}
 		rows.Close()
 	}
-	ds, err := store.ListDevices(q.c.tx)
+	ds, err := store.ListDevices(q.c.tx, q.c.deviceScope())
 	if err != nil {
 		return err
 	}

@@ -116,7 +116,7 @@ func (h *HTTP) Whoami() (api.WhoAmI, error)    { return get[api.WhoAmI](h, "/v1/
 func (h *HTTP) People() ([]api.Person, error)  { return get[[]api.Person](h, "/v1/people") }
 func (h *HTTP) Digest() (api.Digest, error)    { return get[api.Digest](h, "/v1/digest") }
 func (h *HTTP) Jobs() ([]api.Job, error)       { return get[[]api.Job](h, "/v1/jobs") }
-func (h *HTTP) Devices() ([]api.Device, error) { return get[[]api.Device](h, "/v1/admin/devices") }
+func (h *HTTP) Devices() ([]api.Device, error) { return get[[]api.Device](h, "/v1/devices") }
 func (h *HTTP) Profiles() ([]api.ProfileInfo, error) {
 	return get[[]api.ProfileInfo](h, "/v1/profiles")
 }

@@ -1,5 +1,5 @@
 {{define "content"}}
-<div class="page-head"><div><h1>Machines</h1><p class="desc">A machine runs the link, which starts your agents and carries their messages to this hub. Machines connect out to the hub; nothing connects in.</p></div></div>
+<div class="page-head"><div><h1>Machines</h1><p class="desc">A machine runs the link, which starts your agents and carries their messages to this hub. Machines connect out to the hub; nothing connects in. Each machine belongs to the person who added it, and agents run only on your own machines.</p></div></div>
 
 {{with .Extra}}
 {{if .JoinCmd}}
@@ -24,13 +24,13 @@
 {{template "machines" $}}
 </section>
 
-{{if .CanAdmin}}
+{{if .CanAdd}}
 <section class="card" aria-labelledby="add" id="add">
-  <div class="ch"><div><h2 id="add-h">Add a machine</h2><p class="desc">Creates a one-time join command to run on it.</p></div></div>
+  <div class="ch"><div><h2 id="add-h">Add a machine</h2><p class="desc">Creates a one-time join command to run on it. The machine will be yours: only you (and the owner) can run agents on it.</p></div></div>
   <div class="cc">
   <form method="post" action="/devices" class="stack">
     <input type="hidden" name="csrf" value="{{$.CSRF}}">
-    <label>Name for the device <input name="name" required maxlength="64" placeholder="laptop" pattern="[A-Za-z0-9][A-Za-z0-9_.\-]*"></label>
+    <label>Name for the machine <input name="name" required maxlength="64" placeholder="laptop" pattern="[A-Za-z0-9][A-Za-z0-9_.\-]*"></label>
     <label>Your password, to confirm <input type="password" name="current_password" autocomplete="current-password" required></label>
     <div class="acts"><button type="submit">Create join command</button></div>
   </form>
@@ -46,14 +46,17 @@
   <div class="cc flush"><div class="rows">
   {{range .Devices}}
   <div class="row line"{{if .Pending}} data-pending="{{.Name}}"{{end}} data-name="{{.Name}}"{{if .Ready}} data-ready="1"{{end}}{{if .Settling}} data-settling="1"{{end}}>
-    <span><strong>{{.Name}}</strong> <span class="desc">{{.Agents}} agent{{if ne .Agents 1}}s{{end}}</span></span>
+    <span><strong>{{.Name}}</strong> <span class="desc">{{.Agents}} agent{{if ne .Agents 1}}s{{end}}</span>{{if $.Extra.ShowOwner}} <span class="desc">belongs to {{if .Shared}}no one (shared by the owner){{else}}{{.Owner}}{{end}}</span>{{end}}</span>
     <span class="end"><span class="badge{{if .Ready}} success{{end}}">{{.Status}}</span>{{if .Seen}}<span class="desc">{{.Seen}}</span>{{end}}
-    {{if and $.Extra.CanAdmin (not .Revoked)}}
+    {{if .Assign}}{{if $.Extra.People}}
+    <form method="post" action="/devices/{{.Name}}/assign" class="inline"><input type="hidden" name="csrf" value="{{$.CSRF}}"><select aria-label="Hand {{.Name}} to" name="to">{{range $.Extra.People}}<option>{{.}}</option>{{end}}</select> <button type="submit" class="link">Hand over</button></form>
+    {{end}}{{end}}
+    {{if .CanRevoke}}
     <form method="post" action="/devices/{{.Name}}/revoke" class="inline"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button type="submit" class="link">Revoke</button></form>
     {{end}}</span>
   </div>
   {{else}}
-  <div class="empty">No machines yet.</div>
+  <div class="empty">{{if $.Extra.CanAdd}}No machines of yours yet. Add one below.{{else}}No machines to show.{{end}}</div>
   {{end}}
   </div></div>
 {{end}}{{end}}

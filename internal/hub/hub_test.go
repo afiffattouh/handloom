@@ -82,6 +82,11 @@ func newEnv(t *testing.T) *env {
 	var tok api.TokenResp
 	e.ok(caller{e.admin, ""}, "POST", "/v1/admin/humans", api.NameReq{Name: "afif"}, &tok)
 	e.human = tok.Token
+	// d1 and d2 were added with the admin token, so they are shared by the owner (D108). afif is a member:
+	// give the cast's machines to afif, so the old tests keep exercising the path of a person with machines.
+	if _, err := db.Exec(`UPDATE device SET owner_id = (SELECT id FROM human WHERE name = 'afif')`); err != nil {
+		t.Fatal(err)
+	}
 	return e
 }
 
@@ -439,6 +444,7 @@ func TestScopeTableMatchesDesign(t *testing.T) {
 		ActPublish:          "no no no yes", // added with publishing (D103): only a person pushes a job's work to the shared remote
 		ActProjectManage:    "no no no yes", // added with projects (D104): only a person attaches, creates or clones a shared repository; creating one is outward-facing
 		ActProjectMerge:     "no no no yes", // added with hosted projects (D106): only a person puts a published job into the main branch of the code the hub holds; an agent never merges its own work
+		ActDeviceAdd:        "no no no yes", // added with machines that belong to people (D108): an owner or a member adds a machine and owns it; a viewer, an agent or an AI app never does (the admin token adds machines in its own way, shared by the owner)
 	}
 	if len(scopeTable) != len(want) {
 		t.Fatalf("scope table has %d actions, want %d", len(scopeTable), len(want))
@@ -481,7 +487,9 @@ func TestAdminTokenIsForAdministrationOnly(t *testing.T) {
 	e.ok(admin, "GET", "/v1/tasks", nil, nil)
 	// And admin endpoints reject everyone else.
 	for _, c := range []caller{e.lead(), e.worker(), e.afif()} {
-		e.fail(403, c, "POST", "/v1/admin/devices", api.NameReq{Name: "x"})
+		if c != e.afif() { // a member adds machines of their own (D108); agents do not
+			e.fail(403, c, "POST", "/v1/admin/devices", api.NameReq{Name: "x"})
+		}
 		e.fail(403, c, "POST", "/v1/admin/humans", api.NameReq{Name: "x"})
 	}
 	// The audit log is for humans and the admin.

@@ -278,6 +278,20 @@ func TestNewJobFormSendsWhatWasTypedAfterConfirm(t *testing.T) {
 	mustContain(t, m.View(), "Started job #9.")
 }
 
+// D108: the form offers the machines the hub lists for this person, not every machine an agent was seen on.
+func TestNewJobFormOffersOnlyTheMachinesTheHubListsForThePerson(t *testing.T) {
+	f := seeded()
+	f.devices = []api.Device{{Name: "mine", Joined: true}, {Name: "old", Joined: true, RevokedAt: &time.Time{}}}
+	m := start(t, f, 120, 40)
+	press(m, "3", "n")
+	if got := strings.Join(m.form.devices, ","); got != ",mine" {
+		t.Fatalf("machines offered: %q (the agents on %q must not be offered)", got, "box")
+	}
+	typeText(m, "Fix billing")
+	press(m, "ctrl+s")
+	mustContain(t, m.View(), "Machine: mine")
+}
+
 func TestNewJobFormNeedsATitleAndShowsTheHubsWords(t *testing.T) {
 	f := seeded()
 	f.newJobErr = hubError(400, "a verify command needs a repository: it runs in the agent's worktree")

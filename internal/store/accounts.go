@@ -213,7 +213,7 @@ func DeleteInvite(q Querier, tokenHash string) error {
 	return err
 }
 
-// DevicesWithAgents lists devices for the devices page.
+// DeviceInfo is one machine as the Machines page shows it.
 type DeviceInfo struct {
 	Name      string
 	Joined    bool
@@ -221,12 +221,35 @@ type DeviceInfo struct {
 	Revoked   sql.NullInt64
 	JoinUntil sql.NullInt64
 	Agents    int
+	OwnerID   sql.NullInt64
+	Owner     string // the person's name; empty when the machine is shared by the owner
 }
 
-func ListDevices(q Querier) ([]DeviceInfo, error) {
+// DeviceScope says which machines a caller may see: all of them (the owner and the admin token),
+// or those one person owns. A zero scope matches nothing (a viewer).
+type DeviceScope struct {
+	All   bool
+	Owner int64
+}
+
+// Clause is an SQL condition on the device table's alias for this scope, with its arguments.
+func (s DeviceScope) Clause(alias string) (string, []any) {
+	switch {
+	case s.All:
+		return "1 = 1", nil
+	case s.Owner > 0:
+		return alias + ".owner_id = ?", []any{s.Owner}
+	}
+	return "0 = 1", nil
+}
+
+// ListDevices lists the machines in scope for the devices page.
+func ListDevices(q Querier, sc DeviceScope) ([]DeviceInfo, error) {
+	where, args := sc.Clause("d")
 	rows, err := q.Query(`SELECT d.name, d.credential_hash IS NOT NULL, d.last_seen_at, d.revoked_at,
-		CASE WHEN d.join_hash IS NOT NULL THEN d.join_expires_at END, (SELECT count(*) FROM agent a WHERE a.device_id = d.id)
-		FROM device d ORDER BY d.name`)
+		CASE WHEN d.join_hash IS NOT NULL THEN d.join_expires_at END, (SELECT count(*) FROM agent a WHERE a.device_id = d.id),
+		d.owner_id, COALESCE(h.name, '')
+		FROM device d LEFT JOIN human h ON h.id = d.owner_id WHERE `+where+` ORDER BY d.name`, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -234,7 +257,7 @@ func ListDevices(q Querier) ([]DeviceInfo, error) {
 	var out []DeviceInfo
 	for rows.Next() {
 		var d DeviceInfo
-		if err := rows.Scan(&d.Name, &d.Joined, &d.LastSeen, &d.Revoked, &d.JoinUntil, &d.Agents); err != nil {
+		if err := rows.Scan(&d.Name, &d.Joined, &d.LastSeen, &d.Revoked, &d.JoinUntil, &d.Agents, &d.OwnerID, &d.Owner); err != nil {
 			return nil, err
 		}
 		out = append(out, d)

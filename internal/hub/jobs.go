@@ -170,6 +170,9 @@ func (c *call) createJob(req api.JobNewReq) (any, error) {
 		if lead == nil || lead.projectID != projectID {
 			return nil, notFound("no agent %q in this project", req.Lead)
 		}
+		if err := c.useDevice(lead.deviceID); err != nil { // the lead sits on a machine
+			return nil, err
+		}
 	}
 	ms := store.Millis(c.now)
 	res, err := c.tx.Exec(`INSERT INTO task(project_id, title, body, status, kind, depends_on, created_by, created_at, updated_at, confidential, repo, verify, device_id, knowledge, base, codebase_id)
@@ -358,6 +361,16 @@ func agentJob(c *call) (any, error) {
 			return nil, conflict("job %d is %s", j.id, j.status)
 		}
 		job = sql.NullInt64{Int64: req.Job, Valid: true}
+		if j.deviceID.Valid {
+			if err := c.useDevice(j.deviceID.Int64); err != nil {
+				return nil, err
+			}
+		}
+	}
+	if job.Valid || a.jobID.Valid {
+		if err := c.useDevice(a.deviceID); err != nil { // the agent sits on a machine
+			return nil, err
+		}
 	}
 	if err := c.putInJob(a, job, a.role); err != nil {
 		return nil, err

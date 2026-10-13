@@ -4,28 +4,28 @@
 class Handloom < Formula
   desc "Run a team of coding agents on your own machines"
   homepage "https://github.com/afiffattouh/handloom"
-  version "0.1.10"
+  version "0.1.11"
   license "Apache-2.0"
 
   on_macos do
     on_arm do
-      url "https://github.com/afiffattouh/handloom/releases/download/v0.1.10/handloom_v0.1.10_darwin_arm64.tar.gz"
-      sha256 "14d66553787cd56d09919d0b571df24c72bfdfc5d5be97a541849570f357e59a"
+      url "https://github.com/afiffattouh/handloom/releases/download/v0.1.11/handloom_v0.1.11_darwin_arm64.tar.gz"
+      sha256 "32f2fa589c71a7cf445c2565a77d141df1f103632c7000278d76fd3450fe7da7"
     end
     on_intel do
-      url "https://github.com/afiffattouh/handloom/releases/download/v0.1.10/handloom_v0.1.10_darwin_amd64.tar.gz"
-      sha256 "85886eb4ca5dee467a5406f6b87602bc33c161247f6b318343b3e3909f03a4da"
+      url "https://github.com/afiffattouh/handloom/releases/download/v0.1.11/handloom_v0.1.11_darwin_amd64.tar.gz"
+      sha256 "1f1be132ce7117b0354fa377949b13ef242b744636b98b197e4269f1c868ad9d"
     end
   end
 
   on_linux do
     on_arm do
-      url "https://github.com/afiffattouh/handloom/releases/download/v0.1.10/handloom_v0.1.10_linux_arm64.tar.gz"
-      sha256 "876ef9d68956793021dfb27c3a560df9181af0c4f178377a760eea604e05c8c7"
+      url "https://github.com/afiffattouh/handloom/releases/download/v0.1.11/handloom_v0.1.11_linux_arm64.tar.gz"
+      sha256 "bf3add3989f04fb31678d23cb23a3a202d89f161fe3f7c00cc443f8b08e3484a"
     end
     on_intel do
-      url "https://github.com/afiffattouh/handloom/releases/download/v0.1.10/handloom_v0.1.10_linux_amd64.tar.gz"
-      sha256 "046476c939e578d8e7ce95f428871b1ccda4cbefe17be35a8f437b63378f721b"
+      url "https://github.com/afiffattouh/handloom/releases/download/v0.1.11/handloom_v0.1.11_linux_amd64.tar.gz"
+      sha256 "4a4a700cbea8e13ade984d983af9460477933e21ec259cf498b3d14bf72a953a"
     end
   end
 

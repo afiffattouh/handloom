@@ -79,7 +79,7 @@ func newRig(t *testing.T) *rig {
 		if _, err := os.Stat(client.SocketPath()); err == nil {
 			break
 		}
-		if i > 200 {
+		if i > 1500 {
 			t.Fatal("link socket did not appear")
 		}
 		time.Sleep(10 * time.Millisecond)

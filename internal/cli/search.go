@@ -68,7 +68,7 @@ func (e *env) search(args []string) error {
 		}
 	}
 	if wantJobs {
-		c, err := conn()
+		c, err := e.conn()
 		if err != nil {
 			if *onlyJobs {
 				return err

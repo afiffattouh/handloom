@@ -18,7 +18,7 @@ OLDBIN="$OUT/old/handloom"; NEWBIN="$OUT/new/handloom"; (cd "$ROOT" && "$GO" bui
 echo "   old: $($OLDBIN version)"; echo "   new: $($NEWBIN version)"
 export HANDLOOM_HOME="$OUT/home"
 HUB=""; LINK=""
-start_hub() { HANDLOOM_ADDR="127.0.0.1:$PORT" $CLEAN "$1" hub serve --auto-init --data "$OUT/data" >> "$OUT/hub.log" 2>&1 & HUB=$!; for i in $(seq 1 40); do curl -sf "$H/healthz" >/dev/null 2>&1 && return 0; sleep 0.25; done; return 1; }
+start_hub() { HANDLOOM_BASE_URL="$H" HANDLOOM_ADDR="127.0.0.1:$PORT" $CLEAN "$1" hub serve --auto-init --data "$OUT/data" >> "$OUT/hub.log" 2>&1 & HUB=$!; for i in $(seq 1 40); do curl -sf "$H/healthz" >/dev/null 2>&1 && return 0; sleep 0.25; done; return 1; }
 stop_pid() { [ -n "${1:-}" ] && kill "$1" 2>/dev/null && wait "$1" 2>/dev/null; true; }
 start_link() { $CLEAN "$1" link run --tmux-socket "$SOCK" --tick 2s --live-every 3s >> "$OUT/link.log" 2>&1 & LINK=$!; for i in $(seq 1 40); do $CLEAN "$1" link status >/dev/null 2>&1 && return 0; sleep 0.25; done; return 1; }
 cleanup() { stop_pid "$HUB"; stop_pid "$LINK"; tmux -L $SOCK kill-server 2>/dev/null; true; }; trap cleanup EXIT
@@ -28,6 +28,8 @@ ADMIN="$(grep -o 'hva_[A-Za-z0-9_-]*' "$OUT/hub.log" | head -1)"
 admin() { HANDLOOM_HUB="$H" HANDLOOM_TOKEN="$ADMIN" $CLEAN "$1" "${@:2}"; }
 JT="$(admin "$OLDBIN" device add up-dev --json | python3 -c 'import json,sys;print(json.load(sys.stdin)["token"])')"
 HT="$(admin "$OLDBIN" human add tester --json | python3 -c 'import json,sys;print(json.load(sys.stdin)["token"])')"
+# A release from D108 on needs the member to own the machine before a job can start on it; older ones do not.
+HAS108=0; admin "$OLDBIN" device assign up-dev --to tester >/dev/null 2>&1 && HAS108=1
 human() { HANDLOOM_HUB="$H" HANDLOOM_TOKEN="$HT" $CLEAN "$1" "${@:2}"; }
 agent() { local b="$1" a="$2"; shift 2; $CLEAN env HANDLOOM_AGENT="$a" "$b" "$@"; }
 $CLEAN "$OLDBIN" link join "$H" "$JT" >/dev/null; start_link "$OLDBIN" || { echo "old link did not start"; exit 1; }
@@ -46,6 +48,10 @@ human "$OLDBIN" digest | sed 's/^/    /'
 say "the hub is replaced by the NEW build on the same data; the link is still the old one"
 stop_pid "$HUB"; start_hub "$NEWBIN" && ok "the new hub started on the old data" || bad "the new hub did not start"
 sleep 4
+say "the remote connector (D109): its tables came with the upgrade, on the old data"
+curl -s "$H/.well-known/oauth-authorization-server" | python3 -c "import json,sys; d=json.load(sys.stdin); sys.exit(0 if d['issuer']=='$H' and d['token_endpoint']=='$H/oauth/token' else 1)" && ok "the upgraded hub serves its authorization server metadata" || bad "no authorization server metadata after the upgrade"
+curl -s -X POST -H 'Content-Type: application/json' -d '{"redirect_uris":["https://claude.ai/api/mcp/auth_callback"],"client_name":"upgrade check"}' "$H/oauth/register" | grep -q '"client_id":"hvc_' && ok "an app can register (the new tables are in the upgraded database)" || bad "registration failed on the upgraded database"
+[ "$(curl -s -o /dev/null -w '%{http_code}' -X POST -d '{}' "$H/mcp")" = 401 ] && ok "/mcp answers 401 without a token" || bad "/mcp on the upgraded hub"
 [ "$(human "$NEWBIN" task show 2 --json | python3 -c 'import json,sys;print(json.load(sys.stdin)["status"])')" = claimed ] && ok "the claimed task is still claimed" || bad "the claimed task changed"
 [ "$(human "$NEWBIN" task show 3 --json | python3 -c 'import json,sys;print(json.load(sys.stdin)["status"])')" = submitted ] && ok "the submitted task is still submitted" || bad "the submitted task changed"
 human "$NEWBIN" escalations --json | grep -q "Which store" && ok "the question is still open" || bad "the question was lost"
@@ -59,6 +65,7 @@ stop_pid "$LINK"; start_link "$NEWBIN" && ok "the new link started with the old 
 human "$NEWBIN" task accept 2 >/dev/null 2>&1 && ok "accepting the work finished across the upgrade works" || bad "accept failed"
 agent "$NEWBIN" lead task list --json >/dev/null 2>&1 && ok "the agent verbs work through the new link" || bad "the agent verbs failed"
 say "machines belong to people (D108): the old machine has no owner, so only an owner uses it; a member gets it when the owner hands it over"
+if [ "$HAS108" = 0 ]; then
 human "$NEWBIN" spawn nope --device up-dev --wait 0 > "$OUT/nope.txt" 2>&1 && bad "a member used a machine that existed before the upgrade" || { grep -q "shared by the owner" "$OUT/nope.txt" && ok "a member is refused in words: $(head -c 120 "$OUT/nope.txt")" || bad "refused, not in words: $(cat "$OUT/nope.txt")"; }
 $CLEAN "$NEWBIN" hub create-owner olive --data "$OUT/data" > "$OUT/owner.txt" 2>&1 || bad "create-owner: $(cat "$OUT/owner.txt")"
 OT="$($CLEAN "$NEWBIN" hub reset-human-token olive --data "$OUT/data" 2>/dev/null | tail -1)"
@@ -67,6 +74,7 @@ owner "$NEWBIN" device list | grep -q "up-dev.*shared by the owner" && ok "the o
 human "$NEWBIN" device list | grep -q "up-dev" && bad "the member sees the owner's old machine" || ok "the member does not see it"
 owner "$NEWBIN" spawn owner-ok --device up-dev --wait 0 > "$OUT/owner-spawn.txt" 2>&1 && ok "the owner starts an agent on the old machine" || bad "owner spawn: $(cat "$OUT/owner-spawn.txt")"
 admin "$NEWBIN" device assign up-dev --to tester >/dev/null && ok "the owner (admin token) handed the machine to the member" || bad "assign failed"
+else echo "   (the old release already has machine ownership: the old-machine checks do not apply)"; fi
 say "a project the hub holds can be made right after the upgrade (D106), and a machine can use it with plain git"
 human "$NEWBIN" project new up-demo --device up-dev > "$OUT/hosted.txt" 2>&1 && ok "project new up-demo (hosted) worked on the upgraded hub" || bad "hosted project after the upgrade: $(cat "$OUT/hosted.txt")"
 UPC="$HANDLOOM_HOME/projects/up-demo"

@@ -425,6 +425,39 @@ ALTER TABLE publish ADD COLUMN merged_commit TEXT NOT NULL DEFAULT '';
 `, `
 -- D108: machines belong to people. owner_id is the person who added the machine; NULL means it was made by the admin token or before this change ("shared by the owner": only owners use it). Nothing is backfilled.
 ALTER TABLE device ADD COLUMN owner_id INTEGER;
+`, `
+-- D109: the remote connector. An AI app (Claude on the web or on a desktop) registers itself as a client, a person allows it once (a grant), and the grant holds short-lived codes and tokens. Only hashes are stored. Revoking a grant ends every token it ever issued.
+CREATE TABLE oauth_client (
+  id            INTEGER PRIMARY KEY,
+  client_id     TEXT NOT NULL UNIQUE,
+  name          TEXT NOT NULL,
+  redirect_uris TEXT NOT NULL,          -- a JSON list
+  created_at    INTEGER NOT NULL,
+  last_used_at  INTEGER
+);
+CREATE TABLE oauth_grant (
+  id           INTEGER PRIMARY KEY,
+  human_id     INTEGER NOT NULL REFERENCES human(id) ON DELETE CASCADE,
+  client_id    INTEGER NOT NULL REFERENCES oauth_client(id) ON DELETE CASCADE,
+  created_at   INTEGER NOT NULL,        -- when the person pressed Allow
+  activated_at INTEGER,                 -- when the app first traded its code for tokens: until then it is not "connected"
+  last_used_at INTEGER,
+  revoked_at   INTEGER
+);
+CREATE INDEX oauth_grant_human ON oauth_grant(human_id);
+CREATE TABLE oauth_token (
+  id             INTEGER PRIMARY KEY,
+  grant_id       INTEGER NOT NULL REFERENCES oauth_grant(id) ON DELETE CASCADE,
+  kind           TEXT NOT NULL CHECK (kind IN ('code', 'access', 'refresh')),
+  hash           TEXT NOT NULL UNIQUE,
+  created_at     INTEGER NOT NULL,
+  expires_at     INTEGER NOT NULL,
+  used_at        INTEGER,               -- a code or refresh token is used once; presenting it again revokes the grant
+  code_challenge TEXT NOT NULL DEFAULT '',
+  redirect_uri   TEXT NOT NULL DEFAULT '',
+  resource       TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX oauth_token_grant ON oauth_token(grant_id);
 `}
 
 // Open opens (and migrates) the database at path. Use ":memory:" in tests.
@@ -491,6 +524,12 @@ const (
 	PrefixHuman    = "hvh_"
 	PrefixOperator = "hvo_" // a person's AI app: reads and starts work, cannot approve
 	PrefixRun      = "hvr_" // an agent's run token
+
+	// The remote connector (D109). The access token is what /mcp and the API see; the others only the OAuth endpoints.
+	PrefixConnector = "hvt_" // access token of a connected app: acts as the person, with exactly the AI app's calls
+	PrefixRefresh   = "hvf_" // refresh token: trades for a new pair, once
+	PrefixCode      = "hvk_" // authorization code: trades for tokens, once
+	PrefixClient    = "hvc_" // client id of a registered app
 )
 
 // NewToken returns a random token with the given prefix (256 bits of entropy).

@@ -25,7 +25,7 @@ func (e *env) device(args []string) error {
 	if err != nil {
 		return err
 	}
-	c, err := conn()
+	c, err := e.conn()
 	if err != nil {
 		return err
 	}
@@ -92,7 +92,7 @@ func (e *env) human(args []string) error {
 	if err != nil || pos[0] != "add" {
 		return usageErr("usage: handloom human add <name>")
 	}
-	c, err := conn()
+	c, err := e.conn()
 	if err != nil {
 		return err
 	}
@@ -116,7 +116,7 @@ func (e *env) agent(args []string) error {
 	if len(pos) != 3 || (pos[0] != "role" && pos[0] != "job") {
 		return usage
 	}
-	c, err := conn()
+	c, err := e.conn()
 	if err != nil {
 		return err
 	}
@@ -152,7 +152,7 @@ func (e *env) audit(args []string) error {
 	if _, err := fs.need(args, 0, 0, "audit [--after SEQ]"); err != nil {
 		return err
 	}
-	c, err := conn()
+	c, err := e.conn()
 	if err != nil {
 		return err
 	}
@@ -194,7 +194,7 @@ func (e *env) register(args []string) error {
 	if err != nil {
 		return err
 	}
-	c, err := conn()
+	c, err := e.conn()
 	if err != nil {
 		return err
 	}
@@ -226,7 +226,7 @@ func (e *env) whoami(args []string) error {
 	if _, err := fs.need(args, 0, 0, "whoami"); err != nil {
 		return err
 	}
-	c, err := conn()
+	c, err := e.conn()
 	if err != nil {
 		return err
 	}
@@ -258,7 +258,7 @@ func (e *env) agents(args []string) error {
 		return err
 	}
 	if len(pos) == 2 && pos[0] == "remove" {
-		c, err := conn()
+		c, err := e.conn()
 		if err != nil {
 			return err
 		}
@@ -271,7 +271,7 @@ func (e *env) agents(args []string) error {
 	if len(pos) != 0 {
 		return usageErr("usage: handloom agents | agents remove <name>")
 	}
-	c, err := conn()
+	c, err := e.conn()
 	if err != nil {
 		return err
 	}
@@ -293,7 +293,7 @@ func (e *env) state(args []string) error {
 	if err != nil {
 		return err
 	}
-	c, err := conn()
+	c, err := e.conn()
 	if err != nil {
 		return err
 	}
@@ -311,7 +311,7 @@ func (e *env) send(args []string) error {
 	if err != nil {
 		return err
 	}
-	c, err := conn()
+	c, err := e.conn()
 	if err != nil {
 		return err
 	}
@@ -333,7 +333,7 @@ func (e *env) inbox(args []string) error {
 	if _, err := fs.need(args, 0, 0, "inbox [--all]"); err != nil {
 		return err
 	}
-	c, err := conn()
+	c, err := e.conn()
 	if err != nil {
 		return err
 	}
@@ -393,7 +393,7 @@ func (e *env) task(args []string) error {
 	if err != nil {
 		return err
 	}
-	c, err := conn()
+	c, err := e.conn()
 	if err != nil {
 		return err
 	}
@@ -615,7 +615,7 @@ func (e *env) job(args []string) error {
 	if err != nil {
 		return err
 	}
-	c, err := conn()
+	c, err := e.conn()
 	if err != nil {
 		return err
 	}

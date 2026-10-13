@@ -2,7 +2,9 @@ package hub
 
 import (
 	"net/http"
+	"strconv"
 
+	"handloom/internal/mcp"
 	"handloom/internal/store"
 )
 
@@ -15,6 +17,16 @@ type connectView struct {
 	HasToken  bool
 	NewToken  string // shown once, right after it is made
 	CanCreate bool
+	Connector string // the address to paste into an AI app, or "" when the connector is off (no HANDLOOM_BASE_URL)
+	Apps      []connectedApp
+}
+
+// connectedApp is one AI app the person allowed through the connector.
+type connectedApp struct {
+	ID        int64
+	Name      string
+	Connected string
+	LastUsed  string
 }
 
 func (q *webReq) connectPage(status int, errMsg, notice, token string) error {
@@ -25,8 +37,22 @@ func (q *webReq) connectPage(status int, errMsg, notice, token string) error {
 	if err != nil {
 		return err
 	}
-	q.page(status, "connect", pageData{Title: "Connect an AI app", Error: errMsg, Notice: notice,
-		Extra: &connectView{Base: q.c.h.publicBase(q.r), HasToken: has || token != "", NewToken: token}})
+	v := &connectView{Base: q.c.h.publicBase(q.r), HasToken: has || token != "", NewToken: token}
+	if base := q.c.h.connectorBase(); base != "" {
+		v.Connector = base + mcp.HTTPPath
+	}
+	grants, err := store.ConnectedApps(q.c.tx, q.human.ID)
+	if err != nil {
+		return err
+	}
+	for _, g := range grants {
+		app := connectedApp{ID: g.ID, Name: g.ClientName, Connected: store.Time(g.ActivatedAt.Int64).Format("2 Jan 2006 15:04 UTC"), LastUsed: "not yet"}
+		if g.LastUsedAt.Valid && g.LastUsedAt.Int64 > g.ActivatedAt.Int64 {
+			app.LastUsed = store.Time(g.LastUsedAt.Int64).Format("2 Jan 2006 15:04 UTC")
+		}
+		v.Apps = append(v.Apps, app)
+	}
+	q.page(status, "connect", pageData{Title: "Connect an AI app", Error: errMsg, Notice: notice, Extra: v})
 	return nil
 }
 
@@ -69,4 +95,28 @@ func (q *webReq) connectError(err error) error {
 		status, msg = ae.status, ae.msg
 	}
 	return q.connectPage(status, msg, "", "")
+}
+
+// webAppDisconnect ends a connected app's grant: every access and refresh token it ever got stops working
+// at once. It needs the session and the page's security token, not the password: it only takes access away.
+func (h *Hub) webAppDisconnect(q *webReq) error {
+	id, err := strconv.ParseInt(q.r.PathValue("id"), 10, 64)
+	if err != nil {
+		return q.connectError(&apiError{404, "not_found", "That app is not connected."})
+	}
+	g, err := store.GrantByID(q.c.tx, id)
+	if err != nil {
+		return err
+	}
+	if g == nil || g.HumanID != q.human.ID || g.RevokedAt.Valid {
+		return q.connectError(&apiError{404, "not_found", "That app is not connected."})
+	}
+	if _, err := store.RevokeGrant(q.c.tx, g.ID, store.Millis(q.now)); err != nil {
+		return err
+	}
+	if err := q.c.audit("app.revoke", "human:"+q.human.Name, map[string]any{"app": g.ClientName, "reason": "disconnected by the person"}); err != nil {
+		return err
+	}
+	http.Redirect(q.w, q.r, "/connect", http.StatusSeeOther)
+	return nil
 }

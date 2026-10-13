@@ -430,7 +430,8 @@ func TestScopeTable(t *testing.T) {
 }
 
 // TestScopeTableMatchesDesign pins the table itself, so a change to it
-// cannot pass unnoticed.
+// cannot pass unnoticed. The remote connector (D109) adds no row: a connected app acts as a person through
+// the same allowlist as the D80 token (pinned in connector_test.go), so nothing here changes with it.
 func TestScopeTableMatchesDesign(t *testing.T) {
 	want := map[Action]string{ // subjects in the order lead, worker, observer, human
 		ActRead:             "yes yes yes yes",

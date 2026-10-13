@@ -22,7 +22,7 @@ func (e *env) prices(args []string) error {
 	if err != nil {
 		return err
 	}
-	c, err := conn()
+	c, err := e.conn()
 	if err != nil {
 		return err
 	}
@@ -65,7 +65,7 @@ func (e *env) people(args []string) error {
 	if err != nil {
 		return err
 	}
-	c, err := conn()
+	c, err := e.conn()
 	if err != nil {
 		return err
 	}
@@ -123,7 +123,7 @@ func (e *env) notifications(args []string) error {
 	if err != nil {
 		return err
 	}
-	c, err := conn()
+	c, err := e.conn()
 	if err != nil {
 		return err
 	}
@@ -169,7 +169,7 @@ func (e *env) token(args []string) error {
 		return err
 	}
 	if len(pos) == 1 && pos[0] == "remove-app" {
-		c, err := conn()
+		c, err := e.conn()
 		if err != nil {
 			return err
 		}
@@ -182,7 +182,7 @@ func (e *env) token(args []string) error {
 	if len(pos) != 1 || pos[0] != "new" {
 		return usageErr("usage: handloom token new [--app] | token remove-app   (a new personal API token, which replaces the one you use; or with --app a token for your AI app that cannot approve)")
 	}
-	c, err := conn()
+	c, err := e.conn()
 	if err != nil {
 		return err
 	}
@@ -214,7 +214,7 @@ func (e *env) screen(args []string) error {
 	if err != nil {
 		return err
 	}
-	c, err := conn()
+	c, err := e.conn()
 	if err != nil {
 		return err
 	}
@@ -245,7 +245,7 @@ func (e *env) metrics(args []string) error {
 	if _, err := fs.need(args, 0, 0, "metrics [--range 24h|7d|30d]"); err != nil {
 		return err
 	}
-	c, err := conn()
+	c, err := e.conn()
 	if err != nil {
 		return err
 	}

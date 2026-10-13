@@ -61,11 +61,18 @@ The admin token printed on first start stays in the container log, which anyone 
 | Variable | Meaning |
 |---|---|
 | `HANDLOOM_BASE_URL` | public URL; links in notifications point here, and so does the address of a project the hub holds (set it to the address your machines joined with) |
+| `HANDLOOM_OAUTH_REDIRECTS` | optional, comma-separated: extra https addresses an AI app may be sent back to after the person allows it, for the remote connector (Claude's own and the loopback addresses of Claude Code are built in) |
 | `HANDLOOM_NTFY_URL`, `HANDLOOM_NTFY_TOPIC`, `HANDLOOM_NTFY_TOKEN` | phone push through ntfy (the push has a generic line and a link, never the question) |
 | `HANDLOOM_WEBHOOK_URL` | the same notification as JSON |
 | `HANDLOOM_INSECURE` | `1` allows the web UI over plain http on a private network |
 | `HANDLOOM_TRUST_PROXY` | `1` when a proxy in front of the hub sets `X-Forwarded-For` (its last entry is used for login rate limits); leave unset otherwise |
 | `HANDLOOM_DATA`, `HANDLOOM_ADDR` | set by the image (`/data`, `0.0.0.0:7420`) |
+
+## The remote connector (nothing to install in Claude)
+
+People add the hub to Claude as a custom connector with the address `<HANDLOOM_BASE_URL>/mcp` and sign in (see [docs/mcp.md](mcp.md)). It needs `HANDLOOM_BASE_URL` to be the public https address, and for Claude on the web the hub must be reachable from the internet, because the connection is made from Anthropic's servers.
+
+A reverse proxy needs nothing special for it: the connector answers every request with one plain JSON body and holds nothing open, so no buffering or timeout settings matter beyond your proxy's usual limit of a minute or so (a tool call that starts a job answers in well under that). Pass these paths through: `/mcp`, `/oauth/authorize`, `/oauth/token`, `/oauth/register` and `/.well-known/oauth-protected-resource`, `/.well-known/oauth-authorization-server`, `/.well-known/openid-configuration`. Do not put another sign-in (basic auth, an SSO gateway) in front of those paths: Claude cannot get through it. `docker-compose.caddy.yml` proxies everything and works as it is.
 
 ## Backup and restore
 

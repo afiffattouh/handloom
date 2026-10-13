@@ -50,6 +50,8 @@ type Options struct {
 	JoinTTL           time.Duration    // how long a device join token works; default 15 minutes
 	InviteTTL         time.Duration    // how long a member invite link works; default 7 days
 	NtfyToken         string           // access token for the ntfy topic set in Settings (never stored in the database)
+	OAuthRedirects    []string         // extra https addresses an AI app may be sent back to after the person allows it (D109); the built-in ones are Claude's and the loopback addresses of Claude Code
+	OperatorRun       OperatorRun      // runs one tool of the remote connector as the connected person; the command line provides it (D109)
 	Now               func() time.Time // clock, replaceable in tests
 	Log               *log.Logger
 }
@@ -65,6 +67,9 @@ type Hub struct {
 	tails  tailStore       // screens wanted from and read off agents' terminals; memory only
 	gitMu  sync.Mutex      // one merge into a hosted repository at a time (D106)
 	dyn    notify.Notifier // ntfy from Settings, plus the configured notifier; nil when Settings has none
+
+	handlerOnce sync.Once
+	handler     http.Handler
 }
 
 func New(db *sql.DB, opt Options) *Hub {
@@ -198,7 +203,13 @@ func (c *call) tell(n notify.Notification) {
 	})
 }
 
+// Handler is the hub's HTTP handler. It is built once: the connector runs its tools through it.
 func (h *Hub) Handler() http.Handler {
+	h.handlerOnce.Do(func() { h.handler = h.buildHandler() })
+	return h.handler
+}
+
+func (h *Hub) buildHandler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 200, map[string]any{"ok": true, "protocol": api.Version})
@@ -215,6 +226,7 @@ func (h *Hub) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/events", h.handleEvents)
 
 	h.webRoutes(mux)
+	h.connectorRoutes(mux)
 
 	v1("GET /whoami", whoami)
 	// Machines belong to people (D108). The /admin paths are the older spelling of the same calls.
@@ -526,6 +538,21 @@ func authenticate(tx *sql.Tx, r *http.Request, now time.Time) (*principal, error
 			return nil, unauthorized("invalid token")
 		}
 		return p, nil
+	case strings.HasPrefix(tok, store.PrefixConnector):
+		// A connected app (D109): it acts as the person and is held to the AI app's calls like an hvo_ token.
+		info, err := store.AccessByHash(tx, hash, store.Millis(now))
+		if err != nil {
+			return nil, err
+		}
+		if info == nil || subtle.ConstantTimeCompare([]byte(hash), []byte(info.Hash)) != 1 {
+			return nil, unauthorized("invalid token")
+		}
+		if store.Millis(now)-info.LastUsed > 60_000 {
+			if err := store.TouchGrant(tx, info.GrantID, store.Millis(now)); err != nil {
+				return nil, err
+			}
+		}
+		return &principal{kind: kindHuman, name: info.Name, role: info.Role, operator: true, via: "connector"}, nil
 	case strings.HasPrefix(tok, store.PrefixDevice):
 		p := &principal{kind: kindDevice, agentName: api.AgentFrom(r.Header), runToken: r.Header.Get(api.RunTokenHeader)}
 		var revoked, seen sql.NullInt64

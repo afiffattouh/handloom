@@ -36,7 +36,7 @@ const (
 	maxForm      = 64 << 10
 )
 
-var pageNames = []string{"setup", "login", "inbox", "closed", "message", "devices", "settings", "invite", "agents", "profiles", "profile", "jobs", "jobform", "job", "command", "agent", "starters", "starter", "connect", "search", "lessons", "projects"}
+var pageNames = []string{"setup", "login", "inbox", "closed", "message", "devices", "settings", "invite", "agents", "profiles", "profile", "jobs", "jobform", "job", "command", "agent", "starters", "starter", "connect", "consent", "search", "lessons", "projects"}
 
 type pageData struct {
 	Title  string
@@ -45,6 +45,7 @@ type pageData struct {
 	Error  string
 	Notice string
 	Name   string // form value kept after an error
+	Next   string // where the sign-in page sends the person afterwards (only ever an authorize address, see safeNext)
 	Setup  bool
 	Extra  any
 	// The shell around signed-in pages.
@@ -70,10 +71,10 @@ type navCounts struct{ Needs, Jobs, Agents, Devices int }
 
 // activeMenu says which menu item a page belongs to.
 var activeMenu = map[string]string{"inbox": "inbox", "jobs": "jobs", "jobform": "jobs", "job": "jobs", "agents": "agents", "agent": "agents",
-	"profiles": "profiles", "profile": "profiles", "starters": "profiles", "starter": "profiles", "devices": "devices", "settings": "settings", "command": "command", "connect": "connect", "lessons": "profiles", "projects": "projects"}
+	"profiles": "profiles", "profile": "profiles", "starters": "profiles", "starter": "profiles", "devices": "devices", "settings": "settings", "command": "command", "connect": "connect", "consent": "connect", "lessons": "profiles", "projects": "projects"}
 
 // narrowPages are forms and reading pages.
-var narrowPages = map[string]bool{"jobform": true, "profile": true, "message": true}
+var narrowPages = map[string]bool{"jobform": true, "profile": true, "message": true, "consent": true}
 
 func (h *Hub) loadTemplates() error {
 	h.pages = map[string]*template.Template{}
@@ -203,19 +204,22 @@ func (h *Hub) render(w http.ResponseWriter, status int, page string, d pageData)
 	w.Write(buf.Bytes())
 }
 
+// webWrap puts the web security headers on a browser-facing handler and answers "web UI is off" when the hub is not set up for it.
+func (h *Hub) webWrap(fn http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		h.webHeaders(w)
+		if ok, why := h.WebEnabled(); !ok {
+			h.render(w, 503, "message", pageData{Title: "Web UI is off", Error: "The web UI is off on this hub: " + why + "."})
+			return
+		}
+		fn(w, r)
+	}
+}
+
 // webRoutes adds the browser-facing routes to mux. They are always present;
 // each one answers "web UI is off" when the hub is not configured for it.
 func (h *Hub) webRoutes(mux *http.ServeMux) {
-	web := func(fn http.HandlerFunc) http.HandlerFunc {
-		return func(w http.ResponseWriter, r *http.Request) {
-			h.webHeaders(w)
-			if ok, why := h.WebEnabled(); !ok {
-				h.render(w, 503, "message", pageData{Title: "Web UI is off", Error: "The web UI is off on this hub: " + why + "."})
-				return
-			}
-			fn(w, r)
-		}
-	}
+	web := h.webWrap
 	mux.HandleFunc("GET /{$}", web(h.webRoot))
 	mux.HandleFunc("GET /setup", web(h.webSetupGet))
 	mux.HandleFunc("POST /setup", web(h.webSetupPost))
@@ -631,7 +635,11 @@ func (h *Hub) authed(fn func(*webReq) error) http.HandlerFunc {
 
 func (h *Hub) toLogin(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet || r.Method == http.MethodHead {
-		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		to := "/login"
+		if next := safeNext(r.URL.RequestURI()); next != "" { // an app is waiting for the person's answer (D109): come back to it after signing in
+			to += "?next=" + url.QueryEscape(next)
+		}
+		http.Redirect(w, r, to, http.StatusSeeOther)
 		return
 	}
 	h.render(w, 401, "message", pageData{Title: "Signed out", Error: "Your session ended. Sign in again."})
@@ -652,7 +660,7 @@ func (h *Hub) webLoginGet(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/setup", http.StatusSeeOther)
 		return
 	}
-	h.render(w, 200, "login", pageData{Title: "Sign in"})
+	h.render(w, 200, "login", pageData{Title: "Sign in", Next: safeNext(r.URL.Query().Get("next"))})
 }
 
 const wrongLogin = "Wrong name or password."
@@ -668,14 +676,15 @@ func (h *Hub) webLoginPost(w http.ResponseWriter, r *http.Request) {
 	now := h.opt.Now()
 	name := strings.TrimSpace(r.PostForm.Get("name"))
 	pw := r.PostForm.Get("password")
+	next := safeNext(r.PostForm.Get("next"))
 	ip := h.clientIP(r)
 	// Rate limits come first, before any lookup or hashing.
 	if !h.allowRate("login:ip:"+ip, 20, 10, now) || !h.allowRate("login:name:"+strings.ToLower(name), 5, 5, now) {
-		h.render(w, 429, "login", pageData{Title: "Sign in", Error: "Too many attempts. Wait a minute and try again.", Name: name})
+		h.render(w, 429, "login", pageData{Title: "Sign in", Error: "Too many attempts. Wait a minute and try again.", Name: name, Next: next})
 		return
 	}
 	if len(pw) > maxPassword || len(name) > 64 {
-		h.render(w, 401, "login", pageData{Title: "Sign in", Error: wrongLogin, Name: name})
+		h.render(w, 401, "login", pageData{Title: "Sign in", Error: wrongLogin, Name: name, Next: next})
 		return
 	}
 	human, err := store.HumanByName(h.db, name)
@@ -691,7 +700,7 @@ func (h *Hub) webLoginPost(w http.ResponseWriter, r *http.Request) {
 	}
 	if !ok {
 		h.auditAnon("web.login.fail", "human:"+clip(name, 64), map[string]any{"ip": ip})
-		h.render(w, 401, "login", pageData{Title: "Sign in", Error: wrongLogin, Name: name})
+		h.render(w, 401, "login", pageData{Title: "Sign in", Error: wrongLogin, Name: name, Next: next})
 		return
 	}
 	tx, err := h.db.Begin()
@@ -714,7 +723,10 @@ func (h *Hub) webLoginPost(w http.ResponseWriter, r *http.Request) {
 		h.render(w, 500, "message", pageData{Title: "Error", Error: "Something went wrong."})
 		return
 	}
-	http.Redirect(w, r, "/command", http.StatusSeeOther)
+	if next == "" {
+		next = "/command"
+	}
+	http.Redirect(w, r, next, http.StatusSeeOther)
 }
 
 func (h *Hub) webLogout(q *webReq) error {

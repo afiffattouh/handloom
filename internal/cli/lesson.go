@@ -32,7 +32,7 @@ func (e *env) lesson(args []string) error {
 	if err != nil {
 		return err
 	}
-	c, err := conn()
+	c, err := e.conn()
 	if err != nil {
 		return err
 	}

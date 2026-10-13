@@ -219,7 +219,7 @@ func (e *env) hub(args []string) error {
 			return err
 		}
 		h := hub.New(db, hub.Options{Version: Version, DataDir: dir, Lease: *lease, Sweep: *sweep, Unclaimed: *unclaimed, Log: logger,
-			Notifier: notifier, BaseURL: setting.Get("BASE_URL"),
+			Notifier: notifier, BaseURL: setting.Get("BASE_URL"), OAuthRedirects: oauthRedirects(setting.Get("OAUTH_REDIRECTS")), OperatorRun: operatorRun,
 			Insecure: setting.Bool("INSECURE"), TrustProxy: setting.Bool("TRUST_PROXY"), NtfyToken: setting.Get("NTFY_TOKEN"), AllowConfidential: setting.Bool("ALLOW_CONFIDENTIAL"), AllowFileRemotes: setting.Bool("ALLOW_FILE_REMOTES"), RequireRunToken: setting.Bool("REQUIRE_RUN_TOKEN"), AgentLease: *agentLease, StuckAfter: *stuckAfter, MaxTaskTime: *maxTaskTime, MaxSpawns: *maxJobAgents})
 		if ok, why := h.WebEnabled(); !ok {
 			logger.Printf("web UI is off: %s", why)

@@ -22,7 +22,7 @@ func (e *env) ask(args []string) error {
 	if err != nil {
 		return err
 	}
-	c, err := conn()
+	c, err := e.conn()
 	if err != nil {
 		return err
 	}
@@ -65,7 +65,7 @@ func (e *env) answer(args []string) error {
 	if err != nil {
 		return usageErr("id must be an escalation number")
 	}
-	c, err := conn()
+	c, err := e.conn()
 	if err != nil {
 		return err
 	}
@@ -84,7 +84,7 @@ func (e *env) escalations(args []string) error {
 	if _, err := fs.need(args, 0, 0, "escalations [--status open|answered|all]"); err != nil {
 		return err
 	}
-	c, err := conn()
+	c, err := e.conn()
 	if err != nil {
 		return err
 	}
@@ -119,7 +119,7 @@ func (e *env) digest(args []string) error {
 	if _, err := fs.need(args, 0, 0, "digest"); err != nil {
 		return err
 	}
-	c, err := conn()
+	c, err := e.conn()
 	if err != nil {
 		return err
 	}

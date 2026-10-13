@@ -139,11 +139,23 @@ var gitCredentialIn io.Reader = os.Stdin
 type env struct {
 	out, err io.Writer
 	json     bool
+	dial     *client.Client // when set, every verb talks to the hub through it, whatever the process environment says
 }
 
 // Main runs one command and returns the exit code.
 func Main(args []string, stdout, stderr io.Writer) int {
-	e := &env{out: stdout, err: stderr}
+	return run(&env{out: stdout, err: stderr}, args)
+}
+
+// MainWith runs one command against the hub that c reaches, ignoring
+// HANDLOOM_HUB, HANDLOOM_TOKEN and the local link. The hub's connector (D109)
+// runs a tool this way, in process and as the connected person.
+func MainWith(c *client.Client, args []string, stdout, stderr io.Writer) int {
+	return run(&env{out: stdout, err: stderr, dial: c}, args)
+}
+
+func run(e *env, args []string) int {
+	stdout, stderr := e.out, e.err
 	if len(args) == 0 {
 		if wantsConsole(stdout) {
 			args = []string{"tui"}
@@ -371,7 +383,10 @@ func AgentName(dir string) string {
 
 // conn picks how to reach the hub: directly with HANDLOOM_TOKEN (admin or
 // human), or through the local link as an agent.
-func conn() (*client.Client, error) {
+func (e *env) conn() (*client.Client, error) {
+	if e.dial != nil {
+		return e.dial, nil // the hub's own connector runs a tool as the connected person (D109)
+	}
 	if tok := setting.Get("TOKEN"); tok != "" {
 		hub := setting.Get("HUB")
 		if hub == "" {

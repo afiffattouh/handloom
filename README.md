@@ -191,7 +191,7 @@ It never touches a hub's data folder or backups, your repositories, or the `.han
     </td>
     <td width="50%" valign="top">
       <b>Your own AI app (MCP)</b><br>
-      Let Claude or Codex look at your work and start jobs: the web UI's <i>Connect an AI app</i> page makes a token the hub limits to reading and starting work, and shows the settings to paste. It cannot approve anything. See <a href="docs/mcp.md">docs/mcp.md</a>.
+      Let Claude look at your work and start jobs with nothing to install: paste the hub's <code>/mcp</code> address into Claude as a custom connector and sign in. Or use the <i>Connect an AI app</i> page's token and settings for a program on your computer. Either way the hub limits the app to reading and starting work; it cannot approve anything. See <a href="docs/mcp.md">docs/mcp.md</a>.
     </td>
   </tr>
 </table>
@@ -310,7 +310,7 @@ Handloom is used for real work by its author and is pre-1.0. Honest about what i
 - **Released:** signed multi-platform binaries, deb/rpm packages, a container image and a Homebrew formula (see [Install](#install)); version 0.1.2 adds search.
 - **Proven on a clean machine:** a Linux amd64 VPS with nothing of Handloom on it: install from a release, join, run the link as a service, register an agent, then `handloom uninstall --purge` left the machine identical to before.
 - **Not proven yet:** phone push against a real ntfy topic; macOS (the launchd service, the path and socket handling and the install script are checked by unit tests only; the link has only been run on Linux so far); Windows (`install.ps1` and the Windows build have not been run on a Windows machine).
-- **Planned, tracked as [issues](https://github.com/afiffattouh/handloom/issues):** a remote MCP endpoint, container isolation, schedules and a knowledge librarian.
+- **Planned, tracked as [issues](https://github.com/afiffattouh/handloom/issues):** container isolation, schedules and a knowledge librarian.
 
 ## Documentation
 

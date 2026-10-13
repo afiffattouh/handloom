@@ -31,7 +31,7 @@ func (e *env) spawn(args []string) error {
 	if err != nil {
 		return err
 	}
-	c, err := conn()
+	c, err := e.conn()
 	if err != nil {
 		return err
 	}
@@ -67,7 +67,7 @@ func (e *env) spawns(args []string) error {
 	if _, err := fs.need(args, 0, 0, "spawns"); err != nil {
 		return err
 	}
-	c, err := conn()
+	c, err := e.conn()
 	if err != nil {
 		return err
 	}
@@ -123,7 +123,7 @@ func (e *env) spawnExec(args []string) error {
 	if err != nil {
 		return usageErr("bad spawn id %q", args[0])
 	}
-	c, err := conn()
+	c, err := e.conn()
 	if err != nil {
 		return err
 	}

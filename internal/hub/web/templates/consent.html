@@ -1,0 +1,21 @@
+{{define "content"}}
+{{with .Extra}}
+<section class="card" aria-labelledby="ask">
+  <div class="ch"><div><h1 id="ask">Connect to Handloom</h1><p class="desc"><strong>{{.Client}}</strong> wants to connect to Handloom as <strong>{{.Person}}</strong>.</p></div></div>
+  <div class="cc">
+  <p class="text">It will be able to: look at jobs, tasks, agents, the inbox and the numbers; start jobs; message agents.</p>
+  <p class="text"><strong>It will NOT be able to:</strong> accept work, answer an agent's questions, close jobs or change settings.</p>
+  <p class="text">You can disconnect it at any time on the <a href="/connect">Connect an AI app</a> page.</p>
+  <form method="post" action="/oauth/authorize" class="stack">
+    <input type="hidden" name="csrf" value="{{$.CSRF}}">
+    {{range .Fields}}<input type="hidden" name="{{.Name}}" value="{{.Value}}">
+    {{end}}<label>Your password, to confirm <input type="password" name="current_password" autocomplete="current-password"></label>
+    <div class="acts">
+      <button type="submit" name="decision" value="allow">Allow</button>
+      <button type="submit" name="decision" value="deny" class="secondary" formnovalidate>Cancel</button>
+    </div>
+  </form>
+  </div>
+</section>
+{{end}}
+{{end}}

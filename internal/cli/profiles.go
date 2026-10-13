@@ -24,7 +24,7 @@ func (e *env) profiles(args []string) error {
 	if _, err := fs.need(args, 0, 0, "profiles"); err != nil {
 		return err
 	}
-	c, err := conn()
+	c, err := e.conn()
 	if err != nil {
 		return err
 	}
@@ -97,7 +97,7 @@ func (e *env) profile(args []string) error {
 		if *careful && *can == "build" {
 			spec.Tools.DenyCommands = append([]string(nil), profile.RiskyCommands...)
 		}
-		c, err := conn()
+		c, err := e.conn()
 		if err != nil {
 			return err
 		}
@@ -116,7 +116,7 @@ func (e *env) profile(args []string) error {
 		if err := need(1, "add <starter> --kind claude|codex --runtime cloud|local [--model M] [--name N] [--adapt]"); err != nil {
 			return err
 		}
-		c, err := conn()
+		c, err := e.conn()
 		if err != nil {
 			return err
 		}
@@ -165,7 +165,7 @@ func (e *env) profile(args []string) error {
 		if err != nil {
 			return err
 		}
-		c, err := conn()
+		c, err := e.conn()
 		if err != nil {
 			return err
 		}
@@ -188,7 +188,7 @@ func (e *env) profile(args []string) error {
 		if err := need(n, sub+" <name>"+map[bool]string{true: " <dir>", false: ""}[sub == "export"]); err != nil {
 			return err
 		}
-		c, err := conn()
+		c, err := e.conn()
 		if err != nil {
 			return err
 		}
@@ -225,7 +225,7 @@ func (e *env) profile(args []string) error {
 		if err := need(1, "versions <name>"); err != nil {
 			return err
 		}
-		c, err := conn()
+		c, err := e.conn()
 		if err != nil {
 			return err
 		}
@@ -250,7 +250,7 @@ func (e *env) starters(args []string) error {
 	if err != nil {
 		return err
 	}
-	c, err := conn()
+	c, err := e.conn()
 	if err != nil {
 		return err
 	}

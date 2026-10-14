@@ -286,6 +286,18 @@ func (h *Hub) webRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /invite/{token}", web(h.webInvitePost))
 	static, _ := fs.Sub(webFS, "web/static")
 	files := http.StripPrefix("/static/", http.FileServerFS(static))
+	// Apps that show a site's icon (Claude's connector list among them) ask for /favicon.ico, not the page's link tags.
+	mux.HandleFunc("GET /favicon.ico", func(w http.ResponseWriter, r *http.Request) {
+		b, err := fs.ReadFile(static, "apple-touch-icon.png")
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		h.webHeaders(w)
+		w.Header().Set("Content-Type", "image/png")
+		w.Header().Set("Cache-Control", "public, max-age=86400")
+		w.Write(b)
+	})
 	mux.HandleFunc("GET /static/", func(w http.ResponseWriter, r *http.Request) {
 		h.webHeaders(w)
 		if strings.HasPrefix(r.URL.Path, "/static/fonts/") {

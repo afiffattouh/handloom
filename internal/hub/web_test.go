@@ -504,3 +504,11 @@ func TestFooterShowsTheReleaseAndTheProtocol(t *testing.T) {
 		t.Fatalf("without a version the footer should show the protocol alone")
 	}
 }
+
+func TestFaviconIcoIsServedForAppsThatAskForIt(t *testing.T) {
+	e := newWebEnv(t, Options{})
+	r := e.req("GET", "/favicon.ico", nil, nil, nil)
+	if r.status != 200 || r.header.Get("Content-Type") != "image/png" || !strings.HasPrefix(r.body, "\x89PNG") {
+		t.Fatalf("favicon.ico: %d %s", r.status, r.header.Get("Content-Type"))
+	}
+}

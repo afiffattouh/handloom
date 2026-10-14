@@ -9,6 +9,12 @@
   </div>
 </div>
 
+{{if and .Open (ne .Job.Progress.State "ready")}}
+<article class="card{{if or (eq .Job.Progress.State "stuck") (eq .Job.Progress.State "needs_you")}} attention{{end}}">
+  <div class="ch"><div class="lead"><svg class="icon {{if eq .Job.Progress.State "stuck"}}sev-bad{{else if eq .Job.Progress.State "needs_you"}}sev-warn{{else}}sev-ok{{end}}"><use href="#{{if eq .Job.Progress.State "stuck"}}i-circle-alert{{else}}i-circle-check{{end}}"/></svg><div><h3>{{if eq .Job.Progress.State "stuck"}}Stuck{{else if eq .Job.Progress.State "needs_you"}}Needs you{{else if eq .Job.Progress.State "planning"}}Planning{{else}}Working{{end}}</h3><p class="desc">{{.Job.Progress.Reason}}{{if .Job.Progress.Action}} {{.Job.Progress.Action}}{{end}}</p></div></div></div>
+</article>
+{{end}}
+
 {{if .Ready}}
 <article class="card attention">
   <div class="ch"><div class="lead"><svg class="icon sev-ok"><use href="#i-circle-check"/></svg><div><h3>Every task is done</h3><p class="desc">Look over the result, then close the job.</p></div></div></div>

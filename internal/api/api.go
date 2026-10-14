@@ -327,6 +327,24 @@ type Job struct {
 	PullRequest  string    `json:"pull_request,omitempty"` // where the latest published pull request stands, in words (D105)
 	PRMerged     bool      `json:"pr_merged,omitempty"`    // a pull request of this job was merged
 	MergedInto   string    `json:"merged_into,omitempty"`  // the branch of a hosted project this job's work was merged into (D106)
+	Progress     JobState  `json:"progress"`               // where the job stands, in words a person can act on
+}
+
+// Where a job stands. Worked out from the record each time; the first state that fits wins, in this order.
+const (
+	JobDone     = "done"
+	JobNeedsYou = "needs_you"
+	JobStuck    = "stuck"
+	JobReady    = "ready"
+	JobWorking  = "working"
+	JobPlanning = "planning"
+)
+
+// JobState is one state with the reason for it and what a person can do about it.
+type JobState struct {
+	State  string `json:"state"`
+	Reason string `json:"reason"`
+	Action string `json:"action,omitempty"`
 }
 
 // Base states of a job that works on a project (D105).

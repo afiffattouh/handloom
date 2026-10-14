@@ -67,6 +67,9 @@ func (c *call) jobView(t *taskRow) (api.Job, error) {
 	if lead != nil {
 		j.Lead = lead.name
 	}
+	if j.Progress, err = c.progress(t, lead, counts); err != nil {
+		return api.Job{}, err
+	}
 	j.Codebase = c.codebaseName(t.id)
 	c.baseView(&j)
 	if j.Overlaps, err = c.overlaps(t); err != nil {

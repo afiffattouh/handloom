@@ -552,8 +552,25 @@ func jobLine(j api.Job) string {
 	if j.MergedInto != "" {
 		repo += " [merged into " + j.MergedInto + "]"
 	}
-	return fmt.Sprintf("job #%-3d %-9s %s%s%s  (lead: %s; tasks: %d open, %d claimed, %d submitted, %d done)",
+	line := fmt.Sprintf("job #%-3d %-9s %s%s%s  (lead: %s; tasks: %d open, %d claimed, %d submitted, %d done)",
 		j.ID, j.Status, j.Title, conf, repo, lead, n.Open, n.Claimed, n.Submitted, n.Done)
+	if j.Status == api.StatusOpen && j.Progress.State != "" {
+		line += "\n          " + progressLine(j.Progress)
+	}
+	return line
+}
+
+// progressLine says where an open job stands: "stuck: why. What to do."
+func progressLine(p api.JobState) string {
+	label := map[string]string{api.JobStuck: "STUCK", api.JobNeedsYou: "needs you", api.JobReady: "ready", api.JobWorking: "working", api.JobPlanning: "planning"}[p.State]
+	if label == "" {
+		label = p.State
+	}
+	s := label + ": " + p.Reason
+	if p.Action != "" {
+		s += " " + p.Action
+	}
+	return s
 }
 
 // publishWait is how long `job publish` waits for the machine to push; publishPoll how often it looks.

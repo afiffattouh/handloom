@@ -176,3 +176,18 @@ func TestATaskDoesNotGoToAnAgentOfAnotherJob(t *testing.T) {
 	_ = w
 	e.create(e.afif(), api.TaskCreateReq{Title: "x", Job: j1.ID, AssignedTo: "worker"})
 }
+
+func TestALeadCannotStartAgentsWithoutEnd(t *testing.T) {
+	e := newEnv(t)
+	e.hub.opt.MaxJobStarts = 3
+	lead := e.agent("lead1")
+	e.newJob("A job", "lead1")
+	e.hub.opt.MaxSpawns = 100
+	for i := 1; i <= 3; i++ {
+		e.spawn(lead, api.SpawnReq{Name: fmt.Sprintf("w%d", i), Kind: "claude"})
+	}
+	if msg := e.fail(409, lead, "POST", "/v1/spawns", api.SpawnReq{Name: "w4", Kind: "claude"}); !strings.Contains(msg, "most a lead may start") {
+		t.Fatalf("message: %s", msg)
+	}
+	e.spawn(e.afif(), api.SpawnReq{Name: "by-a-person", Kind: "claude", Device: "d1", Job: 1})
+}

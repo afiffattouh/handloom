@@ -261,6 +261,16 @@ func (c *call) spawnFromRequest(req api.SpawnReq) (any, error) {
 	if n >= c.h.opt.MaxSpawns {
 		return nil, conflict("at most %d agents at a time in this job; wait for one to finish", c.h.opt.MaxSpawns)
 	}
+	if job.Valid && c.p.kind != kindHuman {
+		// A lead that keeps starting agents (a loop, a bad plan) is stopped; a person can always start more.
+		var started int
+		if err := c.tx.QueryRow(`SELECT count(*) FROM spawn WHERE job_id = ?`, job.Int64).Scan(&started); err != nil {
+			return nil, err
+		}
+		if started >= c.h.opt.MaxJobStarts {
+			return nil, conflict("this job has already started %d agents, the most a lead may start; a person can start more from the job's page, or look at why they keep ending", started)
+		}
+	}
 	if !c.h.allowRate("spawn:"+c.p.actor(), 10, 10, c.now) {
 		return nil, &apiError{429, "rate_limited", "too many spawn requests; slow down"}
 	}

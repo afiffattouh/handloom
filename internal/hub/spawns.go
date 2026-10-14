@@ -244,7 +244,15 @@ func (c *call) spawnFromRequest(req api.SpawnReq) (any, error) {
 	if existing, err := c.agentByName(req.Name); err != nil {
 		return nil, err
 	} else if existing != nil {
-		return nil, conflict("there is already an agent called %q", req.Name)
+		where := "no job"
+		if existing.jobID.Valid {
+			where = fmt.Sprintf("job %d", existing.jobID.Int64)
+		}
+		hint := ""
+		if job.Valid {
+			hint = fmt.Sprintf(" Names are shared by the whole hub; pick one that is free, for example %s-%d.", req.Name, job.Int64)
+		}
+		return nil, conflict("there is already an agent called %q (in %s, %s), so nothing was started and that agent is not yours to use here.%s", req.Name, where, existing.state, hint)
 	}
 	n, err := c.liveInJob(job, projectID)
 	if err != nil {

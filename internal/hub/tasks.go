@@ -345,7 +345,7 @@ func taskCreate(c *call) (any, error) {
 	}
 	var assignee *agentRow
 	if req.AssignedTo != "" {
-		if assignee, err = c.assignee(projectID, req.AssignedTo); err != nil {
+		if assignee, err = c.assignee(projectID, req.AssignedTo, job); err != nil {
 			return nil, err
 		}
 	}
@@ -404,7 +404,9 @@ func nullAny(n sql.NullInt64) any {
 	return n.Int64
 }
 
-func (c *call) assignee(projectID int64, name string) (*agentRow, error) {
+// assignee finds the agent a task goes to. A task of a job does not go to an agent working in another job: an agent
+// of another job (often offline) would never be started for it, and the task would wait for nobody.
+func (c *call) assignee(projectID int64, name string, job sql.NullInt64) (*agentRow, error) {
 	a, err := c.agentByName(name)
 	if err != nil {
 		return nil, err
@@ -414,6 +416,10 @@ func (c *call) assignee(projectID int64, name string) (*agentRow, error) {
 	}
 	if !Allowed(ActTaskWork, a.role) {
 		return nil, conflict("agent %s is an %s and cannot work on tasks", a.name, a.role)
+	}
+	if job.Valid && a.jobID.Valid && a.jobID.Int64 != job.Int64 {
+		return nil, conflict("agent %s works in job %d, not in job %d, so it would never get this task. Start a worker for this job first (handloom spawn NAME --profile P --job %d) and assign the task to it",
+			a.name, a.jobID.Int64, job.Int64, job.Int64)
 	}
 	return a, nil
 }
@@ -464,7 +470,7 @@ func taskAssign(c *call) (any, error) {
 	var assignee *agentRow
 	var assigned any
 	if req.Agent != "" {
-		if assignee, err = c.assignee(t.projectID, req.Agent); err != nil {
+		if assignee, err = c.assignee(t.projectID, req.Agent, t.jobID); err != nil {
 			return nil, err
 		}
 		assigned = assignee.id

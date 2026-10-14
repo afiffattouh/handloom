@@ -100,7 +100,9 @@ func TestSpawnRules(t *testing.T) {
 	e.fail(404, e.afif(), "POST", "/v1/spawns", api.SpawnReq{Name: "x", Kind: "claude", Device: "nowhere"})
 	e.fail(404, e.afif(), "POST", "/v1/spawns", api.SpawnReq{Name: "x", Kind: "claude", Device: "d1", Job: 999})
 	e.fail(400, e.afif(), "POST", "/v1/spawns", api.SpawnReq{Name: "x", Kind: "claude"}) // two devices: name one
-	e.fail(409, e.afif(), "POST", "/v1/spawns", api.SpawnReq{Name: "taken", Kind: "claude", Device: "d1"})
+	if msg := e.fail(409, e.afif(), "POST", "/v1/spawns", api.SpawnReq{Name: "taken", Kind: "claude", Device: "d1", Job: 1}); !strings.Contains(msg, "pick one that is free") || !strings.Contains(msg, "taken-1") {
+		t.Fatalf("a taken name says what to do: %s", msg)
+	}
 	// Names are unique among requests in flight.
 	e.spawn(e.afif(), api.SpawnReq{Name: "once", Kind: "claude", Device: "d1"})
 	e.fail(409, e.afif(), "POST", "/v1/spawns", api.SpawnReq{Name: "once", Kind: "claude", Device: "d1"})
@@ -157,4 +159,20 @@ func TestSpawnFailsWhenNobodyStartsIt(t *testing.T) {
 	}
 	// The name is free again.
 	e.spawn(e.afif(), api.SpawnReq{Name: "ghost", Kind: "claude", Device: "d1"})
+}
+
+func TestATaskDoesNotGoToAnAgentOfAnotherJob(t *testing.T) {
+	e := newEnv(t)
+	e.agent("lead1")
+	e.agent("lead2")
+	j1 := e.newJob("First", "lead1")
+	j2 := e.newJob("Second", "lead2")
+	w := e.worker()
+	e.ok(e.afif(), "POST", "/v1/agents/worker/job", api.AgentJobReq{Job: j1.ID}, nil)
+	msg := e.fail(409, e.afif(), "POST", "/v1/tasks", api.TaskCreateReq{Title: "x", Job: j2.ID, AssignedTo: "worker"})
+	if !strings.Contains(msg, "works in job") || !strings.Contains(msg, "handloom spawn") {
+		t.Fatalf("message: %s", msg)
+	}
+	_ = w
+	e.create(e.afif(), api.TaskCreateReq{Title: "x", Job: j1.ID, AssignedTo: "worker"})
 }

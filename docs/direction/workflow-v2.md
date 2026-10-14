@@ -2,7 +2,7 @@
 
 Status: proposal for discussion, 2026-10-14. Nothing here is built yet.
 
-How this relates to the other documents: `docs/direction/README.md` is about who Handloom is for and what to prove first, and the `WORKSPACE-DESIGN` files are about architecture. Neither describes how a person uses it day to day. This one does, and changes none of their security decisions.
+How this relates to the other documents: `docs/direction/README.md` is about who Handloom is for and what to prove first, and the `WORKSPACE-DESIGN` files are about architecture. Neither describes how a person uses it day to day. This one does, and does not change their security decisions, except one deliberate revision of a design principle (below).
 
 ## Why a step back
 
@@ -156,3 +156,45 @@ Each step is useful alone and fixes something we saw.
 4. After dev, knowledge work comes next; video is the test of file deliverables.
 5. Large files stay on the machine that made them; the hub keeps the list and thumbnails.
 6. People write their own playbooks by answering questions.
+
+## Committee review, 2026-10-14
+
+Six reviewers read this document against the code: security, a non-technical user, distributed systems, multi-agent practice, product strategy and video production. Their findings change the plan below. **The decisions above stand until the owner says otherwise; the changes here are recommendations.**
+
+### Where they agreed
+
+1. **Caps before automation.** Nothing may start agents by itself until the hub enforces limits: starts per task (two), agents at once, and a budget of time and spend per job. The counts live in the database so a restart cannot reset them. Without this, a watchdog or an auto-run plan can loop or multiply.
+2. **A second agent's opinion never gates.** A rubric scored by another agent is advisory, labelled so, and cannot alone mark work ready or land it. It sees only the rubric and the work, and its text is shown to people, never passed on to other agents. Only a machine check or a person gates.
+3. **Job #4 needed a smaller fix than the design.** A name collision and an unreadable error caused it. Unique names plus a clear error (built) and a stuck alert fix that. Plan-as-data and system-started workers are a mid-sized rewrite and must first prove themselves against the current way, with the local Qwen model as lead as well as Claude.
+4. **"Plans run at once" is unsafe as a default.** A lead that is wrong or tricked could start many agents. Default to "ask me first"; "run at once" is an opt-in per project, and a plan may only use roles the project allows, within the caps.
+5. **The job state is not a pure read of existing data.** Nothing records whether a plan was submitted, how many times a task was tried, or that a lead is silent. State needs a few new columns, a fixed precedence (Done, Needs you, Stuck, Ready, Working, Planning) and one test per row.
+6. **The words and the setup still burden a non-technical person.** "Land", "gate", "playbook", "role", "machine", "plan" mean nothing to them. Team members should only ever do three things: accept an invite, paste one line, type a sentence. Plain words: "Use this result", "Needs your OK", "Type of work", "Helper", "Computer", "Steps".
+7. **Missing for trust:** the cost estimate and actual cost on every ask; a **Stop** button on every job and **Undo** after a result is used; "what was checked, what was not" at the top of Review ("Tests passed. Nobody read it for tone."); what happens when nobody answers (the job waits, with a limit); phone approval.
+8. **Nothing yet proves this helps anyone.** The only evidence is one job by its author. Before building further: watch three people who are not the author start and review a job, and run a fixed set of 15 to 20 small asks (Claude and Qwen, one worker and a team), measuring accepted-first-time rate, send-backs, stuck rate, minutes to a reviewable result and cost.
+
+### Where they disagreed
+
+- **Playbooks and video.** The strategist: cut video, defer knowledge work, because the earlier direction ruled out a business-workflow product and the checks for documents and media are not machine checks. The practitioner: ship exactly two playbooks, each with a test that runs in CI. The video producer: the structure and gates are sound, but promise only stills, voice-over, music and assembly now; consistent characters, rights and likeness, and cost per rerun are unsolved. **Resolution proposed:** keep playbooks as the idea, call them "types of work", ship only dev now, move knowledge work behind real demand, and park video as research with the producer's list (a "lock the look" gate with reference images, pick-one-of-N takes per shot, an editable timeline, subtitles, rights records, proxy previews only).
+- **Solo mode and the choice in the Ask box.** The user reviewer: ask nothing, start one worker, and offer "Get steps first" if it says the job is bigger. The practitioner: a lone worker loses clarification and review, so give it a way to ask a person and a button that turns the job into a team job while keeping its work. **Resolution:** adopt both.
+
+### Design details to add
+
+- Workers are keyed by (task, attempt), and "make sure a worker exists for this task" is one transaction. A dead agent keeps its name, so a restart uses a new attempt, not the old name.
+- A worker lives until its task is accepted or cancelled, so a send-back always finds it. A send-back with no live worker restarts it.
+- A plan is versioned and submitted as a difference by task key. Done tasks are never touched, and a stale version is refused.
+- The watchdog waits out a grace period for a sleeping laptop, never wakes a lead that is working, wakes at most once per state change, and escalates once per reason.
+- After a hub restore, each link reports what it is running, and the hub adopts or ends the strays.
+- Landing is serialised per repository, with the base recorded per job.
+- Previews, if ever built: a separate origin with no cookies, raster images and plain audio and video only, documents rendered to images on the machine, and for confidential jobs previews stay on the machine. A deliverable's files are pulled only by a person's request, with a size cap, a hash and no path tricks.
+- A machine's reported abilities are approved by the owner; only the owner publishes types of work.
+
+### Revised build order (recommended)
+
+1. **Done:** unique-name error, and refusing a task for an agent of another job. Deploy pending.
+2. **Caps:** starts per task, agents at once, per-job budget, stored in the database.
+3. **Job state v1** with reason and action, in plain words, plus **Stop**. Built from existing data and the few new columns.
+4. **Watchdog:** restart once, only after step 2.
+5. **Check command per project, default machine, one-sentence Ask box,** one worker by default with "Get steps first" and an ask-a-person path.
+6. **Test with three people and the 15-to-20-ask set.** The results decide whether to build plan-as-data, types of work and anything after.
+
+Parked until the results say otherwise: plan submit, types of work beyond dev, gates, file deliverables, previews, video, user-written playbooks.

@@ -79,7 +79,8 @@ func (l *Link) recordScope(ctx context.Context, s api.Spawn, dir, kbase string) 
 		}
 		write = p.Spec.Write
 	}
-	if len(write) == 0 && s.Verify == "" && s.Kind != "codex" && s.Knowledge == "" {
+	// A job's agent keeps its record even with no limits: merging its work into the job's branch needs to know where its worktree is.
+	if len(write) == 0 && s.Verify == "" && s.Kind != "codex" && s.Knowledge == "" && (s.Job == nil || s.Repo == "") {
 		os.Remove(l.scopeFile(s.Name)) // an earlier agent of the same name must not leave its limits behind
 		return nil
 	}

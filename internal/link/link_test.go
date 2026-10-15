@@ -1246,6 +1246,18 @@ func TestAcceptedWorkIsMergedIntoTheIntegrationBranch(t *testing.T) {
 	}
 }
 
+// job #4: the coder profile limits no files and runs no check, and its work could not be merged
+// because the link kept no record of where its worktree was.
+func TestWorkOfAnAgentWithNoLimitsIsStillMerged(t *testing.T) {
+	f := newFixture(t)
+	ac, dir, t1 := f.scopedAgentVerify(nil, "")
+	f.commitIn(dir, "src/one.txt", "one\n", "one")
+	f.must(f.submit(ac, t1))
+	if m := f.acceptAndMerge(t1.ID); m.Status != "merged" {
+		t.Fatalf("merge: %+v", m)
+	}
+}
+
 func t1Job(f *fixture, t api.Task) *int64 { return f.task(t.ID).Job }
 
 func TestAnAgentCannotReachTheMergeEndpoints(t *testing.T) {

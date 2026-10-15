@@ -786,6 +786,25 @@ func TestMessageRateLimit(t *testing.T) {
 	e.ok(e.worker(), "POST", "/v1/messages", api.SendReq{To: "lead", Body: "x"}, nil)
 }
 
+func TestTheSameWordsTwiceFromAnAgentAreOneMessage(t *testing.T) {
+	e := newEnv(t)
+	var a, b, c api.SendResp
+	e.ok(e.worker(), "POST", "/v1/messages", api.SendReq{To: "lead", Body: "Task #5 completed"}, &a)
+	e.ok(e.worker(), "POST", "/v1/messages", api.SendReq{To: "lead", Body: "Task #5 completed"}, &b)
+	if len(b.IDs) != 1 || b.IDs[0] != a.IDs[0] {
+		t.Fatalf("a repeat made a new message: %v then %v", a.IDs, b.IDs)
+	}
+	e.ok(e.worker(), "POST", "/v1/messages", api.SendReq{To: "lead", Body: "Task #6 completed"}, &c)
+	if c.IDs[0] == a.IDs[0] {
+		t.Fatal("different words were swallowed")
+	}
+	e.clock.advance(11 * time.Minute)
+	e.ok(e.worker(), "POST", "/v1/messages", api.SendReq{To: "lead", Body: "Task #5 completed"}, &b)
+	if b.IDs[0] == a.IDs[0] {
+		t.Fatal("a message after the window was swallowed")
+	}
+}
+
 // ---- wake: hub side ----
 
 func (e *env) turnEnd(agent string) api.TurnEndResp {

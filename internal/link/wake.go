@@ -64,7 +64,10 @@ func (l *Link) decide(a api.DeviceAgent, m *memo, now time.Time) decision {
 	switch {
 	case a.State == api.StateWorking:
 		return decision{}
-	case a.State == api.StateIdle, a.State == api.StateOffline && headless:
+	case a.State == api.StateIdle, a.State == api.StateOffline && headless,
+		// Unknown is what a restart leaves behind, not a finding that the agent is gone. With a terminal
+		// to type into, the nudge is how we find out: an agent that reads its inbox says what it is doing.
+		a.State == api.StateUnknown && a.WakeTarget != "" && !headless && now.Sub(a.StateAt) >= l.opt.BlockedGrace:
 		if a.WakeTarget == "" {
 			return failOnce(a, m, "no_wake_target")
 		}

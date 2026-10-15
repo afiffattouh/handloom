@@ -253,6 +253,24 @@ func TestLadderIdleAgentIsNudged(t *testing.T) {
 	}
 }
 
+// A restart leaves agents "unknown". That must not strand their mail: with a terminal, the nudge is how
+// the hub finds out what the agent is doing.
+func TestLadderNudgesAnUnknownAgentAfterAShortWait(t *testing.T) {
+	f := newFixture(t)
+	now := f.clock()
+	a := api.DeviceAgent{Name: "worker", State: api.StateUnknown, StateAt: now, Unread: 1, Undelivered: 1, WakeTarget: "%1"}
+	if d := f.link.decide(a, &memo{}, now); d.action != doFail {
+		t.Fatalf("an agent that had only just become unknown: %+v", d)
+	}
+	if d := f.link.decide(a, &memo{}, now.Add(31*time.Second)); d.action != doNudge {
+		t.Fatalf("an unknown agent with a terminal was not nudged: %+v", d)
+	}
+	a.WakeTarget = ""
+	if d := f.link.decide(a, &memo{}, now.Add(time.Minute)); d.action == doNudge {
+		t.Fatal("nudged an agent with no terminal")
+	}
+}
+
 func TestLadderNeverTypesIntoWorkingOrBlocked(t *testing.T) {
 	f := newFixture(t)
 	f.state(f.lead, "working") // the lead's own mail waits for its end-of-turn hook

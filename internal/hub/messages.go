@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"strconv"
 	"strings"
+	"time"
 
 	"handloom/internal/api"
 	"handloom/internal/store"
@@ -49,6 +50,25 @@ func (c *call) insertMessage(from string, to *agentRow, toSpec string, taskID *i
 		payload["task_id"] = *taskID
 	}
 	return id, c.emit(to.projectID, to.id, "message.new", payload)
+}
+
+// repeatWindow is how long the same words from the same agent to the same agent count as one message.
+const repeatWindow = 10 * time.Minute
+
+// repeatOf is the id of an agent's earlier message with these very words to this recipient, sent
+// within repeatWindow, or 0. A worker that says "done" seven times fills the lead's inbox and
+// wakes it seven times; the sender is told it went through, and it did, once. People are never held to this.
+func (c *call) repeatOf(from string, to *agentRow, body string) (int64, error) {
+	if c.p.kind == kindHuman {
+		return 0, nil
+	}
+	var id int64
+	err := c.tx.QueryRow(`SELECT id FROM message WHERE from_id = ? AND to_agent_id = ? AND body = ? AND created_at >= ?
+		ORDER BY id DESC LIMIT 1`, from, to.id, body, store.Millis(c.now.Add(-repeatWindow))).Scan(&id)
+	if err == sql.ErrNoRows {
+		return 0, nil
+	}
+	return id, err
 }
 
 // hubMessage is a notice from the hub itself (task assigned, submitted,
@@ -171,9 +191,15 @@ func messageSend(c *call) (any, error) {
 		if c.p.agent != nil && a.id == c.p.agent.id && len(to) > 1 {
 			continue // do not echo a group message back to its sender
 		}
-		id, err := c.insertMessage(from, a, req.To, req.TaskID, req.Body)
+		id, err := c.repeatOf(from, a, req.Body)
 		if err != nil {
 			return nil, err
+		}
+		if id == 0 {
+			id, err = c.insertMessage(from, a, req.To, req.TaskID, req.Body)
+			if err != nil {
+				return nil, err
+			}
 		}
 		resp.IDs = append(resp.IDs, id)
 		resp.Recipients = append(resp.Recipients, a.name)

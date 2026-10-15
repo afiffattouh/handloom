@@ -34,6 +34,8 @@ func TestWhereAJobStands(t *testing.T) {
 		{"the lead plans", base(jobFacts{}), api.JobPlanning, "planning"},
 		{"no lead at all", base(jobFacts{leadState: "none"}), api.JobStuck, "No lead"},
 		{"lead stopped", base(jobFacts{lead: "l", leadState: api.StateOffline}), api.JobStuck, "stopped"},
+		{"the lead does not answer while work waits", base(jobFacts{counts: api.JobCounts{Submitted: 1}, lead: "l", leadState: api.StateUnknown, leadSince: long}), api.JobStuck, "not answering"},
+		{"the lead has only just become unknown", base(jobFacts{counts: api.JobCounts{Submitted: 1}, lead: "l", leadState: api.StateUnknown, leadSince: now}), api.JobWorking, "waiting to be checked"},
 		{"a worker could not be started", base(jobFacts{counts: api.JobCounts{Open: 1}, failedStart: "Starting c failed: no such name", leadState: api.StateWorking, lead: "l"}), api.JobStuck, "failed"},
 		{"job #4: the step waits for an agent of another job", base(jobFacts{counts: api.JobCounts{Open: 1}, waiting: []waitingTask{{id: 5, assignee: "coder-1", state: api.StateOffline, elsewhere: 1}}}), api.JobStuck, "job 1"},
 		{"the step waits for an offline worker", base(jobFacts{counts: api.JobCounts{Open: 1}, waiting: []waitingTask{{id: 5, assignee: "c", state: api.StateOffline}}}), api.JobStuck, "offline"},

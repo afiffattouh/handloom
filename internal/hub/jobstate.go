@@ -55,6 +55,10 @@ func jobProgress(f jobFacts) api.JobState {
 	if f.lead != "" && f.leadState == api.StateOffline {
 		return stuck(f.lead+", the lead, has stopped.", "Hand the job to another lead: handloom job resume.")
 	}
+	if f.lead != "" && f.leadState == api.StateUnknown && f.counts.Submitted > 0 && f.now.Sub(f.leadSince) >= leadIdleGrace {
+		return stuck(fmt.Sprintf("%s, the lead, is not answering, so %s waiting to be checked.", f.lead, plural1(f.counts.Submitted, "1 step is", fmt.Sprintf("%d steps are", f.counts.Submitted))),
+			"Nudge the lead (type `handloom inbox` in its terminal), or check the work yourself.")
+	}
 	if f.failedStart != "" && f.liveWorkers == 0 && f.starting == 0 {
 		return stuck(f.failedStart, "Fix what it says and start the worker again, or ask the lead to.")
 	}

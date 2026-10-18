@@ -473,3 +473,64 @@ func TestTheJobPageShowsWhatChangedAndLetsAPersonActOnIt(t *testing.T) {
 		t.Error("a task was stopped through the wrong job")
 	}
 }
+
+func TestATaskCanBeGivenToANewHelperFromAnotherProfile(t *testing.T) {
+	e := newWebEnv(t, Options{})
+	ag := e.agents()
+	c, tok := e.owner()
+	hum := e.humanAPI()
+	e.apiOK(e.admin, "", "POST", "/v1/profiles", api.ProfileReq{Name: "boss", Spec: researcher()}, nil)
+	var j api.Job
+	e.apiOK(hum, "", "POST", "/v1/jobs", api.JobNewReq{Title: "Site", Lead: "lead", Repo: "/srv/app", Device: "d1"}, &j)
+	var t1 api.Task
+	ag.lead("POST", "/v1/tasks", api.TaskCreateReq{Title: "bakery pages", AssignedTo: "worker"}, &t1)
+	ag.worker("POST", fmt.Sprintf("/v1/tasks/%d/claim", t1.ID), nil, nil)
+	ag.worker("POST", fmt.Sprintf("/v1/tasks/%d/submit", t1.ID), api.SubmitReq{Evidence: []string{"commit:abc"}, Note: "done"}, nil)
+	e.apiOK(ag.device, "", "POST", fmt.Sprintf("/v1/tasks/%d/result", t1.ID), api.TaskResultReq{Agent: "worker", Files: []api.ResultFile{{Path: "a.txt", Status: "added"}}, Diff: "+x\n"}, nil)
+
+	if body := e.req("GET", fmt.Sprintf("/jobs/%d", j.ID), nil, c, nil).body; !strings.Contains(body, "Try again with another profile") || !strings.Contains(body, `<option value="boss"`) {
+		t.Fatal("the job page does not offer another profile")
+	}
+	// A profile that does not exist changes nothing.
+	r := e.req("POST", fmt.Sprintf("/jobs/%d/tasks/%d/reassign", j.ID, t1.ID), url.Values{"csrf": {tok}, "profile": {"nope"}}, c, nil)
+	if r.status == 303 || e.apiTask(hum, t1.ID).Status != "submitted" {
+		t.Fatalf("a missing profile: %d", r.status)
+	}
+	r = e.req("POST", fmt.Sprintf("/jobs/%d/tasks/%d/reassign", j.ID, t1.ID), url.Values{"csrf": {tok}, "profile": {"boss"}, "note": {"use two files only"}}, c, nil)
+	if r.status != 303 {
+		t.Fatalf("reassign: %d %s", r.status, r.body)
+	}
+	got := e.apiTask(hum, t1.ID)
+	if got.Status != "open" || got.Owner != "" || got.Check != nil {
+		t.Fatalf("after: %+v", got)
+	}
+	rq, _ := http.NewRequest("GET", e.srv.URL+fmt.Sprintf("/v1/tasks/%d/result", t1.ID), nil)
+	rq.Header.Set("Authorization", "Bearer "+hum)
+	if resp, err := http.DefaultClient.Do(rq); err != nil || resp.StatusCode != 404 {
+		t.Fatalf("the old result is still there: %v %v", err, resp)
+	}
+	var msgs []api.Message
+	ag.worker("GET", "/v1/inbox", nil, &msgs)
+	told := false
+	for _, m := range msgs {
+		told = told || strings.Contains(m.Body, "given to another helper")
+	}
+	if !told {
+		t.Error("the old helper is not told to stop")
+	}
+	// The new helper is waiting to be started, named for the profile and the task.
+	var spawns []api.Spawn
+	e.apiOK(hum, "", "GET", "/v1/spawns", nil, &spawns)
+	found := false
+	for _, s := range spawns {
+		found = found || (s.Name == fmt.Sprintf("boss-t%d", t1.ID) && strings.HasPrefix(s.Profile, "boss"))
+	}
+	if !found {
+		t.Fatalf("no spawn for the new helper: %+v", spawns)
+	}
+	// When it registers, the task is its.
+	e.apiOK(ag.device, "", "POST", "/v1/agents", api.RegisterReq{Name: fmt.Sprintf("boss-t%d", t1.ID), Kind: "claude"}, nil)
+	if got := e.apiTask(hum, t1.ID); got.AssignedTo != fmt.Sprintf("boss-t%d", t1.ID) {
+		t.Fatalf("not assigned on registration: %+v", got)
+	}
+}

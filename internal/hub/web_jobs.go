@@ -276,7 +276,8 @@ type jobView2 struct {
 	Agents   []string // agents that could take over as lead
 	CanAct   bool
 	Open     bool
-	Ready    bool // every task is done: the job can be closed
+	Ready    bool     // every task is done: the job can be closed
+	Profiles []string // for giving a task to a new helper
 
 	Overlap    string        // other open jobs on the same repository: a warning
 	Publishes  []publishView // newest first
@@ -315,6 +316,11 @@ func (q *webReq) jobPage(status int, errMsg string, id int64) error {
 		return err
 	}
 	v := &jobView2{Job: jv, Body: t.body, CanAct: q.human.Role != store.RoleViewer, Open: t.status == api.StatusOpen}
+	if pl, err := profileList(q.c); err == nil {
+		for _, p := range pl.([]api.ProfileInfo) {
+			v.Profiles = append(v.Profiles, p.Name)
+		}
+	}
 	v.Ready = v.Open && jv.Tasks.Done > 0 && jv.Tasks.Open+jv.Tasks.Claimed+jv.Tasks.Submitted == 0
 	agents, err := q.c.agents(`WHERE a.job_id = ?`, id)
 	if err != nil {
@@ -445,7 +451,7 @@ func (q *webReq) jobPage(status int, errMsg string, id int64) error {
 			v.Attach = append(v.Attach, attachView{s.Name, "tmux -L handloom attach -t handloom:" + s.Name})
 		}
 	}
-	notice := map[string]string{"started": "Job started. Its lead is starting; this page updates as work arrives.", "closed": "Job closed.", "resumed": "Job resumed with the new lead.", "merged": "Merged. The work is now in the project's main branch; other machines pick it up when their next job starts.", "accepted": "Result used. It is queued to be merged into the job's branch.", "sentback": "Sent back with your note. Its helper has it again.", "taskstopped": "Task stopped.", "published": "Publishing asked for: the machine that holds the repository is pushing the branch. The result appears under Publish."}[q.r.URL.Query().Get("done")]
+	notice := map[string]string{"started": "Job started. Its lead is starting; this page updates as work arrives.", "closed": "Job closed.", "resumed": "Job resumed with the new lead.", "merged": "Merged. The work is now in the project's main branch; other machines pick it up when their next job starts.", "accepted": "Result used. It is queued to be merged into the job's branch.", "sentback": "Sent back with your note. Its helper has it again.", "taskstopped": "Task stopped.", "reassigned": "Given to a new helper. It appears under Team within a minute and picks the task up when it starts.", "published": "Publishing asked for: the machine that holds the repository is pushing the branch. The result appears under Publish."}[q.r.URL.Query().Get("done")]
 	if q.r.URL.Query().Get("done") == "started" && v.Overlap != "" {
 		notice += " " + v.Overlap
 	}
@@ -580,6 +586,16 @@ func (h *Hub) webJobTaskReject(q *webReq) error {
 			return err
 		}
 		_, err := q.c.rejectTask(t, q.r.PostForm.Get("reason"))
+		return err
+	})
+}
+
+func (h *Hub) webJobTaskReassign(q *webReq) error {
+	return q.taskOnJob("reassigned", func(t *taskRow) error {
+		if err := q.c.allow(ActTaskManage); err != nil {
+			return err
+		}
+		_, err := q.c.reassignTask(t, api.ReassignReq{Profile: q.r.PostForm.Get("profile"), Note: q.r.PostForm.Get("note")})
 		return err
 	})
 }

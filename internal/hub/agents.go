@@ -259,6 +259,9 @@ func agentRegister(c *call) (any, error) {
 		map[string]any{"kind": a.kind, "role": a.role, "device": a.device, "wake_target": a.wakeTarget}); err != nil {
 		return nil, err
 	}
+	if err := c.takePendingAssignments(a); err != nil {
+		return nil, err
+	}
 	out := a.api()
 	if req.RotateToken {
 		if out.RunToken, err = c.mintRunToken(a); err != nil {

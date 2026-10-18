@@ -78,6 +78,12 @@
             </form></details>
         </div>
         {{end}}
+        {{if $.Extra.Open}}<details><summary class="desc">Try again with another profile</summary>
+          <form method="post" action="/jobs/{{$.Extra.Job.ID}}/tasks/{{.ID}}/reassign" class="stack"><input type="hidden" name="csrf" value="{{$.CSRF}}">
+            <p class="desc">{{if .Owner}}{{.Owner}} is told to stop.{{end}} A new helper starts fresh from the task, with your note.</p>
+            <label>Profile <select name="profile" required>{{range $.Extra.Profiles}}<option value="{{.}}">{{.}}</option>{{end}}</select></label>
+            <label>What should it do differently? <span class="desc">(optional)</span> <textarea name="note" rows="2" placeholder="Keep it to the two files named in the task."></textarea></label>
+            <div class="acts"><button type="submit" class="secondary">Give it to a new helper</button></div></form></details>{{end}}
         <details><summary class="desc">Stop this task</summary>
           <form method="post" action="/jobs/{{$.Extra.Job.ID}}/tasks/{{.ID}}/cancel" class="stack"><input type="hidden" name="csrf" value="{{$.CSRF}}">
             <p class="desc">Its helper is told to stop. Work already merged stays.</p><div class="acts"><button type="submit" class="destructive sm-btn">Stop task #{{.ID}}</button></div></form></details>

@@ -380,6 +380,7 @@ func (e *env) task(args []string) error {
 	depends := fs.String("depends", "", "comma-separated ids of tasks that must be done first")
 	job := fs.Int64("job", 0, "job (humans: the job a new task belongs to; list: only that job's tasks)")
 	reason := fs.String("reason", "", "reason")
+	profileFlag := fs.String("profile", "", "reassign: the profile the new helper starts from")
 	clear := fs.Bool("clear", false, "clear the blocked flag")
 	note := fs.String("note", "", "submit: what was done (required)")
 	done := fs.String("done", "", "handoff, release: where the work got to")
@@ -458,6 +459,21 @@ func (e *env) task(args []string) error {
 			return err
 		}
 		e.print(t, func() { e.taskDetail(t) })
+	case "reassign":
+		tid, err := id("reassign <id> --profile P", 1)
+		if err != nil {
+			return err
+		}
+		if *profileFlag == "" {
+			return usageErr("usage: handloom task reassign <id> --profile P [--note N]")
+		}
+		var t api.Task
+		if err := c.Post(fmt.Sprintf("/v1/tasks/%d/reassign", tid), api.ReassignReq{Profile: *profileFlag, Note: *note}, &t); err != nil {
+			return err
+		}
+		e.print(t, func() {
+			fmt.Fprintf(e.out, "Task #%d is open again and goes to a new helper started from %s. It appears in the job within a minute.\n", t.ID, *profileFlag)
+		})
 	case "result":
 		tid, err := id("result <id>", 1)
 		if err != nil {

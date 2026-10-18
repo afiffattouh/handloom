@@ -239,6 +239,12 @@ type TaskCheckReq struct {
 	Evidence *CheckEvidence `json:"evidence,omitempty"`
 }
 
+// ReassignReq hands a task to a new helper started from another profile.
+type ReassignReq struct {
+	Profile string `json:"profile"`
+	Note    string `json:"note,omitempty"` // what to do differently, for the new helper
+}
+
 // ResultFile is one file a task changed.
 type ResultFile struct {
 	Path    string `json:"path"`

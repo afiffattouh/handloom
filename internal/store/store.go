@@ -478,6 +478,9 @@ CREATE TABLE task_result (
   truncated INTEGER NOT NULL DEFAULT 0,
   at        INTEGER NOT NULL
 );
+`, `
+-- A task handed to a helper that is still starting: it is assigned when that helper registers.
+ALTER TABLE task ADD COLUMN assign_name TEXT NOT NULL DEFAULT '';
 `}
 
 // Open opens (and migrates) the database at path. Use ":memory:" in tests.

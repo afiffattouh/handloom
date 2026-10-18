@@ -104,6 +104,7 @@ Done:
 - **Seen on the screens:** a task shows "sent back N×"; the job page lists the stages the kit's check looked at, what it refused and the agent's note; the Overview has a Stop on every open job (a confirm step, then it stops the job and its unfinished tasks).
 - **The ask in one sentence:** a project can carry its own check (`handloom project check NAME "./check"`, or the Projects page; only someone who manages projects can set it). The New job page opens with "Just ask": a sentence, a project and "Show me the steps first". The machine is the one that has the project, the check is the project's, the lead is the usual one and is told to keep the plan small; with "steps first" it must send its plan and wait. The full form stays below it. A sealed kit task can be named on the full form (base `task/<slug>-base`, check `./check`).
 - **Kit extras:** `factory describe [--json]` (what the check covers, in plain words, schema 1); `factory handover --preview cloudflare|netlify|vercel` (the checklist step, and `MAINTAIN.md` only promises a preview link when a host was chosen); `--for operator` writes an operator edition of the guide for an agency; the kit alone is a release asset (`factory-kit_<version>.tar.gz` with `install.sh`, which puts `factory` on the path, no Handloom needed).
+- **The job page, rebuilt around tasks (2026-10-18, after trying the live hub):** one card per task with what changed (files with lines added and removed, the whole diff, and any changed web page opened in a sandbox that gives it no scripts and no network), the check result, the helper's terminal while it works, and the actions on the page: Use this result, Send back with a note, Try again with another profile, Stop this task. The machine reports what changed on submit (`POST /v1/tasks/{id}/result`; `handloom task result ID`). Giving a task to another profile starts a new helper named for the profile and the task, tells the old one to stop, and assigns the task when the new one registers (`handloom task reassign ID --profile P`).
 - **Words and order:** Inbox is first and is where sign-in lands; "Command center" is now "Overview"; the job form offers `./check (the kit)`.
 
 Next:
@@ -117,6 +118,8 @@ Next:
 8. **Spec author help:** sealed task picker; acceptance tests drafted from the Risks by a different agent.
 9. **Client view,** only after roles per project and a security review of the hub.
 10. **A second kit,** when a real project needs it. The shared core is split out then.
+
+Known gap: a project the hub holds cannot take a first push to `main`, so the kit cannot be put in before a first job; today the first job has to run `handloom kit init` itself. A hub action "add checks" (a branch for approval, decision 2) would close it.
 
 Parked: billing for agent use; more presets until a project needs one; multi-task specs.
 

@@ -258,6 +258,7 @@ func (h *Hub) webRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /jobs/{job}/tasks/{id}/accept", web(h.authed(h.webJobTaskAccept)))
 	mux.HandleFunc("POST /jobs/{job}/tasks/{id}/reject", web(h.authed(h.webJobTaskReject)))
 	mux.HandleFunc("POST /jobs/{job}/tasks/{id}/cancel", web(h.authed(h.webJobTaskCancel)))
+	mux.HandleFunc("POST /jobs/{job}/tasks/{id}/reassign", web(h.authed(h.webJobTaskReassign)))
 	mux.HandleFunc("GET /jobs/{job}/tasks/{id}/page/{path...}", web(h.authed(h.webResultPage)))
 	mux.HandleFunc("POST /jobs/{id}/resume", web(h.authed(h.webJobResume)))
 	mux.HandleFunc("POST /jobs/{id}/publish", web(h.authed(h.webJobPublish)))

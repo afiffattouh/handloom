@@ -41,6 +41,7 @@ type jobCard struct {
 	Done, Total, Pct        int
 	Waiting                 string // what a person has to do, or what it is waiting for
 	Review                  bool
+	Open                    bool // still running: it can be stopped
 }
 
 type rangeTab struct {
@@ -347,7 +348,7 @@ func (q *webReq) jobCards(d *api.Digest) ([]jobCard, error) {
 		j := jobs[i]
 		n := j.Tasks
 		total := n.Open + n.Claimed + n.Submitted + n.Done
-		card := jobCard{ID: j.ID, Title: j.Title, Lead: j.Lead, Ago: ago(q.now, j.CreatedAt), Done: n.Done, Total: total}
+		card := jobCard{ID: j.ID, Title: j.Title, Lead: j.Lead, Ago: ago(q.now, j.CreatedAt), Done: n.Done, Total: total, Open: j.Status == api.StatusOpen}
 		if total > 0 {
 			card.Pct = n.Done * 100 / total
 		}

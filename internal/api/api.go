@@ -128,6 +128,7 @@ type Task struct {
 	Resume         string     `json:"resume,omitempty"`  // on a claim: this task was started before; what to do first
 	BlockedReason  string     `json:"blocked_reason,omitempty"`
 	RejectReason   string     `json:"reject_reason,omitempty"`
+	Rejects        int        `json:"rejects,omitempty"` // how often its work was sent back
 	CreatedBy      string     `json:"created_by"`
 	CreatedAt      time.Time  `json:"created_at"`
 	UpdatedAt      time.Time  `json:"updated_at"`

@@ -100,13 +100,15 @@ Done:
 - **The kit is part of Handloom:** `kit/` in this repository, tested in CI, embedded in the program; `handloom kit init|handover|task|upgrade` unpacks it once per version and runs it. A set-up project still carries its own copy, so it needs neither the program nor a hub.
 - **Check adapter:** the link passes `HANDLOOM_MODE` (`submit` or `merge`) and `HANDLOOM_BASE` to the check, reads the `summary.json` the kit names on its last line (inside the worktree only, schema 1 only), and the hub keeps it with the check. Exit 3 shows as "blocked: a person decides" with the agent's own note, exit 2 as "the project's own checks are broken", and a lead is told not to send either back to be retried. Any other command keeps "failed, exit N".
 - **Cap on attempts:** a task whose work is sent back 3 times (`--max-rejects`) stops, and the owner is asked in the inbox what to do (rewrite, change helper, give up). Already there: agents per job (`--max-job-agents`) and time per task (`--max-task-time`).
+- **Spec reaches the check:** a base named `task/<slug>-base` with `specs/<slug>.md` in the worktree (what `handloom kit task seal` leaves) sets `HANDLOOM_SPEC`, so the scope check runs.
+- **Seen on the screens:** a task shows "sent back N×"; the job page lists the stages the kit's check looked at, what it refused and the agent's note; the Overview has a Stop on every open job (a confirm step, then it stops the job and its unfinished tasks).
 - **Words and order:** Inbox is first and is where sign-in lands; "Command center" is now "Overview"; the job form offers `./check (the kit)`.
 
 Next:
 1. **Trial with three people** (a team member, a second owner, someone playing the client). Four tasks: add a computer, ask for a small change, decide whether to use it, undo it. Record where each stops. The ratings in the review are replaced by what is seen.
 2. **A kit download for people without Handloom** (a client or agency that wants only the scaffold): a release asset and a one-line install that puts `factory` on the path. Until then they use `python3 kit/bin/factory` from a clone, or `handloom kit init`.
-3. **Caps, the rest:** spend per job (needs prices entered), a Stop button on the Overview, and a visible count of attempts on the task.
-4. **Check adapter, the rest:** show the kit's stages and `summary.json` on the review page (stored, not yet displayed); pass the sealed task's spec (`HANDLOOM_SPEC`) so the scope check runs; cost per ask.
+3. **Spend cap** per job (needs prices entered). Parked by the owner, 2026-10-18.
+4. **Cost per ask** on the review page.
 5. **Ask in one sentence:** check stored on the project, default machine, one worker, "Get steps first".
 6. **Plain words pass** and Inbox first.
 7. **Agency track:** preview step in the handover, and `MAINTAIN.md` for the operator.

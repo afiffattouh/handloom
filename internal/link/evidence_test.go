@@ -54,3 +54,20 @@ func TestTheCheckIsToldWhatItIsCheckingAgainst(t *testing.T) {
 		t.Fatalf("tail: %q", res.tail)
 	}
 }
+
+func TestASealedKitTasksSpecReachesTheCheck(t *testing.T) {
+	dir := t.TempDir()
+	os.MkdirAll(filepath.Join(dir, "specs"), 0o755)
+	os.WriteFile(filepath.Join(dir, "specs", "parser-fix.md"), []byte("# x"), 0o644)
+	for base, want := range map[string]string{"task/parser-fix-base": "specs/parser-fix.md", "main": "", "task/missing-base": "", "task/../x-base": "", "task/parser-fix": ""} {
+		if got := sealedSpec(dir, base); got != want {
+			t.Errorf("sealedSpec(%q) = %q, want %q", base, got, want)
+		}
+	}
+	l := &Link{}
+	l.opt.VerifyTimeout = time.Minute
+	res := l.execVerify(dir, `echo "[$HANDLOOM_SPEC]"`, "spec-test", "submit", "task/parser-fix-base")
+	if !strings.Contains(res.tail, "[specs/parser-fix.md]") {
+		t.Fatalf("tail: %q", res.tail)
+	}
+}

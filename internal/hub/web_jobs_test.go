@@ -316,3 +316,32 @@ func TestTheJobPageShowsEachTasksLatestHandoffNote(t *testing.T) {
 		}
 	}
 }
+
+func TestTheJobPageShowsWhatAKitsCheckLookedAtAndTheOverviewCanStopAJob(t *testing.T) {
+	e := newWebEnv(t, Options{})
+	ag := e.agents()
+	c, _ := e.owner()
+	var j api.Job
+	e.apiOK(e.humanAPI(), "", "POST", "/v1/jobs", api.JobNewReq{Title: "Site", Lead: "lead", Repo: "/srv/app", Verify: "./check", Device: "d1"}, &j)
+	var t1 api.Task
+	ag.lead("POST", "/v1/tasks", api.TaskCreateReq{Title: "fix links", AssignedTo: "worker"}, &t1)
+	ag.worker("POST", fmt.Sprintf("/v1/tasks/%d/claim", t1.ID), nil, nil)
+	ag.worker("POST", fmt.Sprintf("/v1/tasks/%d/submit", t1.ID), api.SubmitReq{Evidence: []string{"commit:abc"}, Note: "done"}, nil)
+	ev := &api.CheckEvidence{Result: "blocked", Reason: "the agent wrote BLOCKED.md", Blocked: "needs <b>a decision</b>",
+		Stages: []api.CheckStage{{Name: "web-links", Status: "pass"}, {Name: "web-images", Status: "fail", Detail: "2 missing alt"}}}
+	e.apiOK(ag.device, "", "POST", fmt.Sprintf("/v1/tasks/%d/verify", t1.ID), api.TaskCheckReq{Agent: "worker", Command: "./check", ExitCode: 3, Evidence: ev}, nil)
+
+	page := e.req("GET", fmt.Sprintf("/jobs/%d", j.ID), nil, c, nil).body
+	for _, want := range []string{"a person decides", "What the project's check looked at", "web-images", "2 missing alt", "needs &lt;b&gt;a decision&lt;/b&gt;"} {
+		if !strings.Contains(page, want) {
+			t.Errorf("job page lacks %q", want)
+		}
+	}
+	if strings.Contains(page, "<b>a decision</b>") {
+		t.Error("the agent's note is not escaped")
+	}
+	ov := e.req("GET", "/command", nil, c, nil).body
+	if !strings.Contains(ov, fmt.Sprintf(`action="/jobs/%d/close"`, j.ID)) || !strings.Contains(ov, "Stop job #") {
+		t.Error("the Overview has no Stop for an open job")
+	}
+}

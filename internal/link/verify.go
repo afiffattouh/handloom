@@ -47,7 +47,7 @@ func (l *Link) execVerify(dir, command, logName, mode, base string) verifyResult
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "sh", "-c", command)
 	cmd.Dir = dir
-	cmd.Env = verifyEnv(mode, base)
+	cmd.Env = verifyEnv(mode, base, sealedSpec(dir, base))
 	inOwnGroup(cmd) // so a timeout stops the whole tree
 	cmd.WaitDelay = 2 * time.Second
 	var out bytes.Buffer
@@ -75,7 +75,7 @@ func (l *Link) execVerify(dir, command, logName, mode, base string) verifyResult
 
 // verifyEnv is a plain environment: the link's own variables (tokens, hub
 // addresses) are not for the command.
-func verifyEnv(mode, base string) []string {
+func verifyEnv(mode, base, spec string) []string {
 	env := []string{"CI=1", "HANDLOOM_VERIFY=1"}
 	if mode != "" {
 		env = append(env, "HANDLOOM_MODE="+mode)
@@ -83,12 +83,33 @@ func verifyEnv(mode, base string) []string {
 	if base != "" {
 		env = append(env, "HANDLOOM_BASE="+base)
 	}
+	if spec != "" {
+		env = append(env, "HANDLOOM_SPEC="+spec)
+	}
 	for _, k := range []string{"PATH", "HOME", "USER", "LANG", "LC_ALL", "TMPDIR", "GOPATH", "GOCACHE", "GOFLAGS"} {
 		if v, ok := os.LookupEnv(k); ok {
 			env = append(env, k+"="+v)
 		}
 	}
 	return env
+}
+
+// sealedSpec is the spec of a sealed kit task: a base named task/<slug>-base (what `handloom kit task seal`
+// leaves) with specs/<slug>.md in the worktree. The check then also holds the work to the files the spec lists.
+func sealedSpec(dir, base string) string {
+	slug, ok := strings.CutPrefix(base, "task/")
+	if !ok {
+		return ""
+	}
+	slug, ok = strings.CutSuffix(slug, "-base")
+	if !ok || slug == "" || strings.ContainsAny(slug, `/\.`) {
+		return ""
+	}
+	rel := "specs/" + slug + ".md"
+	if _, err := os.Stat(filepath.Join(dir, rel)); err != nil {
+		return ""
+	}
+	return rel
 }
 
 // limited stops collecting after left bytes but keeps accepting writes, so a

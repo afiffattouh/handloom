@@ -37,9 +37,13 @@
         <tbody>
         {{range .Tasks}}
         <tr>
-          <td><span class="mono muted">#{{.ID}}</span> {{.Title}}{{if .DependsOn}} <span class="desc">after {{range .DependsOn}}#{{.}} {{end}}</span>{{end}}
+          <td><span class="mono muted">#{{.ID}}</span> {{.Title}}{{if .Rejects}} <span class="badge warning" title="Its work was sent back; after three times it stops and you are asked">sent back {{.Rejects}}×</span>{{end}}{{if .DependsOn}} <span class="desc">after {{range .DependsOn}}#{{.}} {{end}}</span>{{end}}
             {{if .Evidence}}<div class="desc text">{{range $i, $e := .Evidence}}{{if $i}}; {{end}}{{$e}}{{end}}</div>{{end}}
             {{with .Handoff}}<div class="desc text"><strong>Handoff</strong> ({{.Kind}}, {{.Author}}): {{.Done}}{{if .Next}} <strong>Next:</strong> {{.Next}}{{end}}{{if .Verify}} <strong>Check:</strong> {{.Verify}}{{end}}</div>{{end}}
+            {{with .Check}}{{with .Evidence}}<details class="desc text"><summary>What the project's check looked at{{if .Reason}}: {{.Reason}}{{end}}</summary>
+              <ul>{{range .Stages}}<li><span class="mono">{{.Name}}</span> — {{.Status}}{{if .Detail}} ({{.Detail}}){{end}}</li>{{end}}</ul>
+              {{range .Refused}}<div class="sev-bad">Refused: {{.}}</div>{{end}}
+              {{if .Blocked}}<div class="inset wrap"><strong>The agent's note:</strong> {{.Blocked}}</div>{{end}}</details>{{end}}{{end}}
             {{if and .Check (not .CheckOK) .Check.Tail}}<div class="inset wrap">{{.Check.Tail}}</div>{{end}}
             {{with .Merge}}{{if and (ne .Status "merged") (ne .Status "pending") .Detail}}<div class="desc text sev-bad">{{.Detail}}</div>{{end}}{{end}}</td>
           <td class="nw">{{if .Owner}}{{.Owner}}{{else}}<span class="muted">unclaimed</span>{{end}}</td>

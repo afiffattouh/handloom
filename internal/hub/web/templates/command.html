@@ -28,7 +28,7 @@
 <section class="card" aria-labelledby="jobs">
   <div class="ch"><div><h2 id="jobs">Jobs</h2><p class="desc">Open jobs and the last few that finished.</p></div><a class="button outline sm" href="/jobs">All jobs</a></div>
   <div class="cc flush tw"><table>
-    <thead><tr><th>Job</th><th>State</th><th>Lead</th><th>Progress</th><th>Now</th><th>Started</th></tr></thead>
+    <thead><tr><th>Job</th><th>State</th><th>Lead</th><th>Progress</th><th>Now</th><th>Started</th><th></th></tr></thead>
     <tbody>
     {{range .Jobs}}
     <tr class="link">
@@ -38,9 +38,12 @@
       <td class="progress-col">{{if .Total}}<div class="row line prog"><div class="progress" role="img" aria-label="{{.Done}} of {{.Total}} tasks done"><span class="w{{.Pct}}"></span></div><span class="desc num nw">{{.Done}}/{{.Total}}</span></div>{{else}}<span class="desc">no tasks yet</span>{{end}}</td>
       <td class="desc">{{.Waiting}}</td>
       <td class="nw desc">{{.Ago}}</td>
+      <td class="nw">{{if and .Open $.Extra.CanStart}}<details class="stop"><summary class="button outline sm">Stop</summary>
+        <form method="post" action="/jobs/{{.ID}}/close" class="stack"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="cancel" value="1">
+          <p class="desc">Stops this job and every task that is not done. What is done stays.</p><button type="submit" class="destructive sm-btn">Stop job #{{.ID}}</button></form></details>{{end}}</td>
     </tr>
     {{else}}
-    <tr><td colspan="6" class="empty">No jobs yet.{{if $.Extra.CanStart}} <a href="/jobs/new">Start one</a>.{{end}}</td></tr>
+    <tr><td colspan="7" class="empty">No jobs yet.{{if $.Extra.CanStart}} <a href="/jobs/new">Start one</a>.{{end}}</td></tr>
     {{end}}
     </tbody></table></div>
 </section>

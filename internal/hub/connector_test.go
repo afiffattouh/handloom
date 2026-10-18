@@ -826,7 +826,7 @@ func TestSigningInOnTheWayToTheConsentPage(t *testing.T) {
 		}
 		e.clock.advance(time.Minute) // sign-ins are rate limited
 		in := e.req("POST", "/login", url.Values{"name": {"afif"}, "password": {goodPassword}, "next": {evil}}, nil, nil)
-		if in.header.Get("Location") != "/command" {
+		if in.header.Get("Location") != "/inbox" {
 			t.Errorf("next=%q went to %q", evil, in.header.Get("Location"))
 		}
 	}

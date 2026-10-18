@@ -217,6 +217,8 @@ func checkWords(t *api.Task) string {
 	switch {
 	case ck.TimedOut:
 		return "timed out on " + ck.Device
+	case ck.Evidence != nil && ck.ExitCode != 0:
+		return ck.Words() + " (" + ck.Device + ")"
 	case ck.ExitCode != 0:
 		return fmt.Sprintf("failed on %s (exit %d)", ck.Device, ck.ExitCode)
 	}

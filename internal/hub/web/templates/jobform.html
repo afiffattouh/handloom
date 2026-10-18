@@ -38,11 +38,12 @@
   </section>
 
   <section class="card" aria-labelledby="s3">
-    <div class="ch"><div><h2 id="s3">3. How will we know it worked?</h2><p class="desc">A command that exits cleanly when the work is right. The machine runs it on every submission, and a lead cannot accept work that fails it.</p></div></div>
+    <div class="ch"><div><h2 id="s3">3. How will we know it worked?</h2><p class="desc">A command that exits cleanly when the work is right. The machine runs it on every submission, and a lead cannot accept work that fails it. If the project has the Handloom kit (<code>./check</code>), use that: it also tells the machine what it is checking against and shows the result in plain words.</p></div></div>
     <div class="cc">
       <label><span>Check command <span class="desc">(optional, needs a project folder)</span></span>
         <input name="verify" id="verify" value="{{index .Form "verify"}}" placeholder="npm test" class="mono-input" autocomplete="off"></label>
       <div class="presets" id="verify-examples" hidden><span class="desc">Examples:</span>
+        <button type="button" class="secondary sm-btn" data-fill="verify" data-value="./check">./check (the kit)</button>
         <button type="button" class="secondary sm-btn" data-fill="verify" data-value="go test ./...">go test ./...</button>
         <button type="button" class="secondary sm-btn" data-fill="verify" data-value="npm test">npm test</button>
         <button type="button" class="secondary sm-btn" data-fill="verify" data-value="pytest">pytest</button>

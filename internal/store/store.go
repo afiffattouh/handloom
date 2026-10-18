@@ -458,6 +458,11 @@ CREATE TABLE oauth_token (
   resource       TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX oauth_token_grant ON oauth_token(grant_id);
+`, `
+-- The project kit's check leaves evidence (its summary.json) that is kept with the check, and a task counts
+-- how often its work was rejected so a stuck task stops instead of looping.
+ALTER TABLE task_check ADD COLUMN evidence TEXT NOT NULL DEFAULT '';
+ALTER TABLE task ADD COLUMN rejects INTEGER NOT NULL DEFAULT 0;
 `}
 
 // Open opens (and migrates) the database at path. Use ":memory:" in tests.

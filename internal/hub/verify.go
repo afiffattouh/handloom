@@ -1,6 +1,7 @@
 package hub
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -14,14 +15,34 @@ import (
 // the lead sees it next to the agent's evidence, and an agent (the lead)
 // cannot accept work that failed it.
 
-func checkWords(ck *api.TaskCheck) string {
-	switch {
-	case ck.TimedOut:
-		return "timed out"
-	case ck.ExitCode == 0:
-		return "passed"
+func checkWords(ck *api.TaskCheck) string { return ck.Words() }
+
+// cleanEvidence keeps what a person reads from a kit's summary and bounds it: the device is trusted
+// to run the command, not to send an unbounded body.
+func cleanEvidence(ev *api.CheckEvidence) *api.CheckEvidence {
+	if ev == nil {
+		return nil
 	}
-	return fmt.Sprintf("failed, exit %d", ck.ExitCode)
+	cut := func(s string, n int) string {
+		if len(s) > n {
+			return s[:n]
+		}
+		return s
+	}
+	out := &api.CheckEvidence{Result: cut(ev.Result, 20), Reason: cut(ev.Reason, 500), Blocked: cut(ev.Blocked, 2000), Mode: cut(ev.Mode, 20)}
+	for i, s := range ev.Stages {
+		if i >= 40 {
+			break
+		}
+		out.Stages = append(out.Stages, api.CheckStage{Name: cut(s.Name, 60), Status: cut(s.Status, 20), Detail: cut(s.Detail, 200), Seconds: s.Seconds})
+	}
+	for i, r := range ev.Refused {
+		if i >= 20 {
+			break
+		}
+		out.Refused = append(out.Refused, cut(r, 300))
+	}
+	return out
 }
 
 // taskVerify is the link reporting a verify run. Only the device the agent
@@ -66,18 +87,19 @@ func taskVerify(c *call) (any, error) {
 	if req.TimedOut {
 		timedOut = 1
 	}
-	if _, err := c.tx.Exec(`INSERT INTO task_check(task_id, agent, device_id, command, exit_code, timed_out, tail, sha256, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+	ev := cleanEvidence(req.Evidence)
+	evJSON := ""
+	if ev != nil {
+		b, _ := json.Marshal(ev)
+		evJSON = string(b)
+	}
+	if _, err := c.tx.Exec(`INSERT INTO task_check(task_id, agent, device_id, command, exit_code, timed_out, tail, sha256, at, evidence) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(task_id) DO UPDATE SET agent = excluded.agent, device_id = excluded.device_id, command = excluded.command, exit_code = excluded.exit_code,
-		timed_out = excluded.timed_out, tail = excluded.tail, sha256 = excluded.sha256, at = excluded.at`,
-		id, a.name, c.p.deviceID, req.Command, req.ExitCode, timedOut, req.Tail, req.SHA256, store.Millis(c.now)); err != nil {
+		timed_out = excluded.timed_out, tail = excluded.tail, sha256 = excluded.sha256, at = excluded.at, evidence = excluded.evidence`,
+		id, a.name, c.p.deviceID, req.Command, req.ExitCode, timedOut, req.Tail, req.SHA256, store.Millis(c.now), evJSON); err != nil {
 		return nil, err
 	}
-	words := "passed"
-	if req.TimedOut {
-		words = "timed out"
-	} else if req.ExitCode != 0 {
-		words = fmt.Sprintf("failed, exit %d", req.ExitCode)
-	}
+	words := (&api.TaskCheck{ExitCode: req.ExitCode, TimedOut: req.TimedOut, Evidence: ev}).Words()
 	if err := c.record(t.projectID, a.id, "task.verified", t.target(), map[string]any{"agent": a.name, "exit_code": req.ExitCode, "timed_out": req.TimedOut, "sha256": req.SHA256}); err != nil {
 		return nil, err
 	}
@@ -87,7 +109,11 @@ func taskVerify(c *call) (any, error) {
 		return nil, err
 	}
 	body := fmt.Sprintf("Task #%d (%s): the device ran %q on %s's work: %s.", t.id, t.title, req.Command, a.name, words)
-	if req.ExitCode != 0 || req.TimedOut {
+	if ev != nil && req.ExitCode == 3 && !req.TimedOut {
+		body += " Do not send it back to be retried: change the task, or cancel it, or ask the person who owns the project."
+	} else if ev != nil && req.ExitCode == 2 && !req.TimedOut {
+		body += " That is a problem with the project's checks, not with this work: a person has to fix them."
+	} else if req.ExitCode != 0 || req.TimedOut {
 		body += " It cannot be accepted as it is: reject it with the reason, or read the end of the output with `handloom task show " + fmt.Sprint(t.id) + "`."
 		if tail := strings.TrimSpace(req.Tail); tail != "" {
 			body += "\n\n" + lastLines(tail, 12)

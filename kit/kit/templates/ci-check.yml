@@ -1,0 +1,28 @@
+# Runs the project's checks on every pull request and on every change to main (factory-kit).
+# Make the "check" job required in the branch protection rules so that only a passing,
+# approved change can land. Standard library Python only; nothing to install.
+name: check
+on:
+  pull_request:
+  push:
+    branches: [{branch}]
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # A pull request is a small change to a live project: the gate, capped, protected files refused.
+      - name: Check the change
+        if: github.event_name == 'pull_request'
+        run: ./check
+        env:
+          HANDLOOM_MODE: maintain
+          HANDLOOM_BASE: origin/${{ github.base_ref }}
+      # A change that landed on the main branch: every stage.
+      - name: Check the main branch
+        if: github.event_name == 'push'
+        run: ./check
+        env:
+          HANDLOOM_MODE: merge

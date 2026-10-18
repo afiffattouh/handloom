@@ -119,6 +119,7 @@ Hub and administration (HANDLOOM_HUB and HANDLOOM_TOKEN set to the hub URL and a
   handloom spawn <name> [--profile P] [--kind claude] [--model M] [--device D] [--job N]   start an agent in a terminal the link owns (lead, human)
   handloom spawns                                 list spawn requests and how they went
   handloom digest                                 what needs you, what waits for review, what runs
+  handloom kit init [DIR] [--preset web] | handover | task new|seal | upgrade   the project kit: a check and a gate any agent, CI or person runs the same way (needs Python 3.8+; works without a hub)
   handloom lesson propose|list|accept|reject      a finished job teaches: a short addition to a skill, reviewed by a person, becomes a new profile version
   handloom search <words> [--notes | --jobs] [--knowledge DIR]   what the team already knows: the client's notes on this machine and what earlier jobs recorded
   handloom join <hub-url> <join-token> [--no-start] [--no-service]   do everything to make this machine part of a hub: join, keep the link running, check the machine
@@ -260,6 +261,8 @@ func run(e *env, args []string) int {
 		err = e.task(rest)
 	case "hook":
 		return e.hook(rest)
+	case "kit":
+		return e.kitCmd(rest)
 	case "adapter":
 		err = e.adapter(rest)
 	case "mcp":

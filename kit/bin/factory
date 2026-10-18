@@ -1,0 +1,462 @@
+#!/usr/bin/env python3
+"""factory: set a project up for coding agents, and keep it set up.
+
+    factory init [DIR]          add the check, the gate, the agent guide and the hooks (--preset web for a site)
+    factory accept-tests [DIR]  record the acceptance tests in their manifest (a person does this)
+    factory upgrade [DIR]       refresh the vendored .factory/ files and ./check
+    factory lessons [DIR]       list lessons seen twice that are not yet a check
+    factory handover [DIR]      prepare a finished project to be looked after without Handloom: CI,
+                                the plain-words guide, owners for the protected files, a checklist
+    factory task new SLUG       start a task: branch task/SLUG and specs/SLUG.md from the template
+    factory task seal SLUG      commit the spec and acceptance tests (owner) and mark that commit as
+                                the gate's base, then print the commands for the agent
+
+init never overwrites a file that exists (use --force for the vendored files only). It writes
+everything into the project, so the project works on any machine without factory-kit.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import subprocess
+import re
+import shutil
+import sys
+from pathlib import Path
+
+KIT = Path(__file__).resolve().parent.parent / "kit"
+TEMPLATES = KIT / "templates"
+sys.path.insert(0, str(KIT))
+import check as kitcheck  # noqa: E402
+
+HOOK_PROTECT = 'python3 "$CLAUDE_PROJECT_DIR/.factory/hooks/protect.py"'
+HOOK_STOP = 'python3 "$CLAUDE_PROJECT_DIR/.factory/hooks/stop_check.py"'
+
+
+def say(msg: str):
+    print(msg)
+
+
+# ---------------------------------------------------------------------------
+# stage detection
+# ---------------------------------------------------------------------------
+def detect_stages(root: Path) -> tuple[dict, dict, list]:
+    """Best guess at the project's checks. Returns (stages, fast overrides, notes)."""
+    stages, fast, notes = {}, {}, []
+    pkg = root / "package.json"
+    if pkg.exists():
+        try:
+            scripts = json.loads(pkg.read_text()).get("scripts", {}) or {}
+        except Exception:
+            scripts = {}
+        runner = "npm run"
+        for name, key in (("lint", "lint"), ("typecheck", "typecheck"), ("unit", "test"), ("build", "build")):
+            if key in scripts:
+                stages[name] = f"{runner} {key} --silent" if key != "test" else "npm test --silent"
+        if "tsc" not in json.dumps(scripts) and (root / "tsconfig.json").exists() and "typecheck" not in stages:
+            stages["typecheck"] = "npx tsc --noEmit"
+        if "build" in stages:
+            fast["build"] = ""
+    py = (root / "venv" / "bin" / "python")
+    python = "venv/bin/python" if py.exists() else ("uv run python" if (root / "uv.lock").exists() else "python3")
+    has_py_tests = any((root / "tests").glob("test_*.py")) or any(root.glob("test_*.py"))
+    if has_py_tests and "unit" not in stages:
+        uses_pytest = any("pytest" in (root / f).read_text(errors="ignore")
+                          for f in ("pyproject.toml", "requirements.txt", "requirements-dev.txt", "setup.cfg")
+                          if (root / f).exists())
+        stages["unit"] = f"{python} -m pytest -q" if uses_pytest else f"{python} -m unittest discover -s tests -q"
+    if (root / "go.mod").exists():
+        stages.setdefault("lint", "go vet ./...")
+        stages.setdefault("unit", "go test ./...")
+        fast.setdefault("unit", "go test -short ./...")
+    if (root / "Cargo.toml").exists():
+        stages.setdefault("lint", "cargo clippy --quiet -- -D warnings")
+        stages.setdefault("unit", "cargo test --quiet")
+    makefile = root / "Makefile"
+    if makefile.exists() and re.search(r"(?m)^check:", makefile.read_text(errors="ignore")):
+        stages["suite"] = "make check"
+        notes.append("found `make check`; kept it as the `suite` stage")
+    for legacy in ("check.sh", "ci.sh", "scripts/check.sh"):
+        if (root / legacy).exists():
+            stages["suite"] = f"./{legacy}" if "/" not in legacy else legacy
+            notes.append(f"found {legacy}; kept it as the `suite` stage (it still works on its own)")
+            break
+    if not stages:
+        notes.append("no checks detected: fill in [stages] in factory.toml")
+    return stages, fast, notes
+
+
+WEB_STAGES = {"web-links": "python3 .factory/checks/web.py links", "web-images": "python3 .factory/checks/web.py images",
+              "web-meta": "python3 .factory/checks/web.py meta", "web-budget": "python3 .factory/checks/web.py budget"}
+PRESETS = ("generic", "web")
+
+
+def factory_toml(name: str, stages: dict, fast: dict, links: list, preset: str = "generic") -> str:
+    lines = [
+        "# Checks for coding agents and people (factory-kit). ./check runs the stages below in order and",
+        "# stops at the first failure. An empty command skips a stage. Recommended order:",
+        "# format, lint, typecheck, unit, acceptance, build, smoke. A person owns this file.",
+        "",
+        "[project]",
+        f'name = "{name}"',
+        f'preset = "{preset}"',
+        "",
+        "[stages]",
+    ]
+    for stage in ("format", "lint", "typecheck", "unit", "suite", "acceptance", "build", "smoke"):
+        if stage in stages:
+            lines.append(f'{stage} = "{stages[stage]}"')
+        elif stage in ("acceptance", "smoke"):
+            hint = {"acceptance": "tests in tests/acceptance/ (owned by a person)",
+                    "smoke": "drive the real thing once, as a user would"}[stage]
+            lines.append(f'{stage} = ""  # {hint}')
+    for stage, cmd in stages.items():
+        if stage not in ("format", "lint", "typecheck", "unit", "suite", "acceptance", "build", "smoke"):
+            lines.append(f'{stage} = "{cmd}"')
+    lines += ["", "# ./check --fast uses these instead (empty = skip in --fast).", "[fast]"]
+    lines += [f'{k} = "{v}"' for k, v in fast.items()]
+    lines += ["", "# What a fresh git worktree needs from the main checkout (linked by ./check, never committed).",
+              "[worktree]", "link = [" + ", ".join(f'"{d}"' for d in links) + "]"]
+    lines += ["", "[timeouts]", "default = 900", "", "[gate]", 'base = "main"',
+              'acceptance_dir = "tests/acceptance"', "max_changed_files = 30", "max_agents_md_lines = 100", "",
+              "# Limits for ./check --mode maintain (small changes to a live project).", "[maintain]", "max_changed_files = 10", ""]
+    if preset == "web":
+        lines += ["# The web checks read the built site. dir: where it is (default: dist, build, out, _site, public).",
+                  "[web]", '# dir = "dist"', "max_image_kb = 500", "max_html_kb = 200", "# ignore = [\"/api/\"]", ""]
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# commands
+# ---------------------------------------------------------------------------
+def vendor(root: Path, force: bool, web: bool = False) -> list:
+    done = []
+    web = web or (root / ".factory" / "checks" / "web.py").exists()
+    (root / ".factory" / "hooks").mkdir(parents=True, exist_ok=True)
+    if web:
+        (root / ".factory" / "checks").mkdir(parents=True, exist_ok=True)
+    for src, dst in ((KIT / "check.py", ".factory/check.py"),
+                     (KIT / "_toml.py", ".factory/_toml.py"),
+                     (KIT / "hooks" / "protect.py", ".factory/hooks/protect.py"),
+                     (KIT / "hooks" / "stop_check.py", ".factory/hooks/stop_check.py"),
+                     (TEMPLATES / "check", "check"),
+                     *(((KIT / "checks" / "web.py", ".factory/checks/web.py"),) if web else ())):
+        target = root / dst
+        if target.exists() and not force and target.read_bytes() == src.read_bytes():
+            continue
+        if target.exists() and not force:
+            say(f"  kept   {dst} (differs from the kit; `factory upgrade` refreshes it)")
+            continue
+        shutil.copyfile(src, target)
+        target.chmod(0o755 if dst in ("check", ".factory/check.py") or dst.startswith((".factory/hooks", ".factory/checks")) else 0o644)
+        done.append(dst)
+    (root / ".factory" / "VERSION").write_text(kitcheck.KIT_VERSION + "\n")
+    return done
+
+
+def write_if_absent(root: Path, rel: str, text: str, created: list, skipped: list):
+    target = root / rel
+    if target.exists():
+        skipped.append(rel)
+        return
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(text)
+    created.append(rel)
+
+
+def merge_hooks(root: Path, created: list, skipped: list):
+    path = root / ".claude" / "settings.json"
+    data = {}
+    if path.exists():
+        try:
+            data = json.loads(path.read_text() or "{}")
+        except json.JSONDecodeError:
+            skipped.append(".claude/settings.json (not valid JSON; hooks not added)")
+            return
+    hooks = data.setdefault("hooks", {})
+    added = False
+    for event, matcher, command, timeout in (("PreToolUse", "Edit|Write|MultiEdit|NotebookEdit", HOOK_PROTECT, None),
+                                             ("Stop", None, HOOK_STOP, 600)):
+        groups = hooks.setdefault(event, [])
+        if any(h.get("command") == command for g in groups for h in g.get("hooks", [])):
+            continue
+        entry = {"type": "command", "command": command}
+        if timeout:
+            entry["timeout"] = timeout
+        group = {"hooks": [entry]}
+        if matcher:
+            group = {"matcher": matcher, **group}
+        groups.append(group)
+        added = True
+    if added:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(data, indent=2) + "\n")
+        created.append(".claude/settings.json (hooks)")
+    else:
+        skipped.append(".claude/settings.json (hooks already there)")
+
+
+def cmd_init(args) -> int:
+    root = Path(args.dir).resolve()
+    if not (root / ".git").exists():
+        say(f"{root} is not a git repository. The gate compares against a base branch, so it needs git.")
+        return 2
+    name = args.name or root.name
+    created, skipped = [], []
+    stages, fast, notes = detect_stages(root)
+    preset = args.preset
+    if preset == "web":
+        stages.update(WEB_STAGES)
+        if not any(k in stages for k in ("build",)) and not (root / "package.json").exists():
+            notes.append("web preset: no build step found; the checks read the HTML in the project folder (or [web] dir)")
+    links = [d for d in ("venv", ".venv", "node_modules") if (root / d).is_dir()]
+    write_if_absent(root, "factory.toml", factory_toml(name, stages, fast, links, preset), created, skipped)
+    agents = (TEMPLATES / "AGENTS.md").read_text().replace("{name}", name).replace("{commands}", "")
+    write_if_absent(root, "AGENTS.md", agents, created, skipped)
+    claude_md = root / "CLAUDE.md"
+    if claude_md.exists() and "@AGENTS.md" not in claude_md.read_text():
+        notes.append("CLAUDE.md exists without `@AGENTS.md`; add that line so Claude Code reads the guide")
+    write_if_absent(root, "CLAUDE.md", (TEMPLATES / "CLAUDE.md").read_text(), created, skipped)
+    write_if_absent(root, "specs/TEMPLATE.md", (TEMPLATES / "spec.md").read_text(), created, skipped)
+    write_if_absent(root, "LESSONS.md", (TEMPLATES / "LESSONS.md").read_text(), created, skipped)
+    write_if_absent(root, "tests/acceptance/README.md", (TEMPLATES / "acceptance-README.md").read_text(), created, skipped)
+    created += vendor(root, args.force, web=preset == "web")
+    if not args.no_hooks:
+        merge_hooks(root, created, skipped)
+    gi = root / ".gitignore"
+    text = gi.read_text() if gi.exists() else ""
+    if not re.search(r"(?m)^/?runs/?$", text):
+        gi.write_text(text + ("" if text.endswith("\n") or not text else "\n") + "runs/\n")
+        created.append(".gitignore (runs/)")
+    accept(root, quiet=True)
+    for c in created:
+        say(f"  added  {c}")
+    for s in skipped:
+        say(f"  kept   {s}")
+    for n in notes:
+        say(f"  note   {n}")
+    say("\nNext: review factory.toml, run ./check, then commit. Handloom jobs, CI and agents all run `./check`.")
+    return 0
+
+
+def accept(root: Path, quiet=False) -> int:
+    try:
+        cfg = kitcheck.load_config(root)
+    except kitcheck.ConfigError:
+        cfg = {}
+    acc = root / kitcheck.acceptance_dir(cfg)
+    acc.mkdir(parents=True, exist_ok=True)
+    manifest = acc / ".manifest"
+    old = kitcheck.read_manifest(manifest.read_text()) if manifest.exists() else {}
+    new = kitcheck.hash_tree(acc)
+    manifest.write_text(kitcheck.manifest_text(new))
+    if not quiet:
+        for f in sorted(set(old) | set(new)):
+            if f not in old:
+                say(f"  new      {f}")
+            elif f not in new:
+                say(f"  removed  {f}")
+            elif old[f] != new[f]:
+                say(f"  changed  {f}")
+        say(f"{len(new)} acceptance file(s) recorded in {manifest.relative_to(root)}. Commit it with the tests.")
+    return 0
+
+
+def cmd_accept(args) -> int:
+    return accept(Path(args.dir).resolve())
+
+
+def cmd_upgrade(args) -> int:
+    root = Path(args.dir).resolve()
+    for f in vendor(root, force=True):
+        say(f"  refreshed {f}")
+    say(f"factory-kit {kitcheck.KIT_VERSION}. These are protected files: commit the upgrade on the base branch.")
+    return 0
+
+
+def cmd_lessons(args) -> int:
+    path = Path(args.dir).resolve() / "LESSONS.md"
+    if not path.exists():
+        say("no LESSONS.md")
+        return 0
+    due = []
+    for block in re.split(r"(?m)^## ", path.read_text())[1:]:
+        title = block.splitlines()[0].strip()
+        seen = re.search(r"(?m)^- seen:\s*(.+)$", block)
+        check_line = re.search(r"(?m)^- check:\s*(.*)$", block)
+        dates = [d for d in re.split(r"[,\s]+", seen.group(1)) if d] if seen else []
+        if len(dates) >= 2 and not (check_line and check_line.group(1).strip()):
+            due.append((title, dates))
+    if not due:
+        say("nothing due: no lesson seen twice without a check")
+    for title, dates in due:
+        say(f"DUE  {title}  (seen {len(dates)}x: {', '.join(dates)})  -> turn it into a check, then fill `check:`")
+    return 0
+
+
+def _git(root: Path, *args) -> subprocess.CompletedProcess:
+    return subprocess.run(["git", *args], cwd=root, capture_output=True, text=True)
+
+
+def cmd_task(args) -> int:
+    """The owner's half of a task. Acceptance tests for unfinished work cannot live on the base
+    branch (it would go red), so they go in the task branch's first commit, and that commit is
+    the gate's base: the agent can neither skip them nor change them."""
+    root = Path(args.dir).resolve()
+    slug = args.slug
+    if not re.fullmatch(r"[a-z0-9][a-z0-9._-]*", slug):
+        say("slug: lowercase letters, digits, dot, dash or underscore")
+        return 2
+    branch, base_branch, spec = f"task/{slug}", f"task/{slug}-base", f"specs/{slug}.md"
+    if args.action == "new":
+        if _git(root, "rev-parse", "--verify", "-q", branch).returncode == 0:
+            say(f"{branch} exists already")
+            return 2
+        dirty = [l for l in _git(root, "status", "--porcelain").stdout.splitlines() if not l[3:].startswith("runs/")]
+        if dirty:
+            say("the working tree has changes; commit or set them aside first")
+            return 2
+        r = _git(root, "checkout", "-q", "-b", branch)
+        if r.returncode != 0:
+            say(r.stderr.strip())
+            return 2
+        target = root / spec
+        if not target.exists():
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text((TEMPLATES / "spec.md").read_text().replace("<short title>", slug))
+        say(f"On {branch}. Now, as the owner:\n"
+            f"  1. fill in {spec} (Goal, Files, Out of scope, Checks)\n"
+            f"  2. add the tests that define done under tests/acceptance/ (they should fail today)\n"
+            f"  3. factory task seal {slug}")
+        return 0
+    # seal
+    if _git(root, "branch", "--show-current").stdout.strip() != branch:
+        say(f"check out {branch} first")
+        return 2
+    if not (root / spec).exists():
+        say(f"{spec} is missing")
+        return 2
+    text = (root / spec).read_text()
+    left = [p for p in ("<short title>", "<What should be true", "- path/to/file", "command that fails today", "- <risk, and the acceptance test") if p in text]
+    if left:
+        say(f"{spec} still has template placeholders ({'; '.join(left)}). Fill in Goal, Files, Risks and Checks first.")
+        return 2
+    accept(root, quiet=True)
+    _git(root, "add", "-A", "--", spec, "tests/acceptance", "factory.toml")
+    if _git(root, "diff", "--cached", "--quiet").returncode != 0:
+        r = _git(root, "commit", "-q", "-m", f"task {slug}: spec and acceptance tests (owner)")
+        if r.returncode != 0:
+            say(r.stderr.strip())
+            return 2
+    _git(root, "branch", "-f", base_branch, "HEAD")
+    gate = f"./check --gate --spec {spec} --base {base_branch}"
+    say(f"Sealed: {base_branch} -> {_git(root, 'rev-parse', '--short', 'HEAD').stdout.strip()}\n"
+        f"Gate (Handloom check command, CI, or by hand):\n  {gate}\n"
+        f"Isolated worktree for an agent:\n  git worktree add ../{root.name}-wt-{slug} {branch}\n"
+        f"Before sealing, the gate should fail only on the new acceptance tests.")
+    return 0
+
+
+PROTECTED_WHY = (("factory.toml", "the list of checks"), (".factory/ and ./check", "the checker itself"),
+                 ("tests/acceptance/", "the tests that define done"), (".claude/settings.json", "the agent's safety hooks"),
+                 (".github/", "the automatic check on every change"))
+
+
+def cmd_handover(args) -> int:
+    """Contract B. Everything a project needs so that someone else can look after it with any agent:
+    the check on every pull request, owners for the files that define correct, a guide in plain
+    words, and a checklist that says what is done and what a person still has to do."""
+    root = Path(args.dir).resolve()
+    if not (root / "factory.toml").exists():
+        say("this project has no factory.toml. Run `factory init` first.")
+        return 2
+    try:
+        cfg = kitcheck.load_config(root)
+    except kitcheck.ConfigError as e:
+        say(f"factory.toml: {e}")
+        return 2
+    if not args.skip_check:
+        r = subprocess.run(["./check"], cwd=root, capture_output=True, text=True)
+        if r.returncode != 0:
+            say(f"./check does not pass yet (exit {r.returncode}). A project is handed over green.\n" +
+                "\n".join(r.stdout.strip().splitlines()[-6:]))
+            return 1
+    base = cfg.get("gate", {}).get("base", "main")
+    created, kept = [], []
+    approver = (args.approver or "").strip().lstrip("@")
+    write_if_absent(root, ".github/workflows/check.yml", (TEMPLATES / "ci-check.yml").read_text().replace("{branch}", base), created, kept)
+    owners = "# Changes to the files that define 'correct' need the owner's approval.\n"
+    if approver:
+        owners += "".join(f"{p} @{approver}\n" for p in ("/factory.toml", "/check", "/.factory/", "/tests/acceptance/", "/.claude/", "/.github/"))
+    else:
+        owners = ""
+    if owners:
+        write_if_absent(root, ".github/CODEOWNERS", owners, created, kept)
+    ask = f"Then approve. {'The change needs @' + approver + ' to approve it too if it touches a protected file.' if approver else ''}"
+    commands = "- `./check --fast` is the quick pass an agent runs while it works.\n"
+    guide = (TEMPLATES / "MAINTAIN.md").read_text()
+    guide = (guide.replace("{name}", cfg.get("project", {}).get("name") or root.name)
+             .replace("{approver_line}", ask.replace("Then approve. ", ""))
+             .replace("{contact}", f"@{approver}" if approver else "the project owner")
+             .replace("{protected}", "\n".join(f"- `{p}`: {w}" for p, w in PROTECTED_WHY))
+             .replace("{commands}", commands))
+    write_if_absent(root, "MAINTAIN.md", guide, created, kept)
+    toml = root / "factory.toml"
+    text = toml.read_text()
+    if not re.search(r"(?m)^stage\s*=", text):
+        anchor = re.search(r"(?m)^preset = .*$", text) or re.search(r"(?m)^\[project\]$", text)
+        if anchor:
+            toml.write_text(text[:anchor.end()] + '\nstage = "maintained"' + text[anchor.end():])
+            created.append('factory.toml (stage = "maintained")')
+    for c in created:
+        say(f"  added  {c}")
+    for k in kept:
+        say(f"  kept   {k}")
+    repo = _git(root, "config", "--get", "remote.origin.url").stdout.strip()
+    say("\nChecklist")
+    say(f"  [x] green: ./check passes" if not args.skip_check else "  [ ] green: ./check was not run (--skip-check)")
+    say("  [x] guide for the client: MAINTAIN.md")
+    say("  [x] check on every pull request: .github/workflows/check.yml")
+    say(f"  [{'x' if approver else ' '}] approver named for protected files" + ("" if approver else "  -> rerun with --approver <github user>"))
+    say(f"  [ ] commit these files on {base} and push" + ("" if repo else "  (this project has no remote yet)"))
+    say(f"  [ ] protect {base} on GitHub so only a passing, approved change lands. A person with admin rights runs:")
+    say(f"        gh api -X PUT repos/<owner>/<repo>/branches/{base}/protection --input - <<'EOF'\n"
+        '        {"required_status_checks":{"strict":true,"contexts":["check"]},"enforce_admins":false,'
+        '"required_pull_request_reviews":{"required_approving_review_count":1,"require_code_owner_reviews":' + ("true" if approver else "false") + '},'
+        '"restrictions":null}\n        EOF')
+    say("  [ ] try it once: ask the agent for a small change and look at the pull request together")
+    return 0
+
+
+def main(argv=None) -> int:
+    ap = argparse.ArgumentParser(prog="factory", description=__doc__.split("\n\n")[0])
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    p = sub.add_parser("init", help="set a project up")
+    p.add_argument("dir", nargs="?", default=".")
+    p.add_argument("--name")
+    p.add_argument("--preset", choices=PRESETS, default="generic", help="start from a kind of project (web adds link, image, meta and size checks)")
+    p.add_argument("--force", action="store_true", help="overwrite the vendored .factory files and ./check")
+    p.add_argument("--no-hooks", action="store_true", help="do not add the Claude Code hooks")
+    p.set_defaults(fn=cmd_init)
+    for name, fn, help_ in (("accept-tests", cmd_accept, "record the acceptance tests (a person does this)"),
+                            ("upgrade", cmd_upgrade, "refresh the vendored files"),
+                            ("lessons", cmd_lessons, "list lessons that are due to become checks")):
+        p = sub.add_parser(name, help=help_)
+        p.add_argument("dir", nargs="?", default=".")
+        p.set_defaults(fn=fn)
+    p = sub.add_parser("handover", help="prepare a finished project to be looked after by someone else")
+    p.add_argument("dir", nargs="?", default=".")
+    p.add_argument("--approver", help="GitHub user who approves changes to the protected files")
+    p.add_argument("--skip-check", action="store_true", help="do not require ./check to pass first")
+    p.set_defaults(fn=cmd_handover)
+    p = sub.add_parser("task", help="start or seal a task branch (the owner's half)")
+    p.add_argument("action", choices=("new", "seal"))
+    p.add_argument("slug")
+    p.add_argument("dir", nargs="?", default=".")
+    p.set_defaults(fn=cmd_task)
+    args = ap.parse_args(argv)
+    return args.fn(args)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

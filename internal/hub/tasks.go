@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"handloom/internal/api"
+	"handloom/internal/notify"
 	"handloom/internal/store"
 )
 
@@ -63,25 +64,31 @@ const taskSelect = `SELECT t.id, t.project_id, t.title, t.body, t.status, t.owne
 	t.kind, t.job_id, t.parent_id, t.confidential, t.repo, t.verify, t.device_id,
 	t.knowledge, t.base,
 	COALESCE((SELECT j.verify FROM task j WHERE j.id = t.job_id), ''),
-	ck.agent, ck.command, ck.exit_code, ck.timed_out, ck.tail, ck.sha256, ck.at, cd.name
+	ck.agent, ck.command, ck.exit_code, ck.timed_out, ck.tail, ck.sha256, ck.at, cd.name, ck.evidence
 	FROM task t LEFT JOIN task_check ck ON ck.task_id = t.id LEFT JOIN device cd ON cd.id = ck.device_id JOIN project p ON p.id = t.project_id
 	LEFT JOIN agent o ON o.id = t.owner_agent_id LEFT JOIN agent s ON s.id = t.assigned_to `
 
 func scanTask(s scanner) (*taskRow, error) {
 	t := &taskRow{}
 	var deps, evidence string
-	var ckAgent, ckCmd, ckTail, ckSHA, ckDev sql.NullString
+	var ckAgent, ckCmd, ckTail, ckSHA, ckDev, ckEv sql.NullString
 	var ckExit, ckTimed, ckAt sql.NullInt64
 	err := s.Scan(&t.id, &t.projectID, &t.title, &t.body, &t.status, &t.owner, &t.assigned, &t.lease,
 		&deps, &evidence, &t.note, &t.blocked, &t.reject, &t.createdBy, &t.created, &t.updated,
 		&t.project, &t.ownerName, &t.assignedName, &t.kind, &t.jobID, &t.parentID, &t.confidential, &t.repo, &t.verify, &t.deviceID, &t.knowledge, &t.base, &t.jobVerify,
-		&ckAgent, &ckCmd, &ckExit, &ckTimed, &ckTail, &ckSHA, &ckAt, &ckDev)
+		&ckAgent, &ckCmd, &ckExit, &ckTimed, &ckTail, &ckSHA, &ckAt, &ckDev, &ckEv)
 	if err != nil {
 		return nil, err
 	}
 	if ckAt.Valid {
 		t.check = &api.TaskCheck{Agent: ckAgent.String, Device: ckDev.String, Command: ckCmd.String, ExitCode: int(ckExit.Int64),
 			TimedOut: ckTimed.Int64 != 0, Tail: ckTail.String, SHA256: ckSHA.String, At: store.Time(ckAt.Int64)}
+		if ckEv.String != "" {
+			var ev api.CheckEvidence
+			if json.Unmarshal([]byte(ckEv.String), &ev) == nil {
+				t.check.Evidence = &ev
+			}
+		}
 	}
 	t.deps, t.evidence = []int64{}, []string{}
 	json.Unmarshal([]byte(deps), &t.deps)
@@ -597,6 +604,17 @@ func (c *call) rejectTask(t *taskRow, reason string) (any, error) {
 	if t.status != api.StatusSubmitted {
 		return nil, conflict("task %d is %s; only a submitted task can be rejected", t.id, t.status)
 	}
+	var rejects int
+	if err := c.tx.QueryRow(`SELECT rejects FROM task WHERE id = ?`, t.id).Scan(&rejects); err != nil {
+		return nil, err
+	}
+	rejects++
+	if _, err := c.tx.Exec(`UPDATE task SET rejects = ? WHERE id = ?`, rejects, t.id); err != nil {
+		return nil, err
+	}
+	if rejects >= c.h.opt.MaxRejects && t.owner.Valid {
+		return c.stopAfterRejects(t, reason, rejects)
+	}
 	// Back to claimed, with a fresh lease for the owner. The device's check was of the rejected work.
 	if err := c.touch(t, `status = 'claimed', reject_reason = ?, lease_expires_at = ?`, reason, c.leaseUntil()); err != nil {
 		return nil, err
@@ -608,6 +626,33 @@ func (c *call) rejectTask(t *taskRow, reason string) (any, error) {
 		return nil, err
 	}
 	if err := c.notifyOwner(t, fmt.Sprintf("Task #%d (%s) was rejected: %s. It is yours again; fix it and submit again.", t.id, t.title, reason)); err != nil {
+		return nil, err
+	}
+	return c.reload(t)
+}
+
+// stopAfterRejects ends a task whose work has been sent back as many times as the cap allows. Another try
+// by the same helper would most likely fail the same way, so the task is cancelled and the owner is asked
+// in the inbox what to do. Nothing is lost: the branch and the audit trail stay.
+func (c *call) stopAfterRejects(t *taskRow, reason string, rejects int) (any, error) {
+	if err := c.touch(t, `status = 'cancelled', reject_reason = ?, lease_expires_at = NULL`, reason); err != nil {
+		return nil, err
+	}
+	if _, err := c.tx.Exec(`DELETE FROM task_check WHERE task_id = ?`, t.id); err != nil {
+		return nil, err
+	}
+	if err := c.record(t.projectID, 0, "task.capped", t.target(), map[string]any{"owner": t.ownerName, "reason": reason, "rejects": rejects}); err != nil {
+		return nil, err
+	}
+	q := fmt.Sprintf("Task #%d (%s) was sent back %d times and has been stopped. The last reason: %s", t.id, t.title, rejects, reason)
+	opts, _ := json.Marshal([]string{"Rewrite the task and start it again", "Try again with a different helper", "Give up on it"})
+	if _, err := c.tx.Exec(`INSERT INTO escalation(project_id, from_agent_id, task_id, question, options, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
+		t.projectID, t.owner.Int64, t.id, q, string(opts), store.Millis(c.now)); err != nil {
+		return nil, err
+	}
+	c.tell(notify.Notification{Kind: notify.KindEscalation, Title: "Handloom: a task was stopped",
+		Text: "A task was sent back too many times and has been stopped. Open the inbox to decide."})
+	if err := c.notifyOwner(t, fmt.Sprintf("Task #%d (%s) was rejected a %dth time and is stopped: %s. Stop working on it; a person decides what happens next.", t.id, t.title, rejects, reason)); err != nil {
 		return nil, err
 	}
 	return c.reload(t)

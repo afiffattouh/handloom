@@ -1,7 +1,7 @@
 {{define "content"}}
 {{with .Extra}}
 <div class="page-head">
-  <div><h1>Command center</h1><p class="desc">Everything that is running, and what needs a person.</p></div>
+  <div><h1>Overview</h1><p class="desc">Everything that is running, and what needs a person.</p></div>
   <div class="acts">
     <div class="tabs" role="group" aria-label="Range">{{range .Ranges}}<a href="{{.Href}}"{{if .Current}} aria-current="page"{{end}}>{{.Key}}</a>{{end}}</div>
     {{if .CanStart}}<a class="button" href="/jobs/new">New job</a>{{end}}

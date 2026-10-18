@@ -1,0 +1,11 @@
+#!/bin/sh
+# Project checks (factory-kit). See .factory/check.py --help.
+here="$(dirname "$0")"
+for py in python3 python; do
+  if command -v "$py" >/dev/null 2>&1 && "$py" -c 'import sys; sys.exit(sys.version_info < (3, 8))' 2>/dev/null; then
+    exec "$py" "$here/.factory/check.py" "$@"
+  fi
+done
+echo "check: this project's checks need Python 3.8 or newer, and none was found." >&2
+echo "       Install Python from https://www.python.org/downloads/ (or with your package manager) and run ./check again." >&2
+exit 2

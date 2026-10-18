@@ -75,7 +75,7 @@ func (l *Link) merge(ctx context.Context, m api.PendingMerge) api.MergeReport {
 		return api.MergeReport{Status: "conflict", Detail: "conflicting files: " + files}
 	}
 	if m.Verify != "" {
-		res := l.execVerify(dir, m.Verify, fmt.Sprintf("merge-%d-%d", m.Job, m.Task))
+		res := l.execVerify(dir, m.Verify, fmt.Sprintf("merge-%d-%d", m.Job, m.Task), "merge", rec.Base)
 		if res.exit != 0 || res.timedOut {
 			git("reset", "--hard", "-q", prev) // the integration branch stays good
 			why := fmt.Sprintf("the check %q failed after merging (exit %d)", m.Verify, res.exit)

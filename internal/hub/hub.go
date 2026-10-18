@@ -43,6 +43,7 @@ type Options struct {
 	AllowConfidential bool             // this hub may host confidential jobs (private, trusted deployments only)
 	RequireRunToken   bool             // refuse agent requests that carry only the device credential and a claimed name
 	MaxSpawns         int              // agents a job may have running or starting at once; default 5
+	MaxRejects        int              // times a task's work may be sent back before it stops and a person is asked; default 3
 	MaxJobStarts      int              // agents a lead may start over a job's whole life (people are not limited); default 12
 	SpawnTimeout      time.Duration    // a spawn request not finished by then fails; default 90s
 	MaxTaskTime       time.Duration    // take back a task held longer than this, however active its owner is; 0 (the default) is off
@@ -88,6 +89,9 @@ func New(db *sql.DB, opt Options) *Hub {
 	}
 	if opt.MaxJobStarts <= 0 {
 		opt.MaxJobStarts = 12
+	}
+	if opt.MaxRejects <= 0 {
+		opt.MaxRejects = 3
 	}
 	if opt.MaxSpawns <= 0 {
 		opt.MaxSpawns = 5

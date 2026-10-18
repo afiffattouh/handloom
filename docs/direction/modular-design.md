@@ -1,6 +1,6 @@
 # Modular design, version 2: kits, Handloom and the surfaces
 
-Status: revised 2026-10-18 after the journey review. Version 1 (earlier the same day) described the parts and two contracts. This version keeps them, adds what the review found, and states what was validated. Built items are marked. It builds on `workflow-v2.md` (the day-to-day flow) and does not replace it.
+Status: revised 2026-10-18 after the journey review; the kit moved into this repository the same day (`kit/`, shipped inside the program as `handloom kit`). Version 1 (earlier the same day) described the parts and two contracts. This version keeps them, adds what the review found, and states what was validated. Built items are marked. It builds on `workflow-v2.md` (the day-to-day flow) and does not replace it.
 
 ## The idea in one paragraph
 
@@ -22,7 +22,7 @@ Status: revised 2026-10-18 after the journey review. Version 1 (earlier the same
 - **Handloom does not depend on the kit.** The Handloom code has no reference to the kit. It runs whatever check command the job names.
 - **The kit does not depend on Handloom.** Its only mention is the names of three optional environment variables, and it accepts `FACTORY_*` as well.
 - **The kit alone works end to end.** On a throwaway client website, with no Handloom: `factory init --preset web`, a passing check, an agent change with a dead link and a missing image caught by the maintain-mode check, the fix passing, an attempt to empty a check refused by the gate, a handover that wrote the CI workflow, CODEOWNERS and `MAINTAIN.md`, and a fresh clone passing with no `factory` command on the path.
-- **Two blockers were found.** Nobody else can install the kit (it exists only on this machine). It needed Python 3.11 or newer, which a stock Mac does not have. The second is fixed (below). The first is step 1 of the build order.
+- **Two blockers were found.** Nobody else could install the kit (it existed only on one machine). It needed Python 3.11 or newer, which a stock Mac does not have. Both are fixed: the kit now lives in `kit/` in this repository and ships inside the `handloom` program (`handloom kit init`), and it runs on Python 3.8+.
 
 ## Three ways to work
 
@@ -97,12 +97,16 @@ Small steps; each is useful alone. The committee's rule stands: nothing starts a
 
 Done:
 - **Kit contract version 1:** variables, modes, exit codes, reason line, `summary.json`, web preset, handover, runs on Python 3.8+.
+- **The kit is part of Handloom:** `kit/` in this repository, tested in CI, embedded in the program; `handloom kit init|handover|task|upgrade` unpacks it once per version and runs it. A set-up project still carries its own copy, so it needs neither the program nor a hub.
+- **Check adapter:** the link passes `HANDLOOM_MODE` (`submit` or `merge`) and `HANDLOOM_BASE` to the check, reads the `summary.json` the kit names on its last line (inside the worktree only, schema 1 only), and the hub keeps it with the check. Exit 3 shows as "blocked: a person decides" with the agent's own note, exit 2 as "the project's own checks are broken", and a lead is told not to send either back to be retried. Any other command keeps "failed, exit N".
+- **Cap on attempts:** a task whose work is sent back 3 times (`--max-rejects`) stops, and the owner is asked in the inbox what to do (rewrite, change helper, give up). Already there: agents per job (`--max-job-agents`) and time per task (`--max-task-time`).
+- **Words and order:** Inbox is first and is where sign-in lands; "Command center" is now "Overview"; the job form offers `./check (the kit)`.
 
 Next:
 1. **Trial with three people** (a team member, a second owner, someone playing the client). Four tasks: add a computer, ask for a small change, decide whether to use it, undo it. Record where each stops. The ratings in the review are replaced by what is seen.
-2. **Publish the kit** so another person can install it: a public repository and a one-line install that puts `factory` on the path. Needs your decision on where it lives.
-3. **Caps:** attempts per task, time and spend per job, stored in the database.
-4. **Check adapter,** with the exit-code states and the variables; evidence shown on the review page; Stop visible; cost per ask.
+2. **A kit download for people without Handloom** (a client or agency that wants only the scaffold): a release asset and a one-line install that puts `factory` on the path. Until then they use `python3 kit/bin/factory` from a clone, or `handloom kit init`.
+3. **Caps, the rest:** spend per job (needs prices entered), a Stop button on the Overview, and a visible count of attempts on the task.
+4. **Check adapter, the rest:** show the kit's stages and `summary.json` on the review page (stored, not yet displayed); pass the sealed task's spec (`HANDLOOM_SPEC`) so the scope check runs; cost per ask.
 5. **Ask in one sentence:** check stored on the project, default machine, one worker, "Get steps first".
 6. **Plain words pass** and Inbox first.
 7. **Agency track:** preview step in the handover, and `MAINTAIN.md` for the operator.
@@ -134,6 +138,6 @@ Answered by the owner, 2026-10-18:
 6. **Python floor:** support older Pythons so a stock Mac works. Done: 3.8 and newer.
 
 Open:
-- Where the kit is published, and under which name and licence.
+- Whether the kit also gets its own repository for people who only want the scaffold (it is under the same Apache 2.0 licence, inside this repository).
 - Which preview host to recommend in the handover.
 - Whether Handloom should offer to apply branch protection itself, using the owner's `gh` login.

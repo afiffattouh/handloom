@@ -310,7 +310,7 @@ func (h *Hub) webCommand(q *webReq) error {
 	if err != nil {
 		return err
 	}
-	q.page(http.StatusOK, "command", pageData{Title: "Command center", Extra: v})
+	q.page(http.StatusOK, "command", pageData{Title: "Overview", Extra: v})
 	return nil
 }
 

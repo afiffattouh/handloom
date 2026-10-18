@@ -62,7 +62,7 @@ type pageData struct {
 type crumb struct{ Label, Href string }
 
 // sections are the menu items as the header's path names them.
-var sections = map[string]crumb{"command": {"Command center", "/command"}, "inbox": {"Inbox", "/inbox"}, "jobs": {"Jobs", "/jobs"}, "projects": {"Projects", "/projects"},
+var sections = map[string]crumb{"command": {"Overview", "/command"}, "inbox": {"Inbox", "/inbox"}, "jobs": {"Jobs", "/jobs"}, "projects": {"Projects", "/projects"},
 	"agents": {"Agents", "/agents"}, "profiles": {"Profiles", "/profiles"}, "devices": {"Machines", "/devices"},
 	"settings": {"Settings", "/settings"}, "connect": {"Connect an AI app", "/connect"}}
 
@@ -480,7 +480,7 @@ func (h *Hub) webSetupPost(w http.ResponseWriter, r *http.Request) {
 		fail(500, "Something went wrong.")
 		return
 	}
-	http.Redirect(w, r, "/command", http.StatusSeeOther)
+	http.Redirect(w, r, "/inbox", http.StatusSeeOther)
 }
 
 // auditAnon records an action by nobody in particular (a failed login).
@@ -664,7 +664,7 @@ func (h *Hub) webRoot(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/setup", http.StatusSeeOther)
 		return
 	}
-	http.Redirect(w, r, "/command", http.StatusSeeOther)
+	http.Redirect(w, r, "/inbox", http.StatusSeeOther)
 }
 
 func (h *Hub) webLoginGet(w http.ResponseWriter, r *http.Request) {
@@ -736,7 +736,7 @@ func (h *Hub) webLoginPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if next == "" {
-		next = "/command"
+		next = "/inbox"
 	}
 	http.Redirect(w, r, next, http.StatusSeeOther)
 }

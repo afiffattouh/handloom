@@ -164,24 +164,78 @@ type MergeReport struct {
 // agent's worktree after the agent submitted. It is the device's word, not the
 // agent's.
 type TaskCheck struct {
-	Agent    string    `json:"agent"`
-	Device   string    `json:"device"`
-	Command  string    `json:"command"`
-	ExitCode int       `json:"exit_code"`
-	TimedOut bool      `json:"timed_out,omitempty"`
-	Tail     string    `json:"tail,omitempty"`   // the last lines of the output
-	SHA256   string    `json:"sha256,omitempty"` // of the full log, which stays on the device
-	At       time.Time `json:"at"`
+	Agent    string         `json:"agent"`
+	Device   string         `json:"device"`
+	Command  string         `json:"command"`
+	ExitCode int            `json:"exit_code"`
+	TimedOut bool           `json:"timed_out,omitempty"`
+	Tail     string         `json:"tail,omitempty"`   // the last lines of the output
+	SHA256   string         `json:"sha256,omitempty"` // of the full log, which stays on the device
+	At       time.Time      `json:"at"`
+	Evidence *CheckEvidence `json:"evidence,omitempty"` // what a project kit's check wrote, when the command was one
+}
+
+// CheckEvidence is the part of a project kit's summary.json that people read: what ran, what stopped it,
+// and why, in words. A command that is not a kit leaves none.
+type CheckEvidence struct {
+	Result  string       `json:"result"` // pass, fail, config-error or blocked
+	Reason  string       `json:"reason,omitempty"`
+	Blocked string       `json:"blocked,omitempty"` // the agent's own note, when it said the task cannot be done as specified
+	Mode    string       `json:"mode,omitempty"`
+	Stages  []CheckStage `json:"stages,omitempty"`
+	Refused []string     `json:"refused,omitempty"`
+}
+
+type CheckStage struct {
+	Name    string  `json:"name"`
+	Status  string  `json:"status"` // pass, fail, skip, blocked
+	Detail  string  `json:"detail,omitempty"`
+	Seconds float64 `json:"seconds,omitempty"`
+}
+
+// Words says in words what the check found. A kit's exit 3 means the agent says the task cannot be done as
+// specified (a person decides; retrying only pushes agents to fake a pass), and exit 2 means the project's
+// own checks are broken, which is not the agent's work. Any other command gets only its exit code.
+func (ck *TaskCheck) Words() string {
+	ev := ck.Evidence
+	switch {
+	case ck.TimedOut:
+		return "timed out"
+	case ck.ExitCode == 0:
+		return "passed"
+	case ev != nil && ck.ExitCode == 3:
+		w := "blocked: the agent says this cannot be done as specified, so a person decides"
+		if n := strings.TrimSpace(ev.Blocked); n != "" {
+			w += " (" + firstLine(n, 160) + ")"
+		}
+		return w
+	case ev != nil && ck.ExitCode == 2:
+		return "the project's own checks are broken (not the agent's work)"
+	case ev != nil && ev.Reason != "":
+		return "failed: " + ev.Reason
+	}
+	return fmt.Sprintf("failed, exit %d", ck.ExitCode)
+}
+
+func firstLine(s string, n int) string {
+	if i := strings.IndexByte(s, '\n'); i >= 0 {
+		s = s[:i]
+	}
+	if len(s) > n {
+		s = s[:n] + "..."
+	}
+	return s
 }
 
 // TaskCheckReq is the link reporting a verify run.
 type TaskCheckReq struct {
-	Agent    string `json:"agent"`
-	Command  string `json:"command"`
-	ExitCode int    `json:"exit_code"`
-	TimedOut bool   `json:"timed_out,omitempty"`
-	Tail     string `json:"tail,omitempty"`
-	SHA256   string `json:"sha256,omitempty"`
+	Agent    string         `json:"agent"`
+	Command  string         `json:"command"`
+	ExitCode int            `json:"exit_code"`
+	TimedOut bool           `json:"timed_out,omitempty"`
+	Tail     string         `json:"tail,omitempty"`
+	SHA256   string         `json:"sha256,omitempty"`
+	Evidence *CheckEvidence `json:"evidence,omitempty"`
 }
 
 type Message struct {

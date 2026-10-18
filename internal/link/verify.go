@@ -24,8 +24,8 @@ const maxVerifyLog = 256 << 10
 // written by a human and stored on the hub, like a profile: this device
 // trusts the hub for it.
 func (l *Link) runVerify(rec *scopeRecord, taskID int64) {
-	res := l.execVerify(rec.Dir, rec.Verify, fmt.Sprintf("%s-%d", rec.Agent, taskID))
-	req := api.TaskCheckReq{Agent: rec.Agent, Command: rec.Verify, ExitCode: res.exit, TimedOut: res.timedOut, Tail: res.tail, SHA256: res.sha}
+	res := l.execVerify(rec.Dir, rec.Verify, fmt.Sprintf("%s-%d", rec.Agent, taskID), "submit", rec.Base)
+	req := api.TaskCheckReq{Agent: rec.Agent, Command: rec.Verify, ExitCode: res.exit, TimedOut: res.timedOut, Tail: res.tail, SHA256: res.sha, Evidence: res.evidence}
 	if err := l.hub.Do(context.Background(), "POST", fmt.Sprintf("/v1/tasks/%d/verify", taskID), req, nil); err != nil {
 		l.opt.Log.Printf("report verification of task %d: %v", taskID, err)
 		return
@@ -37,15 +37,17 @@ type verifyResult struct {
 	exit               int
 	timedOut           bool
 	tail, sha, logPath string
+	evidence           *api.CheckEvidence // what a project kit wrote, when the command was one
 }
 
-// execVerify runs a verify command in dir and keeps its whole log on this device.
-func (l *Link) execVerify(dir, command, logName string) verifyResult {
+// execVerify runs a verify command in dir and keeps its whole log on this device. mode ("submit" or
+// "merge") and base tell a project kit what is being checked and against what; any other command ignores them.
+func (l *Link) execVerify(dir, command, logName, mode, base string) verifyResult {
 	ctx, cancel := context.WithTimeout(context.Background(), l.opt.VerifyTimeout)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "sh", "-c", command)
 	cmd.Dir = dir
-	cmd.Env = verifyEnv()
+	cmd.Env = verifyEnv(mode, base)
 	inOwnGroup(cmd) // so a timeout stops the whole tree
 	cmd.WaitDelay = 2 * time.Second
 	var out bytes.Buffer
@@ -68,13 +70,19 @@ func (l *Link) execVerify(dir, command, logName string) verifyResult {
 	if len(tail) > 3000 {
 		tail = tail[len(tail)-3000:]
 	}
-	return verifyResult{exit: exit, timedOut: timedOut, tail: strings.TrimSpace(tail), sha: hex.EncodeToString(sum[:]), logPath: logPath}
+	return verifyResult{exit: exit, timedOut: timedOut, tail: strings.TrimSpace(tail), sha: hex.EncodeToString(sum[:]), logPath: logPath, evidence: kitEvidence(dir, out.String())}
 }
 
 // verifyEnv is a plain environment: the link's own variables (tokens, hub
 // addresses) are not for the command.
-func verifyEnv() []string {
+func verifyEnv(mode, base string) []string {
 	env := []string{"CI=1", "HANDLOOM_VERIFY=1"}
+	if mode != "" {
+		env = append(env, "HANDLOOM_MODE="+mode)
+	}
+	if base != "" {
+		env = append(env, "HANDLOOM_BASE="+base)
+	}
 	for _, k := range []string{"PATH", "HOME", "USER", "LANG", "LC_ALL", "TMPDIR", "GOPATH", "GOCACHE", "GOFLAGS"} {
 		if v, ok := os.LookupEnv(k); ok {
 			env = append(env, k+"="+v)

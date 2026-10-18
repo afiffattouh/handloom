@@ -22,8 +22,8 @@
     <div class="sb-head"><a class="brand" href="/"><img src="/static/favicon.svg" alt="" width="22" height="22"><span>Handloom</span></a></div>
     <nav class="sb-content">
       <div class="sb-group"><ul class="sb-menu">
-        <li><a class="sb-btn" href="/command" title="Command center"{{if eq .Active "command"}} aria-current="page"{{end}}><svg class="icon"><use href="#i-layout-dashboard"/></svg><span>Command center</span></a></li>
         <li><a class="sb-btn" href="/inbox" title="Inbox"{{if eq .Active "inbox"}} aria-current="page"{{end}}><svg class="icon"><use href="#i-inbox"/></svg><span>Inbox</span>{{if .Nav.Needs}}<span class="sb-badge hot" aria-label="{{.Nav.Needs}} need you">{{.Nav.Needs}}</span>{{end}}</a></li>
+        <li><a class="sb-btn" href="/command" title="Overview"{{if eq .Active "command"}} aria-current="page"{{end}}><svg class="icon"><use href="#i-layout-dashboard"/></svg><span>Command center</span></a></li>
       </ul></div>
       <div class="sb-group"><div class="sb-label">Work</div><ul class="sb-menu">
         <li><a class="sb-btn" href="/jobs" title="Jobs"{{if eq .Active "jobs"}} aria-current="page"{{end}}><svg class="icon"><use href="#i-briefcase"/></svg><span>Jobs</span>{{if .Nav.Jobs}}<span class="sb-badge">{{.Nav.Jobs}}</span>{{end}}</a></li>

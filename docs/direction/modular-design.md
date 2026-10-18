@@ -1,149 +1,139 @@
-# Modular design: Handloom, the factory kit and the way they join
+# Modular design, version 2: kits, Handloom and the surfaces
 
-Status: proposal for discussion, 2026-10-18. Nothing here is built yet. It builds on `workflow-v2.md` (the day-to-day flow and the committee's build order) and does not replace it. This document is about the parts and how they fit.
+Status: revised 2026-10-18 after the journey review. Version 1 (earlier the same day) described the parts and two contracts. This version keeps them, adds what the review found, and states what was validated. Built items are marked. It builds on `workflow-v2.md` (the day-to-day flow) and does not replace it.
 
-Scope: this revisits how Handloom, the kit and the front door join (one new module, two contracts, the add-a-project and hand-over steps). Handloom's internals stay as `workflow-v2.md` describes them.
+## The idea in one paragraph
 
-## The problem
-
-Two things exist, and both are useful alone:
-
-- **Handloom** runs coding agents on people's machines and keeps the record: jobs, tasks, review.
-- **The factory kit** (a separate project, `factory-kit`) answers one question for any repository: *is this work done?* It runs the stages, the gate and the checks, and does not run agents.
-
-They already work together because Handloom can run a "verify" command. But the join is accidental: one command string per job, one exit code, a ten-minute limit, and a convention nobody wrote down. Real use also asked for more:
-
-- A project that is handed to a client who maintains it with their own agent, with no Handloom.
-- The same setup reused for many projects and clients, not rebuilt each time.
-- A way to use all of it that a person who is not technical can follow.
-
-## The idea in one sentence
-
-**Three parts that each work alone, joined by two small written contracts, shown through one simple front door.**
+**Kits** define "done" for a kind of project and can be dropped into any repository. **Handloom** runs agents and keeps the record, and works with or without a kit. **Surfaces** show it to people, one per audience. Each layer works alone. The only coupling is a short written contract, so a client can be given a kit with no Handloom, a team can use Handloom with no kit, and a project can go through both end to end.
 
 ```
- Surfaces (web, CLI, Claude connector, later a client view)
-        |  one API
- Handloom  ── coordinates work: jobs, tasks, agents, review, landing
-        |  contract A: the check contract
- Factory kit ── per-repo definition of "done": stages, gate, presets
-        |  contract B: the handover package
- Any agent or CI, with or without Handloom (the client's side)
+ Surfaces      owner console   ask box (team)   Claude connector   client view (later)
+                      \              |                /                  /
+ Handloom       jobs, tasks, agents, review, caps  ──  check adapter ──┐
+                                                                       │ contract
+ Kits          factory kit (built)   media / research / content / data  │ (calls ./check)
+               (each: ./check, presets, handover)  <───────────────────┘
+                         │
+ The project   repo + ./check + .factory/   works for any agent, CI or person, with or without Handloom
 ```
 
-Each part must be usable and testable without the one above it. If a change makes Handloom require the kit, or the kit require Handloom, it is the wrong change.
+## What was validated, 2026-10-18
 
-## The parts and what each one owns
+- **Handloom does not depend on the kit.** The Handloom code has no reference to the kit. It runs whatever check command the job names.
+- **The kit does not depend on Handloom.** Its only mention is the names of three optional environment variables, and it accepts `FACTORY_*` as well.
+- **The kit alone works end to end.** On a throwaway client website, with no Handloom: `factory init --preset web`, a passing check, an agent change with a dead link and a missing image caught by the maintain-mode check, the fix passing, an attempt to empty a check refused by the gate, a handover that wrote the CI workflow, CODEOWNERS and `MAINTAIN.md`, and a fresh clone passing with no `factory` command on the path.
+- **Two blockers were found.** Nobody else can install the kit (it exists only on this machine). It needed Python 3.11 or newer, which a stock Mac does not have. The second is fixed (below). The first is step 1 of the build order.
 
-| Part | Owns | Must not own |
+## Three ways to work
+
+| Way | For | They install | They get |
+| --- | --- | --- | --- |
+| **Kit alone** | An agency or a client who maintains a project with their own agent. | The kit once (to scaffold). The project then carries its own copy in `.factory/`, so no install is needed to run it. | Checks, a gate agents cannot talk past, CI on every pull request, `MAINTAIN.md`. |
+| **Handloom alone** | A team that wants agents on its machines and a review step, on a project with no kit. | The hub and a link on each machine. | Jobs, review, history. The job names any check command. |
+| **End to end** | An owner who runs work for clients and hands the result over. | Both. | Everything above, plus the check shown in plain words, evidence stored with the job, and the handover as a button. |
+
+The same project moves between ways without change: a project the kit scaffolded can later be added to Handloom, and a project run through Handloom can be handed over.
+
+## The layers and what each owns
+
+| Layer | Owns | Must not own |
 | --- | --- | --- |
-| **Surfaces** | Showing state and taking an ask, a review, a steer. Plain words. | Any rule. They call the API. |
-| **Handloom hub** | Projects, jobs, tasks, people, roles, audit, the state of a job, caps. | Running agents or checks. Judging quality. |
-| **Handloom link** (on each machine) | Worktrees, starting agents, waking them, running a check and merging. | Deciding anything. It obeys the hub. |
-| **Library** (profiles, skills, types of work) | What an agent is and knows. Data, versioned. | Code paths. |
-| **Check adapter** (new, one module) | Running a project's check, reading its result, turning it into a state: passed, failed, blocked, error, timed out. Both after submit and after merge. | Which stages exist. That is the kit's. |
-| **Factory kit** | Stages, the gate, protected files, presets, the client guide, the CI template. | Agents, models, worktrees, review. |
+| **Surfaces** | Showing state; taking an ask, a review, a steer; plain words. | Any rule. They call the API. |
+| **Handloom hub** | Projects, jobs, tasks, people, roles, audit, job state, caps (attempts, time, spend). | Running agents or checks; judging quality. |
+| **Handloom link** (each machine) | Worktrees, starting agents, waking them, running the check, merging. | Deciding anything. |
+| **Check adapter** (one module, planned) | Running a project's check; turning the exit code into a state; storing the evidence. | Which stages exist. |
+| **Library** | Profiles, skills, starters. Data only. | Code paths. |
+| **Kit** | Stages, the gate, protected files, presets, the handover package. | Agents, models, worktrees, review. |
 
-Today the check logic is spread over `internal/hub/verify.go`, `internal/link/verify.go` and `internal/link/merge.go`. Putting it in one module with one test file is the first refactor and is what makes the contract below enforceable.
+## The kit contract (version 1, written down in `factory-kit/docs/contract.md`)
 
-## Contract A: the check contract (kit and anything that calls it)
+A **kit** is anything that offers this, for one kind of project:
 
-A project's check is a command at a fixed place: `./check`. The caller needs to know only this.
+1. **A command, `./check`,** that answers "is this work done?" with exit codes 0 pass, 1 fail, 2 the project's checks are broken, 3 an agent says it cannot be done as specified. A last line says why, in words. Built.
+2. **Inputs by variable,** `HANDLOOM_BASE`, `HANDLOOM_SPEC`, `HANDLOOM_MODE` (`submit`, `merge`, `maintain`), with `FACTORY_*` accepted. Built.
+3. **Evidence,** `runs/<time>-<mode>/summary.json`, schema versioned, with stages, reason, refusals, and the agent's note. Built.
+4. **A preset** to start from, and a **handover**: CI on every pull request, owners for the files that define correct, a guide for the person who maintains it. Built for the factory kit and its web preset.
+5. **A runtime floor:** Python 3.8 or newer and a POSIX shell, nothing installed, no network. Built and tested on 3.8, 3.9 and 3.12. Before Python 3.11 the kit reads `factory.toml` with its own small reader. With no suitable Python, `./check` says what to install and exits 2. On plain Windows run `python .factory/check.py`.
+6. **A way to describe itself in plain words,** so a surface can show "Checks: links, images, titles, size". Planned: `factory describe --json`.
 
-**Calling it.** Plain arguments, plus these environment variables, all optional. The kit reads them when the matching argument is absent, so the same command line works for every task and every project:
+Why Python 3.8 and not a hosted installer: there is no way to install a newer Python that needs no technical skill on a stock Mac, and asking a client to do it is the kind of friction this design exists to remove. Supporting what is already there was the better choice.
 
-| Variable | Meaning |
-| --- | --- |
-| `FACTORY_BASE` | The commit or branch the work started from. |
-| `FACTORY_SPEC` | The spec file for this piece of work, when it has one. |
-| `FACTORY_MODE` | `submit` (a worker has finished), `merge` (work was merged into the job's branch), `maintain` (a small change to a live project). The kit decides what to run in each; the caller does not need two commands. |
+**Other kits** (media, research, content, data, security) follow the same contract. The runner, gate, summary and handover are generic but live inside one package. They become a shared core when the second kit is built, and not before. A kit is added after a real project has failed in the way it would catch.
 
-Handloom sets these from the job and the task. Nothing else from the environment is passed, as today. The names are the kit's, not Handloom's, so any other caller (CI, a person) uses the same ones.
+## Two tracks for the person who looks after a project
 
-**Answering it.** An exit code, and a file.
+You said the maintainer can be either an agency or the client. They need different things, and they use the same kit.
 
-| Exit | Meaning | What the caller shows |
+| | **Agency track** | **Client track** |
 | --- | --- | --- |
-| 0 | Passed. | Passed. |
-| 1 | The work does not meet the check. | Failed, with the reason. The worker may try again. |
-| 2 | The check itself is misconfigured. | **Problem with the project, not the work.** Nobody retries; the owner is told. |
-| 3 | The agent says it cannot be done as specified. | **Needs you**, with the agent's note. Never retried, never shown as a failure. |
-| other, timeout | The check broke or ran out of time. | Error, distinct from "failed". |
+| Who | A developer or agency maintains the site on the client's behalf. | The client's own staff ask for changes. |
+| How they reach an agent | Their own tools, or Handloom. | A web page that takes a sentence (the client view) or the client's own AI app. |
+| What they see | The pull request, the check result, a preview link. | The sentence they asked, a preview, one Approve button, and Undo. |
+| What exists | The kit, handover, CI. A preview and an agency version of `MAINTAIN.md` are still to build. | Nothing yet. It needs roles per project and a security review of the hub. |
+| Honest status | Buildable now. | Parked until its prerequisites exist. |
 
-`runs/<time>-<mode>/summary.json` (schema versioned) lists each stage with its result, time and log, any blocked note, and what the gate refused. Handloom stores it as the evidence when it exists; without it, it falls back to the exit code and the last lines of output. The last lines must always hold the reason in words.
+Until the client track exists, the handover checklist asks the owner to name who operates the agent, and `MAINTAIN.md` is written for that person (a short version for the client says what to ask for and how to approve).
 
-The kit's half of this contract (reading the variables, honouring the mode, writing `summary.json`) belongs in `factory-kit` and must be written down and agreed there; this document only states what Handloom will rely on.
+**Preview.** Every preset's handover should produce a link a client can open before approving. The lowest-friction route is not building one: hosting such as Cloudflare Pages, Netlify or Vercel gives every branch a preview address once the repository is connected. The kit supplies the build output folder (`[web] dir`) and the handover checklist gets one line, "connect preview hosting", so `MAINTAIN.md` can point to "the preview link on the pull request" truthfully. Open decision: which host to recommend.
 
-This solves the four gaps from the handover with one rule each: exit 3 is "needs you" (gap 1); the spec travels with the task (gap 2); the mode replaces a second command (gap 3); and the time limit is a setting of the project, with the kit able to say which stage was slow (gap 4).
+## What the review found, and the change for each
 
-## Contract B: the handover package (kit and the client's world)
-
-`factory handover` produces what a project needs to run without Handloom:
-
-- the repo with the kit vendored (`./check`, `.factory/`, `AGENTS.md`);
-- a CI workflow that runs `./check` on every pull request, and the setting to protect the main branch so only a passing, approved change lands;
-- `MAINTAIN.md`, in plain words for the client: how to ask an agent for a change, what to look at before approving, how to undo;
-- the list of protected paths and what they are for.
-
-Anything that can edit a repo and run a command can use this: Claude Code, another coding agent, or a person. Handloom is one way to do the work, never a requirement for owning the result.
-
-## One front door: how a person uses it
-
-Everything is reached by what the person is doing, in plain words, with detail behind a "More" for people who want it.
-
-**Add a project (once).** One place asks for the folder or repository. Handloom then looks:
-
-1. Does it have `./check`? If yes, use it and say so: "Checks: build, tests, links. Tap to see." Nothing to configure.
-2. If not, offer **"Add checks"**: the kit proposes a preset from what it finds (a web site, an app, a document set), shows the stages in a sentence each, and opens a change for a person to approve. It never edits the project without that.
-
-**Ask for work (every day).** A sentence. Handloom picks the machine, one worker by default, and runs the project's check. A person sees *Asked, Working, Needs you, Ready*, with a reason and one action, as already designed.
-
-**Review.** One page: what was asked, what changed, what was checked and what was not. If the check ended in exit 3 it appears here as a question, not a failure.
-
-**Hand over (when a project is done).** One button, **"Hand over"**, runs `factory handover` and shows a checklist: guide written, CI added, branch protected, client approver named. The project's stage changes from *Building* to *Maintained*.
-
-**Maintain.** Same Ask box, different defaults: small change, no sealed spec, a cap on changed files, a preview to approve. The client sees only their project and can only ask and approve (see the open decisions).
-
-## Presets and projects: what is reusable
-
-A **preset** is a starting `factory.toml` plus the checks that fit a kind of project. Presets are data in the kit. A project picks one and changes a few lines. First: `generic` (build and test commands the kit detects) and `web` (build, links, images and alt text, a performance budget, a list of redirects). Others only when a real project needs one.
-
-What a project writes by hand is small: which stages apply, its definition of done (allowed files, acceptance tests), its protected paths, who approves, and any rule such as "client material stays on local models". The kit and Handloom carry the rest.
-
-## Making the pieces swappable
-
-- The check adapter talks to the check only through contract A, so a project can use its own script instead of the kit if it follows the contract.
-- The kit is stdlib-only and vendored into each project, so a client's repo does not depend on a service of ours.
-- Library items (profiles, skills, types of work) stay data, so a new kind of work is a new file, not new code.
-- Every surface uses the one API. A client view is a new surface with fewer permissions, not a second system.
+| Finding (review) | Change | Layer | Status |
+| --- | --- | --- | --- |
+| 1. Only the author has used it. | Watch three people who did not build it, doing four fixed tasks. | process | Next, and cheap. |
+| 2. The ask is a four-section form with a required lead profile. | One sentence. The project stores its check; the machine is chosen; one worker by default; "Get steps first" as an option. | Handloom, surfaces | Designed (workflow-v2 steps 4 and 5). |
+| 3. The client journey assumes a technical client. | Two tracks (above), a preview, and `MAINTAIN.md` for the right reader. | kit, surfaces | Preview and guide: next. Client view: parked. |
+| 4. Acceptance tests by hand are the hidden cost. | In the job form, choose a sealed task and fill spec, base and check from it. Draft acceptance tests from the spec's Risks with a different agent than the implementer, for the author to read before sealing. | kit, Handloom | Designed. |
+| 5. Review lacks cost, "checked / not checked", visible Stop, and there are no caps. | Show `summary.json` on the review page; cost per ask; Stop on the Overview; caps on attempts, time and spend stored in the database. | Handloom | Caps first. |
+| 6. Exit 3 and 2 read "failed". | The check adapter maps the exit codes: 3 is a question for a person, 2 is a project problem. It passes the environment variables. | Handloom | Next after caps. |
+| 7. Words. | Overview, Helpers, Computers, Use this result, Finish. Hide lead and profile unless "a team" is chosen. | surfaces | Designed. |
+| 8. Three tools at handover. | A "Use the project's checks" choice in the job form; offer to apply branch protection through the owner's `gh` login after confirmation. | Handloom, kit | Designed. |
+| 9. Setup code in a log. | Show it where the owner already is, with the hub's start message. | Handloom | Idea. |
+| 10. Overview leads with a monitor. | Inbox first. | surfaces | Easy. |
 
 ## Build order
 
-Small steps; each is useful alone and none starts before the previous one is tested. This continues the committee's order in `workflow-v2.md`, where the name-collision fix and job state are done and the caps are only partly done (the per-job start limit exists; attempts per task and a time and spend budget per job do not). The committee's rule stands: nothing starts agents by itself until the caps are finished, so the one-worker default in "Ask for work" waits on step 0.
+Small steps; each is useful alone. The committee's rule stands: nothing starts agents by itself until the caps exist.
 
-0. **Finish the caps:** attempts per task and a budget per job, stored in the database.
-1. **Check adapter module, with contract A:** exit codes as states, `FACTORY_*` variables, summary stored as evidence, the project-level time limit, one test per row of the table. Exit 3 shown as "needs you".
-2. **The kit reads the variables and honours `FACTORY_MODE`,** and writes `summary.json`. Tests on the kit side.
-3. **Add a project: detect `./check`,** otherwise offer to add one as a reviewed change. Checks shown in plain words.
-4. **Job state and the watchdog** (already designed, now with "blocked" and "project problem" as states).
-5. **Handover:** `factory handover`, the CI template and `MAINTAIN.md`, and the *Building / Maintained* stage on a project.
-6. **A trial** on two real projects of different kinds (a code repository and a web site), with three people who did not build it. Results decide whether anything after this is built.
+Done:
+- **Kit contract version 1:** variables, modes, exit codes, reason line, `summary.json`, web preset, handover, runs on Python 3.8+.
 
-Parked: more presets, a client view with its own permissions, billing for agent use, multi-task specs beyond one spec per task.
+Next:
+1. **Trial with three people** (a team member, a second owner, someone playing the client). Four tasks: add a computer, ask for a small change, decide whether to use it, undo it. Record where each stops. The ratings in the review are replaced by what is seen.
+2. **Publish the kit** so another person can install it: a public repository and a one-line install that puts `factory` on the path. Needs your decision on where it lives.
+3. **Caps:** attempts per task, time and spend per job, stored in the database.
+4. **Check adapter,** with the exit-code states and the variables; evidence shown on the review page; Stop visible; cost per ask.
+5. **Ask in one sentence:** check stored on the project, default machine, one worker, "Get steps first".
+6. **Plain words pass** and Inbox first.
+7. **Agency track:** preview step in the handover, and `MAINTAIN.md` for the operator.
+8. **Spec author help:** sealed task picker; acceptance tests drafted from the Risks by a different agent.
+9. **Client view,** only after roles per project and a security review of the hub.
+10. **A second kit,** when a real project needs it. The shared core is split out then.
+
+Parked: billing for agent use; more presets until a project needs one; multi-task specs.
 
 ## Risks
 
-- **Too many parts to learn.** Mitigation: the front door shows none of them by name; "Add checks" and "Hand over" are the only new words.
-- **The contract grows.** Mitigation: it has one table and one file; anything else is a new version with a reason written down.
-- **The check becomes a way to hide problems.** Mitigation: the machine's result beats an agent's claim (kept), exit 2 and "error" are never shown as a pass, and the review page says what was *not* checked.
-- **Client access widens the attack surface.** A client view can reach agents on our machines. Do not build it until roles per project exist and the security review of the hub covers it.
-- **Local-model-only projects.** The project flag exists only in intent. It must be enforced where agents are started, not in the profile, or it is a promise, not a rule.
+- **Too many parts to learn.** The front door shows none by name. "Checks" and "Hand over" are the only new words, and the ask box needs neither.
+- **The contract grows.** One table of exit codes, one file of evidence. Anything else is a new version with a reason written down.
+- **A promise nothing keeps.** `MAINTAIN.md` mentioned a preview that nothing made. Every sentence in a handover guide must be backed by something the handover produced.
+- **The check hides problems.** The machine's result beats an agent's claim; exit 2 and errors are never shown as a pass; the review page says what was not checked.
+- **Client access widens the attack surface.** A client view can reach agents on our machines. Do not build it before roles per project and the security review.
+- **Local-model-only projects.** The flag must be enforced where agents are started, not in the profile.
+- **The kit's stock-Mac path was tested only on Linux with Python 3.8 and 3.9.** It has not run on macOS itself or on Windows.
 
 ## Decisions
 
 Answered by the owner, 2026-10-18:
 
-1. **Names:** the variables are Handloom's own, `HANDLOOM_BASE`, `HANDLOOM_SPEC`, `HANDLOOM_MODE` (read "keep it part of Handloom"). The kit accepts these and the `FACTORY_*` names, so it still works without Handloom. The contract table above uses `FACTORY_*`; read it with this in mind until the contract is rewritten.
-2. **"Add checks":** open question, explained in plain words in the conversation: Handloom can put the check files on a new branch and show them for approval, or only print the command to run. Recommended: the branch, never merged without a person's approval.
+1. **Names:** the variables are Handloom's own (`HANDLOOM_BASE`, `HANDLOOM_SPEC`, `HANDLOOM_MODE`); the kit also accepts `FACTORY_*`.
+2. **"Add checks":** put the check files on a new branch and show them for approval; never merged without a person.
 3. **Who pays for agents after handover:** both. A project setting says whose account runs the work.
-4. **Client view:** yes, built in Handloom. It needs roles per project and a security review of the hub first (see Risks).
+4. **Client view:** yes, built in Handloom, after roles per project and a security review.
+5. **Who looks after a handed-over project:** both an agency and the client. Two tracks, above.
+6. **Python floor:** support older Pythons so a stock Mac works. Done: 3.8 and newer.
+
+Open:
+- Where the kit is published, and under which name and licence.
+- Which preview host to recommend in the handover.
+- Whether Handloom should offer to apply branch protection itself, using the owner's `gh` login.

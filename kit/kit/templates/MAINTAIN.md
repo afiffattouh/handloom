@@ -17,7 +17,7 @@ The agent works on its own copy of the project (a branch), never on the live sit
 
 ## Before you approve
 
-Look at the preview or the list of changes and ask yourself:
+{preview_note} Then ask yourself:
 
 1. Is this what I asked for, and nothing more?
 2. Did the check pass? The pull request shows a green tick when it did. A red cross means do not approve.

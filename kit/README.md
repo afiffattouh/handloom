@@ -126,13 +126,32 @@ For a finished, green project that someone else will look after with any agent: 
 the check on every pull request, owners for the protected files, `MAINTAIN.md` in plain words for the
 person who maintains it, and a checklist (with the branch-protection command for an admin to run).
 
+- `--preview {cloudflare,netlify,vercel,none}` (default none): records the preview host in `factory.toml`. `MAINTAIN.md`
+  only talks about a preview link when one was chosen; the checklist says how to connect the host (it needs an
+  account, so the kit writes no host files).
+- `--for {client,operator}` (default client): `operator` writes `MAINTAIN-operator.md`, the short guide for whoever
+  runs the agent on the owner's behalf: running `./check`, what it refuses, reading `runs/*/summary.json`, exit 3
+  and 2, approval, undo.
+
 ## Other commands
 
 ```
+factory describe [DIR]       what this project's check covers, in plain words (--json for programs)
 factory accept-tests [DIR]   record the acceptance tests in .manifest (a person, on the base branch)
 factory upgrade [DIR]        refresh the vendored .factory/ files and ./check (commit on the base branch)
 factory lessons [DIR]        list lessons seen twice that are not yet a check
 ```
+
+## Without Handloom
+
+```
+sh install.sh                # from this folder (or KIT_DIR=/path/to/kit sh install.sh)
+sh install.sh --uninstall
+```
+
+Copies the kit to `${FACTORY_HOME:-$HOME/.local/share/factory-kit}` and puts a `factory` command in
+`${BIN_DIR:-$HOME/.local/bin}` (it finds Python 3.8+ itself). If that folder is not on your `PATH`, it prints the
+line to add. Running it again is safe; it will not overwrite a folder or command it did not make.
 
 ## Why these pieces
 

@@ -17,7 +17,7 @@ func TestTheCommandCenterShowsTheRecordInWordsAndCharts(t *testing.T) {
 	c, _ := e.owner()
 	// A new hub: it says how to begin and invents nothing.
 	body := e.req("GET", "/command", nil, c, nil).body
-	for _, want := range []string{"Overview", "Needs you", "no device checks in this range", "no accepted tasks in this range", "Nothing to point out.", "Fleet"} {
+	for _, want := range []string{"Overview", "Needs you", "no device checks in this range", "no accepted tasks in this range", "Nothing to point out.", "Helpers"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("empty command center lacks %q", want)
 		}

@@ -23,6 +23,14 @@
       </ul>
       {{else}}<p class="desc">No machine has a copy yet.</p>{{end}}
       {{if .Hosted}}<p class="desc">Jobs are published to a branch named handloom/job-... and merged into {{if .Base}}{{.Base}}{{else}}main{{end}} from the job's page. Include the hub's <code>git</code> folder in backups.</p>{{end}}
+      {{if $.Extra.CanManage}}
+      <form method="post" action="/projects/{{.Name}}/check" class="inline">
+        <input type="hidden" name="csrf" value="{{$.CSRF}}">
+        <label class="inline-label">Check <span class="desc">(how we know the work is done; jobs use it)</span>
+          <input name="check" value="{{.Check}}" placeholder="./check" class="mono-input" autocomplete="off" aria-label="Check command for {{.Name}}"></label>
+        <button type="submit" class="secondary">Save</button>
+      </form>
+      {{else if .Check}}<p class="desc">Check: <code>{{.Check}}</code></p>{{end}}
       {{if and $.Extra.CanManage .CloneTo}}
       <form method="post" action="/projects/{{.Name}}/clone" class="inline">
         <input type="hidden" name="csrf" value="{{$.CSRF}}">

@@ -76,7 +76,7 @@
     {{if .Detail}}<div class="cc"><p class="text desc">{{.Detail}}</p></div>{{end}}
     {{if $.Extra.CanAct}}
     <div class="cf">
-      <form method="post" action="/inbox/tasks/{{.ID}}/accept" class="inline"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button type="submit">Accept</button></form>
+      <form method="post" action="/inbox/tasks/{{.ID}}/accept" class="inline"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button type="submit">Use this result</button></form>
       <form method="post" action="/inbox/tasks/{{.ID}}/reject" class="inline">
         <input type="hidden" name="csrf" value="{{$.CSRF}}">
         <input name="reason" placeholder="What needs changing" required maxlength="500" aria-label="Reason for sending #{{.ID}} back" size="26">

@@ -143,7 +143,7 @@ func TestTheJobPageShowsTasksChecksAndTheTeam(t *testing.T) {
 	e.apiOK(ag.device, "", "POST", fmt.Sprintf("/v1/tasks/%d/verify", t2.ID), api.TaskCheckReq{Agent: "worker", Command: "./check.sh", ExitCode: 0}, nil)
 	ag.lead("POST", fmt.Sprintf("/v1/tasks/%d/accept", t2.ID), nil, nil)
 	page = e.req("GET", fmt.Sprintf("/jobs/%d", j.ID), nil, c, nil).body
-	if !strings.Contains(page, "Every task is done") || !strings.Contains(page, "Close the job as done") {
+	if !strings.Contains(page, "Every task is done") || !strings.Contains(page, "Finish the job") {
 		t.Fatalf("a finished job is not offered for closing")
 	}
 	inbox := e.req("GET", "/inbox", nil, c, nil).body
@@ -343,5 +343,64 @@ func TestTheJobPageShowsWhatAKitsCheckLookedAtAndTheOverviewCanStopAJob(t *testi
 	ov := e.req("GET", "/command", nil, c, nil).body
 	if !strings.Contains(ov, fmt.Sprintf(`action="/jobs/%d/close"`, j.ID)) || !strings.Contains(ov, "Stop job #") {
 		t.Error("the Overview has no Stop for an open job")
+	}
+}
+
+func TestOneSentenceAskUsesTheProjectsMachineAndCheck(t *testing.T) {
+	e := newWebEnv(t, Options{})
+	ag := e.agents()
+	c, tok := e.owner()
+	_ = ag
+	hum := e.humanAPI()
+	e.apiOK(hum, "", "POST", "/v1/codebases", api.CodebaseReq{Name: "site", Remote: "git@github.com:acme/site.git"}, nil)
+	e.apiOK(hum, "", "POST", "/v1/codebases/site/check", api.CodebaseCheckReq{Check: "./check"}, nil)
+	var cb api.Codebase
+	e.apiOK(hum, "", "GET", "/v1/codebases/site", nil, &cb)
+	if cb.Check != "./check" {
+		t.Fatalf("check not kept: %+v", cb)
+	}
+	// A multi-line command is refused.
+	bad, _ := json.Marshal(api.CodebaseCheckReq{Check: "a\nb"})
+	rq, _ := http.NewRequest("POST", e.srv.URL+"/v1/codebases/site/check", strings.NewReader(string(bad)))
+	rq.Header.Set("Authorization", "Bearer "+hum)
+	if resp, err := http.DefaultClient.Do(rq); err != nil || resp.StatusCode != 400 {
+		t.Fatalf("a multi-line check: %v %v", err, resp)
+	}
+	// A machine's copy is ready, so the project is on offer.
+	if _, err := e.hub.db.Exec(`INSERT INTO codebase_clone(codebase_id, device_id, path, status, created_at, updated_at) SELECT cb.id, d.id, '/srv/site', 'ready', 1, 1 FROM codebase cb, device d WHERE cb.name = 'site' AND d.name = 'd1'`); err != nil {
+		t.Fatal(err)
+	}
+	page := e.req("GET", "/jobs/new", nil, c, nil).body
+	if !strings.Contains(page, "Just ask") || !strings.Contains(page, "site on d1") {
+		t.Fatalf("the quick ask is not offered:\n%s", page)
+	}
+	r := e.req("POST", "/jobs/ask", url.Values{"csrf": {tok}, "ask": {"Change the opening hours on the contact page. Use 9 to 5."}, "project": {"site|d1"}, "steps_first": {"1"}}, c, nil)
+	if r.status != 303 {
+		t.Fatalf("ask: %d %s", r.status, r.body)
+	}
+	var jobs []api.Job
+	e.apiOK(hum, "", "GET", "/v1/jobs", nil, &jobs)
+	if len(jobs) != 1 || jobs[0].Verify != "./check" || jobs[0].Title != "Change the opening hours on the contact page" || !strings.Contains(jobs[0].Body, "wait for the answer") {
+		t.Fatalf("job: %+v", jobs)
+	}
+}
+
+func TestASealedKitTaskNamedOnTheFormSetsTheBaseAndTheCheck(t *testing.T) {
+	e := newWebEnv(t, Options{})
+	e.agents()
+	c, tok := e.owner()
+	hum := e.humanAPI()
+	bad := e.req("POST", "/jobs", url.Values{"csrf": {tok}, "title": {"x"}, "repo": {"/srv/app"}, "device": {"d1"}, "kit_task": {"../evil"}}, c, nil)
+	if bad.status != 400 {
+		t.Fatalf("a bad name: %d", bad.status)
+	}
+	r := e.req("POST", "/jobs", url.Values{"csrf": {tok}, "title": {"Fix the parser"}, "repo": {"/srv/app"}, "device": {"d1"}, "kit_task": {"parser-fix"}}, c, nil)
+	if r.status != 303 {
+		t.Fatalf("create: %d %s", r.status, r.body)
+	}
+	var jobs []api.Job
+	e.apiOK(hum, "", "GET", "/v1/jobs", nil, &jobs)
+	if len(jobs) != 1 || jobs[0].Base != "task/parser-fix-base" || jobs[0].Verify != "./check" {
+		t.Fatalf("job: %+v", jobs)
 	}
 }

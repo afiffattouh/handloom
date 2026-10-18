@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -54,6 +55,7 @@ type jobFormView struct {
 	AllowConf bool
 	Projects  []projectOption // projects with a ready copy: one entry per machine that has it
 	NotReady  []string        // projects no machine has a copy of yet
+	Quick     bool            // the one-sentence ask can be offered: there is a project to ask about
 }
 
 type projectOption struct{ Value, Label string }
@@ -109,6 +111,7 @@ func (q *webReq) jobForm(status int, errMsg string, form map[string]string) erro
 			v.NotReady = append(v.NotReady, cb.Name)
 		}
 	}
+	v.Quick = len(v.Projects) > 0
 	// Fill in what can be known: the only machine, the lead profile when there is one obvious choice.
 	if form["device"] == "" && len(v.Devices) == 1 {
 		form["device"] = v.Devices[0]
@@ -130,7 +133,52 @@ func (q *webReq) jobForm(status int, errMsg string, form map[string]string) erro
 	return nil
 }
 
+// webJobAsk is the one-sentence ask: a sentence, a project and nothing else. The machine is the one that has
+// the project, the check is the project's own, the lead is the usual one, and the lead is told to keep the
+// plan small. "Get steps first" makes the lead show its plan and wait before any worker starts.
+func (h *Hub) webJobAsk(q *webReq) error {
+	if q.human.Role == store.RoleViewer {
+		return q.refuse("Viewers cannot start jobs.")
+	}
+	f := q.r.PostForm
+	ask := strings.TrimSpace(strings.ReplaceAll(f.Get("ask"), "\r\n", "\n"))
+	if ask == "" || f.Get("project") == "" {
+		return q.jobForm(400, "Say what you want done, and pick the project.", map[string]string{"ask": ask})
+	}
+	title := ask
+	if i := strings.IndexAny(title, ".\n"); i > 8 {
+		title = title[:i]
+	}
+	if r := []rune(title); len(r) > 80 {
+		title = string(r[:80]) + "..."
+	}
+	how := "How to run this: it is a small ask in the owner's own words. Keep the plan small: as few tasks as will do, one worker if one is enough."
+	if f.Get("steps_first") == "1" {
+		how += " Before you start any worker, send your plan (the tasks, in plain words) to the owner with `handloom ask` and wait for the answer."
+	}
+	lead := f.Get("lead_profile")
+	if lead == "" {
+		pl, err := profileList(q.c)
+		if err != nil {
+			return err
+		}
+		for _, p := range pl.([]api.ProfileInfo) {
+			if p.Name == "lead" || (lead == "" && strings.HasPrefix(p.Name, "lead")) {
+				lead = p.Name
+			}
+		}
+	}
+	f.Set("title", title)
+	f.Set("body", ask+"\n\n---\n"+how)
+	f.Set("lead_profile", lead)
+	f.Set("verify", "") // the project's own check
+	f.Set("repo", "")
+	return h.webJobCreate(q)
+}
+
 func (h *Hub) webJobNewForm(q *webReq) error { return q.jobForm(200, "", map[string]string{}) }
+
+var kitSlug = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,60}$`)
 
 func (h *Hub) webJobCreate(q *webReq) error {
 	if q.human.Role == store.RoleViewer {
@@ -140,6 +188,17 @@ func (h *Hub) webJobCreate(q *webReq) error {
 	req := api.JobNewReq{Title: strings.TrimSpace(f.Get("title")), Body: strings.TrimSpace(strings.ReplaceAll(f.Get("body"), "\r\n", "\n")),
 		Repo: strings.TrimSpace(f.Get("repo")), Verify: strings.TrimSpace(f.Get("verify")), Knowledge: strings.TrimSpace(f.Get("knowledge")), Base: strings.TrimSpace(f.Get("base")), Device: f.Get("device"),
 		LeadProfile: f.Get("lead_profile"), Confidential: f.Get("confidential") == "1"}
+	if slug := strings.TrimSpace(f.Get("kit_task")); slug != "" { // a task sealed with the kit: its commit is the base, the kit is the check
+		if !kitSlug.MatchString(slug) {
+			return q.jobForm(400, "A sealed kit task is named with lower-case letters, digits and dashes, such as parser-fix.", f1(f))
+		}
+		if req.Base == "" {
+			req.Base = "task/" + slug + "-base"
+		}
+		if req.Verify == "" {
+			req.Verify = "./check"
+		}
+	}
 	if pr := f.Get("project"); pr != "" { // "name|machine": a project chosen, the folder field is ignored
 		name, dev, _ := strings.Cut(pr, "|")
 		req.Codebase, req.Device, req.Repo = name, dev, ""

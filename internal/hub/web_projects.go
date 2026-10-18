@@ -84,6 +84,7 @@ func (q *webReq) projectsPage(status int, errMsg, which string, form map[string]
 		"creating": "Asked the machine to create the repository. It shows here, with its address, when the machine has done it (usually within a minute): reload this page.",
 		"cloning":  "Asked the machine to fetch its own copy. It shows as ready here when it is done (usually within a minute): reload this page.",
 		"ready":    "That machine already has its copy.",
+		"check":    "Saved. Jobs started from this project use that check.",
 	}[q.r.URL.Query().Get("done")]
 	q.page(status, "projects", pageData{Title: "Projects", Error: errMsg, Notice: notice, Extra: v})
 	return nil
@@ -177,5 +178,17 @@ func (h *Hub) webProjectClone(q *webReq) error {
 		done = "ready"
 	}
 	http.Redirect(q.w, q.r, "/projects?done="+done, http.StatusSeeOther)
+	return nil
+}
+
+func (h *Hub) webProjectCheck(q *webReq) error {
+	f := q.r.PostForm
+	if err := q.c.allow(ActProjectManage); err != nil {
+		return q.projectFailed(err, "check", f1(f))
+	}
+	if _, err := q.c.setCodebaseCheck(q.r.PathValue("name"), f.Get("check")); err != nil {
+		return q.projectFailed(err, "check", f1(f))
+	}
+	http.Redirect(q.w, q.r, "/projects?done=check", http.StatusSeeOther)
 	return nil
 }

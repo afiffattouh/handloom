@@ -18,7 +18,7 @@
 {{if .Ready}}
 <article class="card attention">
   <div class="ch"><div class="lead"><svg class="icon sev-ok"><use href="#i-circle-check"/></svg><div><h3>Every task is done</h3><p class="desc">Look over the result, then close the job.</p></div></div></div>
-  {{if .CanAct}}<div class="cf"><form method="post" action="/jobs/{{.Job.ID}}/close" class="inline"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button type="submit">Close the job as done</button></form></div>{{end}}
+  {{if .CanAct}}<div class="cf"><form method="post" action="/jobs/{{.Job.ID}}/close" class="inline"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button type="submit">Finish the job</button></form></div>{{end}}
 </article>
 {{end}}
 

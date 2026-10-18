@@ -485,6 +485,153 @@ class HandoverTests(unittest.TestCase):
             p.close()
 
 
+class DescribeTests(unittest.TestCase):
+    def test_describe_json_and_words_for_a_web_project(self):
+        p = type("P", (), {})()
+        p.tmp = tempfile.TemporaryDirectory()
+        p.root = Path(p.tmp.name)
+        p.close = p.tmp.cleanup
+        sh("git init -q -b main", p.root)
+        try:
+            sh(FACTORY + ["init", "--preset", "web", str(p.root)], p.root)
+            text = (p.root / "factory.toml").read_text()
+            r = sh(FACTORY + ["describe", "--json", str(p.root)], p.root)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            d = json.loads(r.stdout)
+            self.assertEqual(d["schema"], 1)
+            self.assertEqual(d["contract_version"], 1)
+            self.assertIn("factory.toml", d["protected"])
+            self.assertIn("tests/acceptance/", d["protected"])
+            self.assertFalse(d["gate"]["on"])
+            self.assertEqual(d["maintain_cap"], 10)
+            (p.root / "factory.toml").write_text(text.replace("[stages]\n", '[stages]\nweird-stage = "true"\n'))
+            words = sh(FACTORY + ["describe", str(p.root)], p.root)
+            self.assertEqual(words.returncode, 0)
+            for phrase in ("every link on the site works", "images have descriptions and are not too big",
+                           "pages have titles", "pages stay small", "weird-stage", "contract version 1"):
+                self.assertIn(phrase, words.stdout)
+        finally:
+            p.close()
+
+    def test_gate_on_after_handover_and_broken_config_exits_2(self):
+        p = Project()
+        try:
+            sh("git checkout -q main", p.root)
+            sh(FACTORY + ["handover", "--preview", "netlify", str(p.root)], p.root)
+            d = json.loads(sh(FACTORY + ["describe", "--json", str(p.root)], p.root).stdout)
+            self.assertTrue(d["gate"]["on"])
+            self.assertEqual(d["preview"], "netlify")
+            (p.root / "factory.toml").write_text("not [valid")
+            self.assertEqual(sh(FACTORY + ["describe", str(p.root)], p.root).returncode, 2)
+        finally:
+            p.close()
+
+
+class PreviewAndOperatorTests(unittest.TestCase):
+    def handover(self, *args):
+        p = Project()
+        sh("git checkout -q main", p.root)
+        return p, sh(FACTORY + ["handover", *args, str(p.root)], p.root)
+
+    def test_no_preview_by_default_and_guide_does_not_promise_one(self):
+        p, r = self.handover()
+        try:
+            self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+            self.assertIn("connect preview hosting so every pull request gets a link", r.stdout)
+            for host in ("Cloudflare", "Netlify", "Vercel"):
+                self.assertIn(host, r.stdout)
+            guide = (p.root / "MAINTAIN.md").read_text()
+            self.assertIn("ask whoever set the project up", guide)
+            self.assertNotIn("Open the preview link", guide)
+            self.assertNotIn("preview =", (p.root / "factory.toml").read_text())
+        finally:
+            p.close()
+
+    def test_chosen_preview_is_recorded_and_guide_mentions_it(self):
+        p, r = self.handover("--preview", "vercel")
+        try:
+            self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+            self.assertIn('preview = "vercel"', (p.root / "factory.toml").read_text())
+            self.assertIn("Open the preview link", (p.root / "MAINTAIN.md").read_text())
+            self.assertNotIn("connect preview hosting so every", r.stdout)
+            self.assertEqual(sh(["./check"], p.root).returncode, 0)
+            bad = sh(FACTORY + ["handover", "--preview", "nope", str(p.root)], p.root)
+            self.assertNotEqual(bad.returncode, 0)
+        finally:
+            p.close()
+
+    def test_operator_edition(self):
+        p, r = self.handover("--for", "operator", "--approver", "boss")
+        try:
+            self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+            self.assertFalse((p.root / "MAINTAIN.md").exists())
+            g = (p.root / "MAINTAIN-operator.md").read_text()
+            self.assertNotIn("{", g)
+            for phrase in ("./check", "summary.json", "BLOCKED.md", "broken checks", "@boss", "Revert", "blocked"):
+                self.assertIn(phrase, g)
+        finally:
+            p.close()
+
+
+class InstallerTests(unittest.TestCase):
+    INSTALL = str(KIT / "install.sh")
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.home = Path(self.tmp.name)
+        self.env = {"HOME": str(self.home)}
+        self.env.pop("FACTORY_HOME", None)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def run_install(self, *args, env=None):
+        e = {**os.environ, "HOME": str(self.home), **(env or {})}
+        for k in ("FACTORY_HOME", "BIN_DIR", "KIT_DIR"):
+            if k not in (env or {}):
+                e.pop(k, None)
+        return subprocess.run(["sh", self.INSTALL, *args], capture_output=True, text=True, env=e)
+
+    def test_install_run_idempotent_and_uninstall(self):
+        r = self.run_install()
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        launcher = self.home / ".local" / "bin" / "factory"
+        self.assertTrue(launcher.exists())
+        self.assertIn("not on your PATH", r.stdout)
+        self.assertTrue((self.home / ".local/share/factory-kit/bin/factory").exists())
+        proj = self.home / "proj"
+        proj.mkdir()
+        sh("git init -q -b main", proj)
+        run = subprocess.run([str(launcher), "init", str(proj)], capture_output=True, text=True, cwd=proj)
+        self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
+        self.assertTrue((proj / "factory.toml").exists())
+        again = self.run_install()
+        self.assertEqual(again.returncode, 0, again.stdout + again.stderr)
+        gone = self.run_install("--uninstall")
+        self.assertEqual(gone.returncode, 0)
+        self.assertFalse(launcher.exists())
+        self.assertFalse((self.home / ".local/share/factory-kit").exists())
+        self.assertEqual(self.run_install("--uninstall").returncode, 0)
+
+    def test_custom_dirs_on_path_and_kit_dir(self):
+        bindir = self.home / "b"
+        r = self.run_install(env={"FACTORY_HOME": str(self.home / "fh"), "BIN_DIR": str(bindir),
+                                  "KIT_DIR": str(KIT), "PATH": f"{bindir}:{os.environ['PATH']}"})
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertNotIn("PATH", r.stdout.replace("try:", ""))
+        self.assertTrue((self.home / "fh" / "bin" / "factory").exists())
+        h = subprocess.run([str(bindir / "factory"), "--help"], capture_output=True, text=True)
+        self.assertEqual(h.returncode, 0)
+
+    def test_refuses_a_folder_that_is_not_ours_and_a_bad_kit_dir(self):
+        (self.home / "fh").mkdir()
+        (self.home / "fh" / "mine.txt").write_text("x")
+        r = self.run_install(env={"FACTORY_HOME": str(self.home / "fh")})
+        self.assertEqual(r.returncode, 2)
+        self.assertTrue((self.home / "fh" / "mine.txt").exists())
+        self.assertEqual(self.run_install(env={"KIT_DIR": str(self.home)}).returncode, 2)
+
+
 class OldPythonTests(unittest.TestCase):
     """The checks run on Python 3.8+, so a stock Mac works. Older Pythons read factory.toml with the kit's own reader."""
 

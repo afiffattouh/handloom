@@ -63,7 +63,7 @@ type crumb struct{ Label, Href string }
 
 // sections are the menu items as the header's path names them.
 var sections = map[string]crumb{"command": {"Overview", "/command"}, "inbox": {"Inbox", "/inbox"}, "jobs": {"Jobs", "/jobs"}, "projects": {"Projects", "/projects"},
-	"agents": {"Agents", "/agents"}, "profiles": {"Profiles", "/profiles"}, "devices": {"Machines", "/devices"},
+	"agents": {"Helpers", "/agents"}, "profiles": {"Profiles", "/profiles"}, "devices": {"Computers", "/devices"},
 	"settings": {"Settings", "/settings"}, "connect": {"Connect an AI app", "/connect"}}
 
 // navCounts are the small numbers beside the menu items.
@@ -248,9 +248,11 @@ func (h *Hub) webRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /projects/attach", web(h.authed(h.webProjectAttach)))
 	mux.HandleFunc("POST /projects/create", web(h.authed(h.webProjectCreate)))
 	mux.HandleFunc("POST /projects/{name}/clone", web(h.authed(h.webProjectClone)))
+	mux.HandleFunc("POST /projects/{name}/check", web(h.authed(h.webProjectCheck)))
 	mux.HandleFunc("GET /jobs", web(h.authed(h.webJobs)))
 	mux.HandleFunc("GET /jobs/new", web(h.authed(h.webJobNewForm)))
 	mux.HandleFunc("POST /jobs", web(h.authed(h.webJobCreate)))
+	mux.HandleFunc("POST /jobs/ask", web(h.authed(h.webJobAsk)))
 	mux.HandleFunc("GET /jobs/{id}", web(h.authed(h.webJob)))
 	mux.HandleFunc("POST /jobs/{id}/close", web(h.authed(h.webJobClose)))
 	mux.HandleFunc("POST /jobs/{id}/resume", web(h.authed(h.webJobResume)))

@@ -55,8 +55,23 @@ Handloom. It adds, and never overwrites:
 - `.github/workflows/check.yml`: runs `./check` in `maintain` mode on every pull request and in
   `merge` mode on every change to the main branch.
 - `.github/CODEOWNERS`: the protected files need the approver (only with `--approver`).
-- `MAINTAIN.md`: how to ask an agent for a change, what to look at before approving, how to undo.
+- `MAINTAIN.md`: how to ask an agent for a change, what to look at before approving, how to undo. Its
+  sentences about a preview link are only there when `--preview {cloudflare,netlify,vercel}` was given (recorded as
+  `preview = "<host>"` under `[project]`). `--for operator` writes `MAINTAIN-operator.md` instead: the guide for
+  whoever runs the agent for the owner (how to run it, what the check refuses, reading `summary.json`, exit 3 and 2,
+  asking for approval, undoing).
 - `stage = "maintained"` in `factory.toml`.
 
 It prints a checklist, including the branch-protection command for a person with admin rights to run.
 It does not run it. It refuses a project whose `./check` fails.
+
+## 6. Describing a project (built)
+
+`factory describe [DIR] [--json]` says what the project's check covers, from `factory.toml` alone. Plain
+words by default. With `--json` (schema 1):
+
+`schema`, `name`, `preset`, `stages` (each `name` and `says`, a short plain-words label; an unknown stage's
+label is its name; stages with an empty command are left out), `gate` (`on`: the project has been handed over, so
+the gate runs on every change; `base`), `protected` (files only the owner changes), `maintain_cap`
+(`[maintain] max_changed_files`), `preview` (host, or `none`), `kit_version` (the project's vendored copy) and
+`contract_version` (this document: 1). Exit 2 when `factory.toml` is missing or invalid. New fields may be added.

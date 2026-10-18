@@ -919,6 +919,7 @@ type Codebase struct {
 	Hosted    bool            `json:"hosted,omitempty"`     // the hub holds the code (D106)
 	SizeBytes int64           `json:"size_bytes,omitempty"` // hosted: disk used by the repository
 	Base      string          `json:"base,omitempty"`
+	Check     string          `json:"check,omitempty"` // the command that says the project's work is done; jobs from it use it unless told otherwise
 	CreatedBy string          `json:"created_by"`
 	CreatedAt time.Time       `json:"created_at"`
 	Clones    []CodebaseClone `json:"clones"`
@@ -938,6 +939,11 @@ type CodebaseReq struct {
 	Name   string `json:"name"`
 	Remote string `json:"remote"`
 	Base   string `json:"base,omitempty"`
+}
+
+// CodebaseCheckReq sets (or, empty, clears) a project's check command.
+type CodebaseCheckReq struct {
+	Check string `json:"check"`
 }
 
 // CodebaseHostReq makes a project the hub holds itself (D106): no address, no GitHub, no login.

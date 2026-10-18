@@ -121,12 +121,13 @@ type cbRow struct {
 	createdBy          string
 	created            int64
 	hosted             bool
+	check              string
 }
 
 func (c *call) codebaseByName(name string) (*cbRow, error) {
 	r := &cbRow{}
-	err := c.tx.QueryRow(`SELECT id, name, remote, base_branch, created_by, created_at, hosted FROM codebase WHERE name = ?`, name).
-		Scan(&r.id, &r.name, &r.remote, &r.base, &r.createdBy, &r.created, &r.hosted)
+	err := c.tx.QueryRow(`SELECT id, name, remote, base_branch, created_by, created_at, hosted, check_cmd FROM codebase WHERE name = ?`, name).
+		Scan(&r.id, &r.name, &r.remote, &r.base, &r.createdBy, &r.created, &r.hosted, &r.check)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, notFound("no project %q: see the list with: handloom project list", name)
 	}
@@ -134,7 +135,7 @@ func (c *call) codebaseByName(name string) (*cbRow, error) {
 }
 
 func (c *call) codebaseView(r *cbRow) (api.Codebase, error) {
-	out := api.Codebase{Name: r.name, Remote: r.remote, Base: r.base, CreatedBy: r.createdBy, CreatedAt: store.Time(r.created), Hosted: r.hosted, Clones: []api.CodebaseClone{}}
+	out := api.Codebase{Name: r.name, Remote: r.remote, Base: r.base, Check: r.check, CreatedBy: r.createdBy, CreatedAt: store.Time(r.created), Hosted: r.hosted, Clones: []api.CodebaseClone{}}
 	// A member sees the copies on their own machines only (D108).
 	where, wargs := c.deviceScope().Clause("d")
 	rows, err := c.tx.Query(`SELECT d.name, k.path, k.status, k.detail, k.updated_at FROM codebase_clone k JOIN device d ON d.id = k.device_id
@@ -165,14 +166,14 @@ func codebaseList(c *call) (any, error) {
 }
 
 func (c *call) codebases() ([]api.Codebase, error) {
-	rows, err := c.tx.Query(`SELECT id, name, remote, base_branch, created_by, created_at, hosted FROM codebase ORDER BY name`)
+	rows, err := c.tx.Query(`SELECT id, name, remote, base_branch, created_by, created_at, hosted, check_cmd FROM codebase ORDER BY name`)
 	if err != nil {
 		return nil, err
 	}
 	var rs []*cbRow
 	for rows.Next() {
 		r := &cbRow{}
-		if err := rows.Scan(&r.id, &r.name, &r.remote, &r.base, &r.createdBy, &r.created, &r.hosted); err != nil {
+		if err := rows.Scan(&r.id, &r.name, &r.remote, &r.base, &r.createdBy, &r.created, &r.hosted, &r.check); err != nil {
 			rows.Close()
 			return nil, err
 		}
@@ -203,6 +204,41 @@ func codebaseGet(c *call) (any, error) {
 		v.SizeBytes = c.h.repoSize(r.name)
 	}
 	return v, err
+}
+
+func codebaseCheck(c *call) (any, error) {
+	if err := c.allow(ActProjectManage); err != nil {
+		return nil, err
+	}
+	var req api.CodebaseCheckReq
+	if err := c.decode(&req); err != nil {
+		return nil, err
+	}
+	return c.setCodebaseCheck(c.r.PathValue("name"), req.Check)
+}
+
+// setCodebaseCheck is the work of setting a project's check, for the API and the web form. The command runs
+// on the owner's machines, so only someone who manages projects may set it, and a job started by an AI app
+// can use it but not change it.
+func (c *call) setCodebaseCheck(name, check string) (api.Codebase, error) {
+	check = strings.TrimSpace(check)
+	if check != "" {
+		if err := checkRepoSpec("/x", check); err != nil {
+			return api.Codebase{}, err
+		}
+	}
+	r, err := c.codebaseByName(name)
+	if err != nil {
+		return api.Codebase{}, err
+	}
+	if _, err := c.tx.Exec(`UPDATE codebase SET check_cmd = ? WHERE id = ?`, check, r.id); err != nil {
+		return api.Codebase{}, err
+	}
+	if err := c.record(0, 0, "project.check", "project:"+name, map[string]any{"check": check}); err != nil {
+		return api.Codebase{}, err
+	}
+	r.check = check
+	return c.codebaseView(r)
 }
 
 func codebaseAttach(c *call) (any, error) {

@@ -27,6 +27,12 @@ for t in $TARGETS; do
   rm -rf "$work"
   echo "built $name"
 done
+# The project kit on its own, for people who want the scaffold without Handloom: unpack, run kit/install.sh.
+kitwork="$(mktemp -d)"; mkdir "$kitwork/factory-kit"
+(cd "$ROOT/kit" && tar --exclude=__pycache__ --exclude='*.pyc' --exclude='*.go' --exclude=runs -cf - bin kit docs README.md install.sh) | tar -C "$kitwork/factory-kit" -xf -
+cp "$ROOT/LICENSE" "$kitwork/factory-kit/"
+tar -C "$kitwork" -czf "$OUT/factory-kit_${VERSION}.tar.gz" factory-kit; rm -rf "$kitwork"
+echo "built factory-kit_${VERSION}.tar.gz"
 cp "$ROOT/install.sh" "$OUT/install.sh"; cp "$ROOT/install.ps1" "$OUT/install.ps1"
 # .deb and .rpm packages too, when nfpm is installed (CI installs it)
 if [ "${PACKAGES:-}" = 1 ]; then "$ROOT/scripts/package-linux.sh" "$VERSION" "$OUT"; fi

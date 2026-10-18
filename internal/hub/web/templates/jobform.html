@@ -1,6 +1,23 @@
 {{define "content"}}
 <div class="page-head"><div><h1>New job</h1><p class="desc">Describe the work in plain words. A lead agent plans it, starts workers on your machine, and brings you the result to review. You only fill in what you know; everything else has a sensible default.</p></div></div>
 {{with .Extra}}
+{{if .Quick}}
+<form method="post" action="/jobs/ask" class="stack">
+  <input type="hidden" name="csrf" value="{{$.CSRF}}">
+  <section class="card" aria-labelledby="q1">
+    <div class="ch"><div><h2 id="q1">Just ask</h2><p class="desc">One sentence is enough. Handloom picks the machine that has the project and checks the work the way the project says to.</p></div></div>
+    <div class="cc">
+      <label>What do you want done?
+        <textarea name="ask" rows="3" required maxlength="2000" placeholder="Change the opening hours on the contact page to 9 to 5">{{index .Form "ask"}}</textarea></label>
+      <label>Project
+        <select name="project" required>{{range .Projects}}<option value="{{.Value}}">{{.Label}}</option>{{end}}</select></label>
+      <label class="check"><input type="checkbox" name="steps_first" value="1"> Show me the steps first, and wait for my go-ahead</label>
+      <div class="acts"><button type="submit">Ask</button><span class="desc">Need to choose the machine, the lead or the check yourself? Use the full form below.</span></div>
+    </div>
+  </section>
+</form>
+<h2 class="desc">Or set everything yourself</h2>
+{{end}}
 <form method="post" action="/jobs" class="stack">
   <input type="hidden" name="csrf" value="{{$.CSRF}}">
 
@@ -29,7 +46,7 @@
         <select name="device" required>
           {{range .Devices}}<option value="{{.}}"{{if eq . (index $.Extra.Form "device")}} selected{{end}}>{{.}}</option>{{else}}<option value="">no machine has joined yet</option>{{end}}
         </select></label>
-      {{if not .Devices}}<p class="desc">A machine has to join first: <a href="/devices">Machines</a>.</p>{{end}}
+      {{if not .Devices}}<p class="desc">A machine has to join first: <a href="/devices">Computers</a>.</p>{{end}}
       <label><span>Project folder on that machine <span class="desc">(optional)</span></span>
         <input name="repo" id="repo" list="repos" value="{{index .Form "repo"}}" placeholder="/home/you/projects/your-project" class="mono-input" autocomplete="off"></label>
       {{if .Repos}}<datalist id="repos">{{range .Repos}}<option value="{{.}}">{{end}}</datalist>{{end}}
@@ -74,6 +91,9 @@
       <label><span>Start every agent from this branch <span class="desc">(optional)</span></span>
         <input name="base" value="{{index .Form "base"}}" placeholder="main" class="mono-input"></label>
       <p class="desc">Normally agents start from the project's latest commit. Name a branch to build on unmerged work, such as the integration branch of an earlier job.</p>
+      <label><span>Sealed kit task <span class="desc">(optional)</span></span>
+        <input name="kit_task" value="{{index .Form "kit_task"}}" placeholder="parser-fix" class="mono-input" autocomplete="off" pattern="[a-z0-9][a-z0-9-]*"></label>
+      <p class="desc">If the owner of the project sealed a task with the kit (<code>handloom kit task seal parser-fix</code>), name it here: agents start from its sealed commit, and the check holds them to its spec and its acceptance tests.</p>
       <label><span>Client knowledge folder <span class="desc">(optional)</span></span>
         <input name="knowledge" value="{{index .Form "knowledge"}}" placeholder="/home/you/clients/acme" class="mono-input"></label>
       <p class="desc">A git repository of notes about the client, on the same machine. Every agent reads it first; what they learn is proposed on a branch you review and merge.</p>

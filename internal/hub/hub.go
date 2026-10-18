@@ -273,6 +273,7 @@ func (h *Hub) buildHandler() http.Handler {
 	v1("POST /codebases/{name}/merge", codebaseMerge)
 	v1("GET /codebases/{name}", codebaseGet)
 	v1("POST /codebases/{name}/clone", codebaseClone)
+	v1("POST /codebases/{name}/check", codebaseCheck)
 	v1("GET /device/project-requests", deviceCodebaseRequests)
 	v1("POST /project-requests/{id}/report", codebaseReport)
 

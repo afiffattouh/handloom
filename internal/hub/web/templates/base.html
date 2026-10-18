@@ -28,13 +28,13 @@
       <div class="sb-group"><div class="sb-label">Work</div><ul class="sb-menu">
         <li><a class="sb-btn" href="/jobs" title="Jobs"{{if eq .Active "jobs"}} aria-current="page"{{end}}><svg class="icon"><use href="#i-briefcase"/></svg><span>Jobs</span>{{if .Nav.Jobs}}<span class="sb-badge">{{.Nav.Jobs}}</span>{{end}}</a></li>
         <li><a class="sb-btn" href="/projects" title="Projects"{{if eq .Active "projects"}} aria-current="page"{{end}}><svg class="icon"><use href="#i-library"/></svg><span>Projects</span></a></li>
-        <li><a class="sb-btn" href="/agents" title="Agents"{{if eq .Active "agents"}} aria-current="page"{{end}}><svg class="icon"><use href="#i-bot"/></svg><span>Agents</span>{{if .Nav.Agents}}<span class="sb-badge">{{.Nav.Agents}}</span>{{end}}</a></li>
+        <li><a class="sb-btn" href="/agents" title="Helpers"{{if eq .Active "agents"}} aria-current="page"{{end}}><svg class="icon"><use href="#i-bot"/></svg><span>Helpers</span>{{if .Nav.Agents}}<span class="sb-badge">{{.Nav.Agents}}</span>{{end}}</a></li>
       </ul></div>
       <div class="sb-group"><div class="sb-label">Library</div><ul class="sb-menu">
         <li><a class="sb-btn" href="/profiles" title="Profiles"{{if eq .Active "profiles"}} aria-current="page"{{end}}><svg class="icon"><use href="#i-file-user"/></svg><span>Profiles</span></a></li>
       </ul></div>
       <div class="sb-group"><div class="sb-label">Admin</div><ul class="sb-menu">
-        <li><a class="sb-btn" href="/devices" title="Machines"{{if eq .Active "devices"}} aria-current="page"{{end}}><svg class="icon"><use href="#i-server"/></svg><span>Machines</span>{{if .Nav.Devices}}<span class="sb-badge">{{.Nav.Devices}}</span>{{end}}</a></li>
+        <li><a class="sb-btn" href="/devices" title="Computers"{{if eq .Active "devices"}} aria-current="page"{{end}}><svg class="icon"><use href="#i-server"/></svg><span>Computers</span>{{if .Nav.Devices}}<span class="sb-badge">{{.Nav.Devices}}</span>{{end}}</a></li>
         {{if ne .Human.Role "viewer"}}<li><a class="sb-btn" href="/connect" title="Connect an AI app"{{if eq .Active "connect"}} aria-current="page"{{end}}><svg class="icon"><use href="#i-plug"/></svg><span>Connect an AI app</span></a></li>{{end}}
         {{if eq .Human.Role "owner"}}<li><a class="sb-btn" href="/settings" title="Settings"{{if eq .Active "settings"}} aria-current="page"{{end}}><svg class="icon"><use href="#i-settings"/></svg><span>Settings</span></a></li>{{end}}
       </ul></div>
@@ -67,7 +67,7 @@
               <div class="dd-sep"></div>
               {{if eq .Human.Role "owner"}}<a class="dd-item" href="/settings"><svg class="icon"><use href="#i-settings"/></svg><span>Settings</span></a>{{end}}
               {{if ne .Human.Role "viewer"}}<a class="dd-item" href="/connect"><svg class="icon"><use href="#i-plug"/></svg><span>Connect an AI app</span></a>{{end}}
-              <a class="dd-item" href="/devices"><svg class="icon"><use href="#i-server"/></svg><span>Machines</span></a>
+              <a class="dd-item" href="/devices"><svg class="icon"><use href="#i-server"/></svg><span>Computers</span></a>
               <div class="dd-sep"></div>
               <form method="post" action="/logout" class="dd-form">
                 <input type="hidden" name="csrf" value="{{.CSRF}}">

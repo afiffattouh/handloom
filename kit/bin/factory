@@ -7,6 +7,7 @@
     factory lessons [DIR]       list lessons seen twice that are not yet a check
     factory handover [DIR]      prepare a finished project to be looked after without Handloom: CI,
                                 the plain-words guide, owners for the protected files, a checklist
+    factory describe [DIR]      say in plain words what this project's check covers (--json for programs)
     factory task new SLUG       start a task: branch task/SLUG and specs/SLUG.md from the template
     factory task seal SLUG      commit the spec and acceptance tests (owner) and mark that commit as
                                 the gate's base, then print the commands for the agent
@@ -357,6 +358,81 @@ def cmd_task(args) -> int:
     return 0
 
 
+STAGE_WORDS = {
+    "format": "code is formatted the same way", "lint": "code has no common mistakes",
+    "typecheck": "types agree", "unit": "the project's own tests pass", "suite": "the project's own check passes",
+    "acceptance": "the owner's tests that define done pass", "build": "the project builds",
+    "smoke": "the real thing runs once, as a user would use it",
+    "web-links": "every link on the site works", "web-images": "images have descriptions and are not too big",
+    "web-meta": "pages have titles", "web-budget": "pages stay small", "budget": "pages stay small",
+}
+CONTRACT_VERSION = 1
+DESCRIBE_SCHEMA = 1
+PREVIEW_HOSTS = ("cloudflare", "netlify", "vercel", "none")
+
+
+def describe(root: Path) -> dict:
+    cfg = kitcheck.load_config(root)
+    proj = cfg.get("project", {}) or {}
+    stages = [{"name": n, "says": STAGE_WORDS.get(n, n)} for n, cmd in (cfg.get("stages") or {}).items()
+              if isinstance(cmd, str) and cmd.strip()]
+    gate = cfg.get("gate", {}) or {}
+    acc = kitcheck.acceptance_dir(cfg)
+    protected = list(kitcheck.PROTECTED) + [acc + "/"]
+    maintained = proj.get("stage") == "maintained"
+    vfile = root / ".factory" / "VERSION"
+    version = vfile.read_text().strip() if vfile.exists() else kitcheck.KIT_VERSION
+    return {
+        "schema": DESCRIBE_SCHEMA, "name": proj.get("name") or root.name, "preset": proj.get("preset") or "generic",
+        "stages": stages,
+        "gate": {"on": maintained, "base": gate.get("base", "main")},
+        "protected": protected,
+        "maintain_cap": int((cfg.get("maintain", {}) or {}).get("max_changed_files") or gate.get("max_changed_files", 30)),
+        "preview": proj.get("preview") or "none",
+        "kit_version": version, "contract_version": CONTRACT_VERSION,
+    }
+
+
+def cmd_describe(args) -> int:
+    root = Path(args.dir).resolve()
+    try:
+        d = describe(root)
+    except kitcheck.ConfigError as e:
+        say(str(e))
+        return 2
+    if args.json:
+        say(json.dumps(d, indent=2))
+        return 0
+    say(f"{d['name']} ({d['preset']} project)")
+    say("The check, run on every change, makes sure that:" if d["stages"] else "The check has no stages yet: fill in [stages] in factory.toml.")
+    for s in d["stages"]:
+        say(f"  - {s['says']}" + (f" ({s['name']})" if s["says"] != s["name"] and s["name"] not in s["says"] else ""))
+    if d["gate"]["on"]:
+        say(f"The gate is on: a change that touches a protected file, or more than {d['maintain_cap']} files, is refused.")
+    else:
+        say("The gate is not on for every change yet (it is, once the project is handed over).")
+    say("Protected files, which only the owner changes: " + ", ".join(d["protected"]))
+    say(f"Small changes are capped at {d['maintain_cap']} files.")
+    say("Preview link on every pull request: " + (d["preview"] if d["preview"] != "none" else "not set up"))
+    say(f"factory-kit {d['kit_version']}, contract version {d['contract_version']}")
+    return 0
+
+
+PREVIEW_HOWTO = {
+    "cloudflare": "Cloudflare Pages: connect the repository, set the build output folder to {dir}.",
+    "netlify": "Netlify: import the repository, set the publish folder to {dir}.",
+    "vercel": "Vercel: import the repository, set the output folder to {dir}.",
+}
+
+
+def preview_lines(host: str, cfg: dict) -> list:
+    out = (cfg.get("web", {}) or {}).get("dir") or "the folder your build writes the site to"
+    if host in PREVIEW_HOSTS and host != "none":
+        return [f"  [ ] finish the preview link on {host} (needs an account, so a person does it): " + PREVIEW_HOWTO[host].format(dir=out)]
+    return ["  [ ] connect preview hosting so every pull request gets a link (needs an account; pick one):"] + \
+           ["        " + PREVIEW_HOWTO[h].format(dir=out) for h in PREVIEW_HOSTS[:3]]
+
+
 PROTECTED_WHY = (("factory.toml", "the list of checks"), (".factory/ and ./check", "the checker itself"),
                  ("tests/acceptance/", "the tests that define done"), (".claude/settings.json", "the agent's safety hooks"),
                  (".github/", "the automatic check on every change"))
@@ -382,6 +458,10 @@ def cmd_handover(args) -> int:
                 "\n".join(r.stdout.strip().splitlines()[-6:]))
             return 1
     base = cfg.get("gate", {}).get("base", "main")
+    host = args.preview or (cfg.get("project", {}).get("preview") or "none")
+    if host not in PREVIEW_HOSTS:
+        say(f"factory.toml: preview {host!r} is not one of {', '.join(PREVIEW_HOSTS)}")
+        return 2
     created, kept = [], []
     approver = (args.approver or "").strip().lstrip("@")
     write_if_absent(root, ".github/workflows/check.yml", (TEMPLATES / "ci-check.yml").read_text().replace("{branch}", base), created, kept)
@@ -394,15 +474,30 @@ def cmd_handover(args) -> int:
         write_if_absent(root, ".github/CODEOWNERS", owners, created, kept)
     ask = f"Then approve. {'The change needs @' + approver + ' to approve it too if it touches a protected file.' if approver else ''}"
     commands = "- `./check --fast` is the quick pass an agent runs while it works.\n"
-    guide = (TEMPLATES / "MAINTAIN.md").read_text()
-    guide = (guide.replace("{name}", cfg.get("project", {}).get("name") or root.name)
+    contact = f"@{approver}" if approver else "the project owner"
+    preview_note = ("Open the preview link on the pull request and look at the list of changes." if host != "none" else
+                    "Look at the list of changes. For a preview link of the page itself, ask whoever set the project up.")
+    operator = args.audience == "operator"
+    guide_file = "MAINTAIN-operator.md" if operator else "MAINTAIN.md"
+    guide = (TEMPLATES / guide_file).read_text()
+    guide = (guide.replace("{preview_note}", preview_note).replace("{name}", cfg.get("project", {}).get("name") or root.name)
              .replace("{approver_line}", ask.replace("Then approve. ", ""))
-             .replace("{contact}", f"@{approver}" if approver else "the project owner")
+             .replace("{contact}", contact)
              .replace("{protected}", "\n".join(f"- `{p}`: {w}" for p, w in PROTECTED_WHY))
              .replace("{commands}", commands))
-    write_if_absent(root, "MAINTAIN.md", guide, created, kept)
+    write_if_absent(root, guide_file, guide, created, kept)
     toml = root / "factory.toml"
     text = toml.read_text()
+    if host != "none":
+        if re.search(r"(?m)^preview\s*=", text):
+            new = re.sub(r"(?m)^preview\s*=.*$", f'preview = "{host}"', text, count=1)
+        else:
+            anchor = re.search(r"(?m)^preset = .*$", text) or re.search(r"(?m)^\[project\]$", text)
+            new = text[:anchor.end()] + f'\npreview = "{host}"' + text[anchor.end():] if anchor else text
+        if new != text:
+            toml.write_text(new)
+            created.append(f'factory.toml (preview = "{host}")')
+            text = new
     if not re.search(r"(?m)^stage\s*=", text):
         anchor = re.search(r"(?m)^preset = .*$", text) or re.search(r"(?m)^\[project\]$", text)
         if anchor:
@@ -415,7 +510,7 @@ def cmd_handover(args) -> int:
     repo = _git(root, "config", "--get", "remote.origin.url").stdout.strip()
     say("\nChecklist")
     say(f"  [x] green: ./check passes" if not args.skip_check else "  [ ] green: ./check was not run (--skip-check)")
-    say("  [x] guide for the client: MAINTAIN.md")
+    say(f"  [x] guide for the {'operator' if operator else 'client'}: {guide_file}")
     say("  [x] check on every pull request: .github/workflows/check.yml")
     say(f"  [{'x' if approver else ' '}] approver named for protected files" + ("" if approver else "  -> rerun with --approver <github user>"))
     say(f"  [ ] commit these files on {base} and push" + ("" if repo else "  (this project has no remote yet)"))
@@ -424,6 +519,8 @@ def cmd_handover(args) -> int:
         '        {"required_status_checks":{"strict":true,"contexts":["check"]},"enforce_admins":false,'
         '"required_pull_request_reviews":{"required_approving_review_count":1,"require_code_owner_reviews":' + ("true" if approver else "false") + '},'
         '"restrictions":null}\n        EOF')
+    for line in preview_lines(host, cfg):
+        say(line)
     say("  [ ] try it once: ask the agent for a small change and look at the pull request together")
     return 0
 
@@ -444,10 +541,17 @@ def main(argv=None) -> int:
         p = sub.add_parser(name, help=help_)
         p.add_argument("dir", nargs="?", default=".")
         p.set_defaults(fn=fn)
+    p = sub.add_parser("describe", help="say in plain words what the project's check covers")
+    p.add_argument("dir", nargs="?", default=".")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(fn=cmd_describe)
     p = sub.add_parser("handover", help="prepare a finished project to be looked after by someone else")
     p.add_argument("dir", nargs="?", default=".")
     p.add_argument("--approver", help="GitHub user who approves changes to the protected files")
     p.add_argument("--skip-check", action="store_true", help="do not require ./check to pass first")
+    p.add_argument("--preview", choices=PREVIEW_HOSTS, help="where pull-request previews are hosted (default: none, or what factory.toml says)")
+    p.add_argument("--for", dest="audience", choices=("client", "operator"), default="client",
+                   help="client: MAINTAIN.md for the person who owns the project; operator: MAINTAIN-operator.md for whoever runs the agent for them")
     p.set_defaults(fn=cmd_handover)
     p = sub.add_parser("task", help="start or seal a task branch (the owner's half)")
     p.add_argument("action", choices=("new", "seal"))

@@ -67,6 +67,23 @@ func (e *env) project(args []string) error {
 				fmt.Fprintln(e.out, projectLine(p))
 			}
 		})
+	case sub == "check" && (len(pos) == 1 || len(pos) == 2):
+		// handloom project check NAME [COMMAND]   show it, or set it; an empty string "" clears it
+		var p api.Codebase
+		if len(pos) == 1 {
+			if err := c.Get("/v1/codebases/"+pos[0], &p); err != nil {
+				return err
+			}
+		} else if err := c.Post("/v1/codebases/"+pos[0]+"/check", api.CodebaseCheckReq{Check: pos[1]}, &p); err != nil {
+			return err
+		}
+		e.print(p, func() {
+			if p.Check == "" {
+				fmt.Fprintf(e.out, "%s has no check of its own: a job asks for one. Set it with: handloom project check %s \"./check\"\n", p.Name, p.Name)
+				return
+			}
+			fmt.Fprintf(e.out, "%s: jobs are checked with: %s\n", p.Name, p.Check)
+		})
 	case sub == "show" && len(pos) == 1:
 		var p api.Codebase
 		if err := c.Get("/v1/codebases/"+pos[0], &p); err != nil {

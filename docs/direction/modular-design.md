@@ -102,6 +102,8 @@ Done:
 - **Cap on attempts:** a task whose work is sent back 3 times (`--max-rejects`) stops, and the owner is asked in the inbox what to do (rewrite, change helper, give up). Already there: agents per job (`--max-job-agents`) and time per task (`--max-task-time`).
 - **Spec reaches the check:** a base named `task/<slug>-base` with `specs/<slug>.md` in the worktree (what `handloom kit task seal` leaves) sets `HANDLOOM_SPEC`, so the scope check runs.
 - **Seen on the screens:** a task shows "sent back N×"; the job page lists the stages the kit's check looked at, what it refused and the agent's note; the Overview has a Stop on every open job (a confirm step, then it stops the job and its unfinished tasks).
+- **The ask in one sentence:** a project can carry its own check (`handloom project check NAME "./check"`, or the Projects page; only someone who manages projects can set it). The New job page opens with "Just ask": a sentence, a project and "Show me the steps first". The machine is the one that has the project, the check is the project's, the lead is the usual one and is told to keep the plan small; with "steps first" it must send its plan and wait. The full form stays below it. A sealed kit task can be named on the full form (base `task/<slug>-base`, check `./check`).
+- **Kit extras:** `factory describe [--json]` (what the check covers, in plain words, schema 1); `factory handover --preview cloudflare|netlify|vercel` (the checklist step, and `MAINTAIN.md` only promises a preview link when a host was chosen); `--for operator` writes an operator edition of the guide for an agency; the kit alone is a release asset (`factory-kit_<version>.tar.gz` with `install.sh`, which puts `factory` on the path, no Handloom needed).
 - **Words and order:** Inbox is first and is where sign-in lands; "Command center" is now "Overview"; the job form offers `./check (the kit)`.
 
 Next:
@@ -110,7 +112,7 @@ Next:
 3. **Spend cap** per job (needs prices entered). Parked by the owner, 2026-10-18.
 4. **Cost per ask** on the review page.
 5. **Ask in one sentence:** check stored on the project, default machine, one worker, "Get steps first".
-6. **Plain words pass** and Inbox first.
+6. **Plain words, the rest:** Overview, Helpers, Computers, Use this result and Finish the job are in; the other pages still use agent/machine words in places.
 7. **Agency track:** preview step in the handover, and `MAINTAIN.md` for the operator.
 8. **Spec author help:** sealed task picker; acceptance tests drafted from the Risks by a different agent.
 9. **Client view,** only after roles per project and a security review of the hub.

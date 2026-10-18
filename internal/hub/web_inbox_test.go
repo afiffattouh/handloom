@@ -109,7 +109,7 @@ func TestInboxShowsWhatNeedsYou(t *testing.T) {
 
 	ag.worker("POST", fmt.Sprintf("/v1/tasks/%d/submit", task.ID), api.SubmitReq{Evidence: []string{"file:docs/index.md"}, Note: "done"}, nil)
 	body = e.req("GET", "/inbox", nil, c, nil).body
-	if !strings.Contains(body, "file:docs/index.md") || !strings.Contains(body, "Accept") || !strings.Contains(body, "To review") {
+	if !strings.Contains(body, "file:docs/index.md") || !strings.Contains(body, "Use this result") || !strings.Contains(body, "To review") {
 		t.Fatalf("review section: %s", body)
 	}
 

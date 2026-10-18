@@ -150,6 +150,9 @@ func (c *call) createJob(req api.JobNewReq) (any, error) {
 		if req.Base == "" {
 			req.Base = base
 		}
+		if req.Verify == "" { // the project's own check, set once by its owner
+			c.tx.QueryRow(`SELECT check_cmd FROM codebase WHERE id = ?`, cid).Scan(&req.Verify)
+		}
 	}
 	if err := checkRepoSpec(req.Repo, req.Verify); err != nil {
 		return nil, err

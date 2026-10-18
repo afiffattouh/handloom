@@ -1,22 +1,23 @@
-// The terminal view. While the page is open and visible, tell the hub the
-// screen is wanted (it expires in under a minute on its own) and fetch the last
-// screen it has. Nothing here runs when the page is hidden.
+// The terminal views. While the page is open and visible, tell the hub each screen is wanted (it expires in
+// under a minute on its own) and fetch the last screen it has. Nothing here runs when the page is hidden.
 (function () {
-  var box = document.getElementById('screen');
-  if (!box) return;
-  var tail = box.getAttribute('data-tail'), watch = box.getAttribute('data-watch');
+  var boxes = document.querySelectorAll('pre[data-tail]');
+  if (!boxes.length) return;
   var meta = document.querySelector('meta[name=csrf-token]');
   var token = meta ? meta.getAttribute('content') : '';
-  var asked = 0;
 
-  function ask() {
+  function watch(box) {
+    var state = box._state || (box._state = { asked: 0 });
     var now = Date.now();
-    if (now - asked < 20000) return Promise.resolve();
-    asked = now;
-    return fetch(watch, { method: 'POST', credentials: 'same-origin', headers: { 'X-CSRF-Token': token } }).catch(function () {});
+    if (now - state.asked < 20000) return Promise.resolve();
+    state.asked = now;
+    return fetch(box.getAttribute('data-watch'), { method: 'POST', credentials: 'same-origin', headers: { 'X-CSRF-Token': token } }).catch(function () {});
   }
-  function read() {
-    return fetch(tail, { credentials: 'same-origin' })
+  function read(box) {
+    // A screen inside a closed <details> is not looked at, so it is not fetched.
+    var d = box.closest ? box.closest('details') : null;
+    if (d && !d.open) return Promise.resolve();
+    return fetch(box.getAttribute('data-tail'), { credentials: 'same-origin' })
       .then(function (r) { return r.ok ? r.text() : r.text().then(function (t) { box.textContent = t; return null; }); })
       .then(function (t) {
         if (t === null || t === undefined) return;
@@ -27,9 +28,15 @@
       .catch(function () {});
   }
   function loop() {
-    if (document.visibilityState === 'visible') ask().then(read);
+    if (document.visibilityState !== 'visible') return;
+    for (var i = 0; i < boxes.length; i++) (function (b) {
+      var d = b.closest ? b.closest('details') : null;
+      if (d && !d.open) return;
+      watch(b).then(function () { return read(b); });
+    })(boxes[i]);
   }
   loop();
   setInterval(loop, 4000);
-  document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') loop(); });
+  document.addEventListener('visibilitychange', loop);
+  document.addEventListener('toggle', loop, true);
 })();

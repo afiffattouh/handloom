@@ -623,6 +623,9 @@ func (c *call) rejectTask(t *taskRow, reason string) (any, error) {
 	if _, err := c.tx.Exec(`DELETE FROM task_check WHERE task_id = ?`, t.id); err != nil {
 		return nil, err
 	}
+	if _, err := c.tx.Exec(`DELETE FROM task_result WHERE task_id = ?`, t.id); err != nil {
+		return nil, err
+	}
 	if err := c.record(t.projectID, 0, "task.reject", t.target(), map[string]any{"owner": t.ownerName, "reason": reason}); err != nil {
 		return nil, err
 	}

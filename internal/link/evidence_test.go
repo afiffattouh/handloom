@@ -1,6 +1,9 @@
 package link
 
 import (
+	"fmt"
+
+	"handloom/internal/api"
 	"os"
 	"path/filepath"
 	"strings"
@@ -69,5 +72,39 @@ func TestASealedKitTasksSpecReachesTheCheck(t *testing.T) {
 	res := l.execVerify(dir, `echo "[$HANDLOOM_SPEC]"`, "spec-test", "submit", "task/parser-fix-base")
 	if !strings.Contains(res.tail, "[specs/parser-fix.md]") {
 		t.Fatalf("tail: %q", res.tail)
+	}
+}
+
+func TestWhatASubmittedTaskChangedReachesTheHub(t *testing.T) {
+	f := newFixture(t)
+	ac, dir, task := f.scopedAgent(nil)
+	os.WriteFile(filepath.Join(dir, "src", "a.go"), []byte("package src\n\nfunc A() {}\n"), 0o644) // modified
+	os.WriteFile(filepath.Join(dir, "site.html"), []byte("<html><head><title>x</title></head><body>hi</body></html>\n"), 0o644)
+	os.WriteFile(filepath.Join(dir, "CLAUDE.md"), []byte("adapter file"), 0o644) // not the agent's work
+	if err := f.submit(ac, task); err != nil {
+		t.Fatal(err)
+	}
+	var got api.TaskResult
+	for i := 0; i < 300; i++ {
+		if err := f.human.Get(fmt.Sprintf("/v1/tasks/%d/result", task.ID), &got); err == nil {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if got.Agent != "alpha" || len(got.Files) != 2 {
+		t.Fatalf("result: %+v", got)
+	}
+	byPath := map[string]api.ResultFile{}
+	for _, fl := range got.Files {
+		byPath[fl.Path] = fl
+	}
+	if byPath["src/a.go"].Status != "modified" || byPath["src/a.go"].Added < 1 || byPath["site.html"].Status != "added" {
+		t.Fatalf("files: %+v", got.Files)
+	}
+	if !strings.Contains(got.Diff, "+func A() {}") || !strings.Contains(got.Diff, "+++ b/site.html") || strings.Contains(got.Diff, "adapter file") {
+		t.Fatalf("diff:\n%s", got.Diff)
+	}
+	if len(got.Pages) != 1 || got.Pages[0] != "site.html" {
+		t.Fatalf("pages: %v", got.Pages)
 	}
 }

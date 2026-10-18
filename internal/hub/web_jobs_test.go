@@ -404,3 +404,72 @@ func TestASealedKitTaskNamedOnTheFormSetsTheBaseAndTheCheck(t *testing.T) {
 		t.Fatalf("job: %+v", jobs)
 	}
 }
+
+func (e *webEnv) apiTask(token string, id int64) api.Task {
+	var tk api.Task
+	e.apiOK(token, "", "GET", fmt.Sprintf("/v1/tasks/%d", id), nil, &tk)
+	return tk
+}
+
+func TestTheJobPageShowsWhatChangedAndLetsAPersonActOnIt(t *testing.T) {
+	e := newWebEnv(t, Options{})
+	ag := e.agents()
+	c, tok := e.owner()
+	hum := e.humanAPI()
+	var j api.Job
+	e.apiOK(hum, "", "POST", "/v1/jobs", api.JobNewReq{Title: "Site", Lead: "lead", Repo: "/srv/app", Device: "d1"}, &j)
+	var t1 api.Task
+	ag.lead("POST", "/v1/tasks", api.TaskCreateReq{Title: "bakery pages", AssignedTo: "worker"}, &t1)
+	ag.worker("POST", fmt.Sprintf("/v1/tasks/%d/claim", t1.ID), nil, nil)
+	ag.worker("POST", fmt.Sprintf("/v1/tasks/%d/submit", t1.ID), api.SubmitReq{Evidence: []string{"commit:abc"}, Note: "done"}, nil)
+	page := `<html><head><title>Home</title></head><body><script>alert(1)</script><a href="contact.html">Contact</a></body></html>`
+	e.apiOK(ag.device, "", "POST", fmt.Sprintf("/v1/tasks/%d/result", t1.ID), api.TaskResultReq{Agent: "worker",
+		Files: []api.ResultFile{{Path: "index.html", Status: "added", Added: 5}, {Path: "old.txt", Status: "deleted", Deleted: 2}},
+		Diff:  "diff --git a/index.html b/index.html\n--- /dev/null\n+++ b/index.html\n@@ -0,0 +1 @@\n+<h1>Hello <b>x</b></h1>\n-old\n",
+		Pages: map[string]string{"index.html": page, "../evil.html": "x", "notes.txt": "x"}}, nil)
+
+	body := e.req("GET", fmt.Sprintf("/jobs/%d", j.ID), nil, c, nil).body
+	for _, want := range []string{"What changed", "index.html", "old.txt", "Open index.html", "See every change", `class="dl add"`, `class="dl del"`, "&lt;h1&gt;Hello", "Use this result", "Send back with a note", "Stop this task"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("job page lacks %q", want)
+		}
+	}
+	if strings.Contains(body, "<h1>Hello") || strings.Contains(body, "evil.html") {
+		t.Errorf("not escaped / bad path kept: %v %v", strings.Contains(body, "<h1>Hello"), strings.Contains(body, "evil.html"))
+	}
+	// The page opens under a policy that gives it nothing, with links between pages working.
+	pg := e.req("GET", fmt.Sprintf("/jobs/%d/tasks/%d/page/index.html", j.ID, t1.ID), nil, c, nil)
+	csp := pg.header.Get("Content-Security-Policy")
+	if pg.status != 200 || !strings.HasPrefix(csp, "sandbox;") || strings.Contains(csp, "script-src") || !strings.Contains(pg.body, `<base href="/jobs/`) || !strings.Contains(pg.body, "Contact") {
+		t.Fatalf("page: %d %q\n%s", pg.status, csp, pg.body)
+	}
+	if r := e.req("GET", fmt.Sprintf("/jobs/%d/tasks/%d/page/notes.txt", j.ID, t1.ID), nil, c, nil); r.status != 404 {
+		t.Errorf("a file that is not a page: %d", r.status)
+	}
+	if r := e.req("GET", fmt.Sprintf("/jobs/%d/tasks/%d/page/index.html", j.ID+5, t1.ID), nil, c, nil); r.status != 404 {
+		t.Errorf("a task of another job: %d", r.status)
+	}
+
+	// Send back with a note, from the job page; the result of the rejected work is gone.
+	if r := e.req("POST", fmt.Sprintf("/jobs/%d/tasks/%d/reject", j.ID, t1.ID), url.Values{"csrf": {tok}, "reason": {"remove the phone number"}}, c, nil); r.status != 303 {
+		t.Fatalf("send back: %d %s", r.status, r.body)
+	}
+	if got := e.apiTask(hum, t1.ID); got.Status != "claimed" || got.RejectReason != "remove the phone number" || got.Rejects != 1 {
+		t.Fatalf("after send back: %+v", got)
+	}
+	if body := e.req("GET", fmt.Sprintf("/jobs/%d", j.ID), nil, c, nil).body; strings.Contains(body, "See every change") {
+		t.Error("the result of rejected work is still shown")
+	}
+	// Submit again, use it from the job page.
+	ag.worker("POST", fmt.Sprintf("/v1/tasks/%d/submit", t1.ID), api.SubmitReq{Evidence: []string{"commit:def"}, Note: "fixed"}, nil)
+	if r := e.req("POST", fmt.Sprintf("/jobs/%d/tasks/%d/accept", j.ID, t1.ID), url.Values{"csrf": {tok}}, c, nil); r.status != 303 {
+		t.Fatalf("accept: %d %s", r.status, r.body)
+	}
+	if got := e.apiTask(hum, t1.ID); got.Status != "done" {
+		t.Fatalf("after accept: %+v", got)
+	}
+	// A task that is another job's cannot be reached through this job.
+	if r := e.req("POST", fmt.Sprintf("/jobs/%d/tasks/%d/cancel", j.ID+5, t1.ID), url.Values{"csrf": {tok}}, c, nil); r.status == 303 {
+		t.Error("a task was stopped through the wrong job")
+	}
+}

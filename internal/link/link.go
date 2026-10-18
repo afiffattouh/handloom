@@ -219,6 +219,7 @@ func (l *Link) handler() http.Handler {
 	}
 	mux.HandleFunc("/v1/device/scope-refused", linkOnly("refused submits"))
 	mux.HandleFunc("POST /v1/tasks/{id}/verify", linkOnly("verification results"))
+	mux.HandleFunc("POST /v1/tasks/{id}/result", linkOnly("results"))
 	mux.HandleFunc("/v1/device/merges", linkOnly("the merges to do"))
 	mux.HandleFunc("/v1/device/kcollects", linkOnly("the notes to gather"))
 	mux.HandleFunc("/v1/device/publishes", linkOnly("the publishes to do"))

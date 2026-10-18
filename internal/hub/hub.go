@@ -284,6 +284,8 @@ func (h *Hub) buildHandler() http.Handler {
 	v1("GET /device/spawns", deviceSpawns)
 	v1("POST /device/scope-refused", scopeRefused)
 	v1("POST /tasks/{id}/verify", taskVerify)
+	v1("POST /tasks/{id}/result", taskResultPost)
+	v1("GET /tasks/{id}/result", taskResultGet)
 	v1("GET /metrics", metricsGet)
 	v1("GET /search", searchGet)
 	v1("POST /lessons", lessonPropose)

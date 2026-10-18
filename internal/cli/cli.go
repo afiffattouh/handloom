@@ -58,7 +58,7 @@ Agent verbs (run inside an agent's shell, through the local link):
   handloom job publish <id> [--remote R] [--pr]                         (human) push a finished job's branch to the shared remote (never forced); --pr also opens a pull request with gh
   handloom job merge <id> [--branch B]                                  (human) a project the hub holds: merge the job's published branch into the main branch
   handloom task list [--status S] [--job N]
-  handloom task show <id>
+  handloom task show <id> | result <id>                                    what a task changed: the files and the diff
   handloom task create <title> [--body B] [--assign A] [--depends 1,2]      (lead, human)
   handloom task assign <id> <agent>                                         (lead, human)
   handloom task accept <id> | reject <id> --reason R | cancel <id>          (lead, human)

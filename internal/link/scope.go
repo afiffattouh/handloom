@@ -210,8 +210,11 @@ func (w *statusWriter) Write(b []byte) (int, error) {
 func (l *Link) forwardAndVerify(w http.ResponseWriter, r *http.Request, next http.Handler, rec *scopeRecord, taskID int64) {
 	sw := &statusWriter{ResponseWriter: w}
 	next.ServeHTTP(sw, r)
-	if sw.status == http.StatusOK && rec.Verify != "" && taskID > 0 {
-		go l.runVerify(rec, taskID)
+	if sw.status == http.StatusOK && taskID > 0 {
+		go l.reportResult(rec, taskID)
+		if rec.Verify != "" {
+			go l.runVerify(rec, taskID)
+		}
 	}
 }
 

@@ -30,32 +30,63 @@
 
 <div class="grid2">
   <div class="stream-col">
-    <section class="card" aria-labelledby="tasks">
-      <div class="ch"><div><h2 id="tasks">Tasks</h2></div></div>
-      <div class="cc flush tw"><table>
-        <thead><tr><th>Task</th><th>Owner</th><th>Status</th><th>Check</th><th>Merge</th></tr></thead>
-        <tbody>
-        {{range .Tasks}}
-        <tr>
-          <td><span class="mono muted">#{{.ID}}</span> {{.Title}}{{if .Rejects}} <span class="badge warning" title="Its work was sent back; after three times it stops and you are asked">sent back {{.Rejects}}×</span>{{end}}{{if .DependsOn}} <span class="desc">after {{range .DependsOn}}#{{.}} {{end}}</span>{{end}}
-            {{if .Evidence}}<div class="desc text">{{range $i, $e := .Evidence}}{{if $i}}; {{end}}{{$e}}{{end}}</div>{{end}}
-            {{with .Handoff}}<div class="desc text"><strong>Handoff</strong> ({{.Kind}}, {{.Author}}): {{.Done}}{{if .Next}} <strong>Next:</strong> {{.Next}}{{end}}{{if .Verify}} <strong>Check:</strong> {{.Verify}}{{end}}</div>{{end}}
-            {{with .Check}}{{with .Evidence}}<details class="desc text"><summary>What the project's check looked at{{if .Reason}}: {{.Reason}}{{end}}</summary>
-              <ul>{{range .Stages}}<li><span class="mono">{{.Name}}</span> — {{.Status}}{{if .Detail}} ({{.Detail}}){{end}}</li>{{end}}</ul>
-              {{range .Refused}}<div class="sev-bad">Refused: {{.}}</div>{{end}}
-              {{if .Blocked}}<div class="inset wrap"><strong>The agent's note:</strong> {{.Blocked}}</div>{{end}}</details>{{end}}{{end}}
-            {{if and .Check (not .CheckOK) .Check.Tail}}<div class="inset wrap">{{.Check.Tail}}</div>{{end}}
-            {{with .Merge}}{{if and (ne .Status "merged") (ne .Status "pending") .Detail}}<div class="desc text sev-bad">{{.Detail}}</div>{{end}}{{end}}</td>
-          <td class="nw">{{if .Owner}}{{.Owner}}{{else}}<span class="muted">unclaimed</span>{{end}}</td>
-          <td class="nw">{{if eq .Status "done"}}<span class="badge success">Accepted</span>{{else if eq .Status "submitted"}}<a class="badge info" href="/inbox">To review</a>{{else if eq .Status "claimed"}}<span class="badge warning"><i class="dot"></i>Working</span>{{else if eq .Status "cancelled"}}<span class="badge outline">Cancelled</span>{{else}}<span class="badge">{{.Status}}</span>{{end}}</td>
-          <td class="nw">{{if .Check}}{{if .CheckOK}}<span class="badge success">Passed</span>{{else}}<span class="badge destructive">{{.Words}}</span>{{end}}{{else}}<span class="muted">…</span>{{end}}</td>
-          <td class="nw">{{with .Merge}}{{if eq .Status "merged"}}<span class="badge success">Merged</span>{{else if eq .Status "pending"}}<span class="muted">waiting</span>{{else}}<span class="badge destructive">{{.Status}}</span>{{end}}{{else}}<span class="muted">…</span>{{end}}</td>
-        </tr>
-        {{else}}
-        <tr><td colspan="5" class="empty">No tasks yet. The lead is planning.</td></tr>
+    <h2 id="tasks" class="sect">Tasks</h2>
+    {{range .Tasks}}{{$tid := .ID}}
+    <article class="card task-card" id="task-{{.ID}}">
+      <div class="ch"><div>
+        <h3><span class="mono muted">#{{.ID}}</span> {{.Title}}</h3>
+        <p class="desc">{{if .Owner}}Helper <strong>{{.Owner}}</strong>{{if .Live}} · {{.Live}}{{end}}{{else}}Nobody has taken it yet{{end}}{{if .DependsOn}} · after {{range .DependsOn}}#{{.}} {{end}}{{end}}</p>
+      </div><div class="acts">
+        {{if eq .Status "done"}}<span class="badge success">Used</span>{{else if eq .Status "submitted"}}<span class="badge info">Ready for you</span>{{else if eq .Status "claimed"}}<span class="badge warning"><i class="dot"></i>Working</span>{{else if eq .Status "cancelled"}}<span class="badge outline">Stopped</span>{{else}}<span class="badge">{{.Status}}</span>{{end}}
+        {{if .Rejects}}<span class="badge warning" title="Its work was sent back; after three times it stops and you are asked">sent back {{.Rejects}}×</span>{{end}}
+        {{if .Check}}{{if .CheckOK}}<span class="badge success">Check passed</span>{{else}}<span class="badge destructive">{{.Words}}</span>{{end}}{{end}}
+      </div></div>
+      <div class="cc stack">
+        {{if .Result}}
+        <div>
+          <strong>What changed</strong> <span class="desc">· {{len .Result.Files}} file{{if ne (len .Result.Files) 1}}s{{end}}{{if .Result.Truncated}} (some not shown){{end}}</span>
+          <ul class="plain files">
+            {{range .Result.Files}}<li><span class="badge outline">{{.Status}}</span> <code>{{.Path}}</code> <span class="desc"><span class="sev-ok">+{{.Added}}</span> <span class="sev-bad">−{{.Deleted}}</span></span></li>{{end}}
+          </ul>
+          {{if .Result.Pages}}<p>{{range .Result.Pages}}<a class="button outline sm" href="/jobs/{{$.Extra.Job.ID}}/tasks/{{$tid}}/page/{{.}}" target="_blank" rel="noopener">Open {{.}}</a> {{end}}</p>{{end}}
+          {{if .Lines}}<details><summary>See every change</summary><pre class="inset diff">{{range .Lines}}<span class="dl {{.Class}}">{{.Text}}</span>
+{{end}}</pre></details>{{end}}
+        </div>
+        {{else if eq .Status "submitted"}}<p class="desc">Waiting for the computer to report what changed.</p>
         {{end}}
-        </tbody></table></div>
-    </section>
+        {{if .Evidence}}<div class="desc text"><strong>Its note:</strong> {{range $i, $e := .Evidence}}{{if $i}}; {{end}}{{$e}}{{end}}</div>{{end}}
+        {{with .Handoff}}<div class="desc text"><strong>Handoff</strong> ({{.Kind}}, {{.Author}}): {{.Done}}{{if .Next}} <strong>Next:</strong> {{.Next}}{{end}}{{if .Verify}} <strong>Check:</strong> {{.Verify}}{{end}}</div>{{end}}
+        {{with .Check}}{{with .Evidence}}<details class="desc text"><summary>What the project's check looked at{{if .Reason}}: {{.Reason}}{{end}}</summary>
+          <ul>{{range .Stages}}<li><span class="mono">{{.Name}}</span> — {{.Status}}{{if .Detail}} ({{.Detail}}){{end}}</li>{{end}}</ul>
+          {{range .Refused}}<div class="sev-bad">Refused: {{.}}</div>{{end}}
+          {{if .Blocked}}<div class="inset wrap"><strong>The agent's note:</strong> {{.Blocked}}</div>{{end}}</details>{{end}}{{end}}
+        {{if and .Check (not .CheckOK) .Check.Tail}}<div class="inset wrap">{{.Check.Tail}}</div>{{end}}
+        {{with .Merge}}{{if eq .Status "merged"}}<div class="desc text"><span class="badge success">Merged</span> into the job's branch</div>{{else if eq .Status "pending"}}<div class="desc text">Waiting to be merged</div>{{else if .Detail}}<div class="desc text sev-bad">Merge: {{.Detail}}</div>{{end}}{{end}}
+        {{if .CanWatch}}<details {{if eq .Status "claimed"}}open{{end}}><summary>Watch {{.Owner}} work</summary>
+          <pre class="inset screen" data-copy data-tail="/agents/{{.Owner}}/tail" data-watch="/agents/{{.Owner}}/watch">Waiting for the computer to send the screen…</pre></details>{{end}}
+      </div>
+      {{if $.Extra.CanAct}}{{if or (eq .Status "submitted") (eq .Status "claimed") (eq .Status "open")}}
+      <div class="cf stack">
+        {{if eq .Status "submitted"}}
+        <div class="acts">
+          <form method="post" action="/jobs/{{$.Extra.Job.ID}}/tasks/{{.ID}}/accept" class="inline"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button type="submit">Use this result</button></form>
+          <details class="inline-details"><summary class="button secondary">Send back with a note</summary>
+            <form method="post" action="/jobs/{{$.Extra.Job.ID}}/tasks/{{.ID}}/reject" class="stack">
+              <input type="hidden" name="csrf" value="{{$.CSRF}}">
+              <label>What should change? <textarea name="reason" rows="3" required placeholder="The contact page has made-up phone numbers. Remove them."></textarea></label>
+              <div class="acts"><button type="submit" class="secondary">Send back</button></div>
+            </form></details>
+        </div>
+        {{end}}
+        <details><summary class="desc">Stop this task</summary>
+          <form method="post" action="/jobs/{{$.Extra.Job.ID}}/tasks/{{.ID}}/cancel" class="stack"><input type="hidden" name="csrf" value="{{$.CSRF}}">
+            <p class="desc">Its helper is told to stop. Work already merged stays.</p><div class="acts"><button type="submit" class="destructive sm-btn">Stop task #{{.ID}}</button></div></form></details>
+      </div>
+      {{end}}{{end}}
+    </article>
+    {{else}}
+    <article class="card"><div class="cc"><p class="empty">No tasks yet. The lead is planning.</p></div></article>
+    {{end}}
 
     <section class="card" aria-labelledby="activity">
       <div class="ch"><div><h2 id="activity">Recent activity</h2></div></div>
@@ -166,4 +197,5 @@
   </div>
 </div>
 {{end}}
+<script src="/static/tail.js" defer></script>
 {{end}}

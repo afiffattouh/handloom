@@ -466,6 +466,18 @@ ALTER TABLE task ADD COLUMN rejects INTEGER NOT NULL DEFAULT 0;
 `, `
 -- A project can carry its own check command, so a job started from it does not ask for one each time.
 ALTER TABLE codebase ADD COLUMN check_cmd TEXT NOT NULL DEFAULT '';
+`, `
+-- What a submitted task changed, as the machine that holds the files saw it: the file list, the diff, and the
+-- web pages among them (so a person can open them). One row per task for its current submission.
+CREATE TABLE task_result (
+  task_id   INTEGER PRIMARY KEY REFERENCES task(id),
+  agent     TEXT NOT NULL,
+  files     TEXT NOT NULL DEFAULT '[]',
+  diff      TEXT NOT NULL DEFAULT '',
+  pages     TEXT NOT NULL DEFAULT '{}',
+  truncated INTEGER NOT NULL DEFAULT 0,
+  at        INTEGER NOT NULL
+);
 `}
 
 // Open opens (and migrates) the database at path. Use ":memory:" in tests.

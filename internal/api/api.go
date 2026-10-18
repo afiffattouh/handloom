@@ -239,6 +239,33 @@ type TaskCheckReq struct {
 	Evidence *CheckEvidence `json:"evidence,omitempty"`
 }
 
+// ResultFile is one file a task changed.
+type ResultFile struct {
+	Path    string `json:"path"`
+	Status  string `json:"status"` // added | modified | deleted
+	Added   int    `json:"added"`
+	Deleted int    `json:"deleted"`
+}
+
+// TaskResultReq is the link reporting what a submitted task changed.
+type TaskResultReq struct {
+	Agent     string            `json:"agent"`
+	Files     []ResultFile      `json:"files"`
+	Diff      string            `json:"diff"`
+	Pages     map[string]string `json:"pages,omitempty"` // changed web pages by path, small ones only
+	Truncated bool              `json:"truncated,omitempty"`
+}
+
+// TaskResult is what a person looks at before using the work: what changed, line by line.
+type TaskResult struct {
+	Agent     string       `json:"agent"`
+	Files     []ResultFile `json:"files"`
+	Diff      string       `json:"diff"`
+	Pages     []string     `json:"pages,omitempty"` // paths that can be opened as pages
+	Truncated bool         `json:"truncated,omitempty"`
+	At        time.Time    `json:"at"`
+}
+
 type Message struct {
 	ID          int64      `json:"id"`
 	Project     string     `json:"project"`

@@ -230,9 +230,40 @@ func (h *Hub) webJobCreate(q *webReq) error {
 
 type taskView struct {
 	api.Task
-	Ago     string
-	CheckOK bool
-	Words   string
+	Ago      string
+	CheckOK  bool
+	Words    string
+	Result   *api.TaskResult
+	Lines    []diffLine // the result's diff, line by line
+	IsPage   map[string]bool
+	CanWatch bool   // the owner's terminal can be read from here
+	Live     string // what the owner is doing, in a word
+}
+
+// diffLine is one line of a diff and how to colour it.
+type diffLine struct{ Class, Text string }
+
+func diffLines(diff string) []diffLine {
+	var out []diffLine
+	for i, l := range strings.Split(strings.TrimRight(diff, "\n"), "\n") {
+		if i >= 2500 {
+			out = append(out, diffLine{"meta", "... (more lines are not shown)"})
+			break
+		}
+		c := ""
+		switch {
+		case strings.HasPrefix(l, "+++") || strings.HasPrefix(l, "---") || strings.HasPrefix(l, "diff --git") || strings.HasPrefix(l, "index ") || strings.HasPrefix(l, "new file"):
+			c = "meta"
+		case strings.HasPrefix(l, "@@"):
+			c = "hunk"
+		case strings.HasPrefix(l, "+"):
+			c = "add"
+		case strings.HasPrefix(l, "-"):
+			c = "del"
+		}
+		out = append(out, diffLine{c, l})
+	}
+	return out
 }
 
 type jobView2 struct {
@@ -312,6 +343,22 @@ func (q *webReq) jobPage(status int, errMsg string, id int64) error {
 		if tk.check != nil {
 			tv.CheckOK = tk.check.ExitCode == 0 && !tk.check.TimedOut
 			tv.Words = checkWords(tk.check)
+		}
+		if res, _, err := q.c.result(tk.id); err != nil {
+			return err
+		} else if res != nil {
+			tv.Result, tv.Lines, tv.IsPage = res, diffLines(res.Diff), map[string]bool{}
+			for _, p := range res.Pages {
+				tv.IsPage[p] = true
+			}
+		}
+		if tk.owner.Valid && (tk.status == api.StatusClaimed || tk.status == api.StatusSubmitted) {
+			if ow, err := q.c.agentByID(tk.owner.Int64); err == nil && ow != nil {
+				tv.Live = ow.state
+				if ok, _ := q.watchAllowed(ow); ok && ow.wakeTarget != "" {
+					tv.CanWatch = true
+				}
+			}
 		}
 		if tv.Merge, err = q.c.mergeOf(tk.id); err != nil {
 			return err
@@ -398,7 +445,7 @@ func (q *webReq) jobPage(status int, errMsg string, id int64) error {
 			v.Attach = append(v.Attach, attachView{s.Name, "tmux -L handloom attach -t handloom:" + s.Name})
 		}
 	}
-	notice := map[string]string{"started": "Job started. Its lead is starting; this page updates as work arrives.", "closed": "Job closed.", "resumed": "Job resumed with the new lead.", "merged": "Merged. The work is now in the project's main branch; other machines pick it up when their next job starts.", "published": "Publishing asked for: the machine that holds the repository is pushing the branch. The result appears under Publish."}[q.r.URL.Query().Get("done")]
+	notice := map[string]string{"started": "Job started. Its lead is starting; this page updates as work arrives.", "closed": "Job closed.", "resumed": "Job resumed with the new lead.", "merged": "Merged. The work is now in the project's main branch; other machines pick it up when their next job starts.", "accepted": "Result used. It is queued to be merged into the job's branch.", "sentback": "Sent back with your note. Its helper has it again.", "taskstopped": "Task stopped.", "published": "Publishing asked for: the machine that holds the repository is pushing the branch. The result appears under Publish."}[q.r.URL.Query().Get("done")]
 	if q.r.URL.Query().Get("done") == "started" && v.Overlap != "" {
 		notice += " " + v.Overlap
 	}
@@ -484,4 +531,59 @@ func (h *Hub) webJobPublish(q *webReq) error {
 		_, err := q.c.publishJob(id, api.PublishReq{PR: q.r.PostForm.Get("pr") == "1"})
 		return err
 	})
+}
+
+// taskOnJob runs a person's action on one task of a job shown on the job page, and comes back to that page.
+func (q *webReq) taskOnJob(done string, fn func(t *taskRow) error) error {
+	if q.human.Role == store.RoleViewer {
+		return q.refuse("Viewers cannot change jobs.")
+	}
+	jid, err := strconv.ParseInt(q.r.PathValue("job"), 10, 64)
+	if err != nil {
+		q.page(404, "message", pageData{Title: "Not found", Error: "No such job."})
+		return errHandled
+	}
+	t, err := q.c.pathTask()
+	if err == nil && (!t.jobID.Valid || t.jobID.Int64 != jid) {
+		err = notFound("no such task in this job")
+	}
+	if err == nil {
+		err = fn(t)
+	}
+	if err != nil {
+		var ae *apiError
+		status, msg := 500, "Something went wrong."
+		if errors.As(err, &ae) {
+			status, msg = ae.status, ae.msg
+		}
+		q.c.tx.Rollback()
+		tx, terr := q.c.h.db.Begin()
+		if terr != nil {
+			return terr
+		}
+		defer tx.Rollback()
+		q.c.tx = tx
+		q.jobPage(status, msg, jid)
+		return errHandled
+	}
+	http.Redirect(q.w, q.r, fmt.Sprintf("/jobs/%d?done=%s#task-%d", jid, done, t.id), http.StatusSeeOther)
+	return nil
+}
+
+func (h *Hub) webJobTaskAccept(q *webReq) error {
+	return q.taskOnJob("accepted", func(t *taskRow) error { _, err := taskAccept(q.c); return err })
+}
+
+func (h *Hub) webJobTaskReject(q *webReq) error {
+	return q.taskOnJob("sentback", func(t *taskRow) error {
+		if err := q.c.allow(ActTaskManage); err != nil {
+			return err
+		}
+		_, err := q.c.rejectTask(t, q.r.PostForm.Get("reason"))
+		return err
+	})
+}
+
+func (h *Hub) webJobTaskCancel(q *webReq) error {
+	return q.taskOnJob("taskstopped", func(t *taskRow) error { _, err := taskCancel(q.c); return err })
 }

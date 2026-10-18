@@ -458,6 +458,24 @@ func (e *env) task(args []string) error {
 			return err
 		}
 		e.print(t, func() { e.taskDetail(t) })
+	case "result":
+		tid, err := id("result <id>", 1)
+		if err != nil {
+			return err
+		}
+		var r api.TaskResult
+		if err := c.Get(fmt.Sprintf("/v1/tasks/%d/result", tid), &r); err != nil {
+			return err
+		}
+		e.print(r, func() {
+			fmt.Fprintf(e.out, "Task #%d, by %s: %d file(s) changed%s\n", tid, r.Agent, len(r.Files), map[bool]string{true: " (not all shown)"}[r.Truncated])
+			for _, f := range r.Files {
+				fmt.Fprintf(e.out, "  %-9s %s  +%d -%d\n", f.Status, f.Path, f.Added, f.Deleted)
+			}
+			if r.Diff != "" {
+				fmt.Fprintf(e.out, "\n%s", r.Diff)
+			}
+		})
 	case "create":
 		if len(pos) == 0 {
 			return usageErr("usage: handloom task create <title> [--body B] [--assign A] [--depends 1,2]")

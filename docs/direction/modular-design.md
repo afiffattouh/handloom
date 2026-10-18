@@ -139,9 +139,11 @@ Parked: more presets, a client view with its own permissions, billing for agent 
 - **Client access widens the attack surface.** A client view can reach agents on our machines. Do not build it until roles per project exist and the security review of the hub covers it.
 - **Local-model-only projects.** The project flag exists only in intent. It must be enforced where agents are started, not in the profile, or it is a promise, not a rule.
 
-## Decisions for the owner
+## Decisions
 
-1. Is `FACTORY_*` the right place for the neutral names, or should Handloom keep its own (`HANDLOOM_*`) and the kit accept both?
-2. Should "Add checks" be allowed to open the change itself (a branch and a pull request), or only print the command for a person to run?
-3. After handover, who pays for the client's agent use: the client's own account, or a retainer with us?
-4. Do we build a client view in Handloom, or is the repo, CI and the client's own agent enough for the first clients?
+Answered by the owner, 2026-10-18:
+
+1. **Names:** the variables are Handloom's own, `HANDLOOM_BASE`, `HANDLOOM_SPEC`, `HANDLOOM_MODE` (read "keep it part of Handloom"). The kit accepts these and the `FACTORY_*` names, so it still works without Handloom. The contract table above uses `FACTORY_*`; read it with this in mind until the contract is rewritten.
+2. **"Add checks":** open question, explained in plain words in the conversation: Handloom can put the check files on a new branch and show them for approval, or only print the command to run. Recommended: the branch, never merged without a person's approval.
+3. **Who pays for agents after handover:** both. A project setting says whose account runs the work.
+4. **Client view:** yes, built in Handloom. It needs roles per project and a security review of the hub first (see Risks).

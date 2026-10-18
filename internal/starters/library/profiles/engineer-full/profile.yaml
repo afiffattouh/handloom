@@ -1,0 +1,13 @@
+name: engineer-full
+description: 'Engineer working to the full agent-skills method; long skills, for Claude Code.'
+tools:
+  allow:
+  - edit
+  - read
+  - shell
+  deny_commands:
+  - rm
+  - sudo
+  - git push
+  - git reset --hard
+  - git clean

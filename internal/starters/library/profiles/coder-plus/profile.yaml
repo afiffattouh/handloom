@@ -1,0 +1,13 @@
+name: coder-plus
+description: 'Coder with five extra short skills, for comparing against the plain coder.'
+tools:
+  allow:
+  - edit
+  - read
+  - shell
+  deny_commands:
+  - rm
+  - sudo
+  - git push
+  - git reset --hard
+  - git clean

@@ -425,3 +425,36 @@ starters:
   - people-data-care
   - write-a-handoff
   recommend_runtime: local
+- name: coder-plus
+  title: Coder (extra skills)
+  group: Engineering
+  summary: 'The Coder plus five short skills; made to be compared with the plain Coder on the same tasks.'
+  core: false
+  skills:
+  - test-first
+  - small-commits
+  - debug-systematically
+  - write-a-handoff
+  - build-in-slices
+  - simplify-code
+  - check-the-docs
+  - record-the-decision
+  - measure-before-tuning
+- name: engineer-full
+  title: Engineer (full method)
+  group: Engineering
+  summary: 'The Coder with the long agent-skills methods. Claude Code loads them on demand; other CLIs would carry every word in their instructions.'
+  core: false
+  skills:
+  - test-first
+  - small-commits
+  - debug-systematically
+  - write-a-handoff
+  - agent-skills-interview-me
+  - agent-skills-incremental-implementation
+  - agent-skills-code-simplification
+  - agent-skills-source-driven-development
+  - agent-skills-documentation-and-adrs
+  - agent-skills-performance-optimization
+  - agent-skills-frontend-ui-engineering
+  note: Long skills (9 to 17 KB each). Use it with Claude Code; on other CLIs they are pasted into the instructions.

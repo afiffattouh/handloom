@@ -330,14 +330,20 @@ func seedKit(root, name, preset string) (created, notes []string, err error) {
 		notes = append(notes, "CLAUDE.md exists without `@AGENTS.md`; add that line so Claude Code reads the guide")
 	}
 	gi := readText(root, ".gitignore")
-	if !regexp.MustCompile(`(?m)^/?runs/?$`).MatchString(gi) {
+	var missing []string
+	for _, e := range []string{"runs", "__pycache__"} {
+		if !regexp.MustCompile(`(?m)^/?` + e + `/?$`).MatchString(gi) {
+			missing = append(missing, e+"/")
+		}
+	}
+	if len(missing) > 0 {
 		if gi != "" && !strings.HasSuffix(gi, "\n") {
 			gi += "\n"
 		}
-		if err = os.WriteFile(filepath.Join(root, ".gitignore"), []byte(gi+"runs/\n"), 0o644); err != nil {
+		if err = os.WriteFile(filepath.Join(root, ".gitignore"), []byte(gi+strings.Join(missing, "\n")+"\n"), 0o644); err != nil {
 			return
 		}
-		created = append(created, ".gitignore (runs/)")
+		created = append(created, ".gitignore ("+strings.Join(missing, ", ")+")")
 	}
 	manifest, e := acceptanceManifest(filepath.Join(root, "tests", "acceptance"))
 	if e != nil {

@@ -226,9 +226,10 @@ def cmd_init(args) -> int:
         merge_hooks(root, created, skipped)
     gi = root / ".gitignore"
     text = gi.read_text() if gi.exists() else ""
-    if not re.search(r"(?m)^/?runs/?$", text):
-        gi.write_text(text + ("" if text.endswith("\n") or not text else "\n") + "runs/\n")
-        created.append(".gitignore (runs/)")
+    missing = [e for e in ("runs/", "__pycache__/") if not re.search(r"(?m)^/?" + re.escape(e.rstrip("/")) + r"/?$", text)]
+    if missing:
+        gi.write_text(text + ("" if text.endswith("\n") or not text else "\n") + "".join(m + "\n" for m in missing))
+        created.append(".gitignore (" + ", ".join(missing) + ")")
     accept(root, quiet=True)
     for c in created:
         say(f"  added  {c}")

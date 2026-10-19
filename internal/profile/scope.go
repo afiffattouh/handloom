@@ -61,5 +61,22 @@ func AdapterPath(p string) bool {
 			return true
 		}
 	}
-	return p == "CLAUDE.md" || p == "AGENTS.md" || p == ".handloom" || p == ".claude" || p == ".codex"
+	return p == "CLAUDE.md" || p == "AGENTS.md" || p == "opencode.json" || p == ".handloom" || p == ".claude" || p == ".codex"
+}
+
+// GeneratedPath reports whether a path is a build or tool cache that no one wrote on purpose
+// (the same list the kit's gate ignores): such files are not part of what a task changed.
+func GeneratedPath(p string) bool {
+	p = path.Clean(p)
+	if strings.HasSuffix(p, ".pyc") || strings.HasSuffix(p, ".pyo") {
+		return true
+	}
+	dirs := strings.Split(p, "/")
+	for _, d := range dirs[:len(dirs)-1] {
+		switch d {
+		case "__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache", "node_modules", ".next", ".turbo":
+			return true
+		}
+	}
+	return false
 }

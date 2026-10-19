@@ -103,7 +103,7 @@ func (l *Link) recordScope(ctx context.Context, s api.Spawn, dir, kbase string) 
 // changedFiles lists what differs from the commit the worktree started at:
 // tracked changes (committed or not, renames counted as a delete and an add)
 // and new files git does not ignore. Files handloom and the agent CLIs wrote
-// themselves are left out.
+// themselves, and build caches, are left out.
 func (l *Link) changedFiles(ctx context.Context, rec *scopeRecord) ([]string, error) {
 	git := func(args ...string) (string, error) {
 		return l.opt.Git(ctx, "git", append([]string{"-C", rec.Dir}, args...)...)
@@ -120,7 +120,7 @@ func (l *Link) changedFiles(ctx context.Context, rec *scopeRecord) ([]string, er
 	var out []string
 	for _, list := range []string{tracked, untracked} {
 		for _, p := range strings.Split(list, "\x00") {
-			if p == "" || seen[p] || profile.AdapterPath(p) {
+			if p == "" || seen[p] || profile.AdapterPath(p) || profile.GeneratedPath(p) {
 				continue
 			}
 			seen[p] = true

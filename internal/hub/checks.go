@@ -90,21 +90,26 @@ func (c *call) checksState(name string) (api.ChecksState, error) {
 		return out, err
 	}
 	git := c.h.repoGit(repo)
+	hasKit := false
 	if _, err := git("cat-file", "-e", "refs/heads/"+into+":check"); err == nil {
-		out.State = "has"
-		return out, nil
+		hasKit = true
 	}
 	tip, err := git("rev-parse", "--verify", "-q", checksRef+"^{commit}")
 	if err != nil {
+		if hasKit {
+			out.State = "has"
+			v, _ := git("show", "refs/heads/"+into+":.factory/VERSION")
+			out.Outdated = strings.TrimSpace(v) != kitVersion()
+		}
 		return out, nil
 	}
 	tip = strings.TrimSpace(tip)
-	out.State = "ready"
+	out.State, out.Update = "ready", hasKit
 	files, _ := git("diff", "--name-only", "refs/heads/"+into, tip)
 	for _, f := range strings.Fields(files) {
 		out.Files = append(out.Files, f)
 	}
-	if !hasString(out.Files, ".claude/settings.json") {
+	if !out.Update && !hasString(out.Files, ".claude/settings.json") {
 		out.Notes = append(out.Notes, "the project already has .claude/settings.json, so the two Claude Code hooks were not added; the gate does not depend on them")
 	}
 	if t, err := git("show", tip+":factory.toml"); err == nil {
@@ -140,10 +145,12 @@ func (c *call) prepareChecks(name, preset string) (api.ChecksState, error) {
 		return out, conflict("the project has no branch %s to add the checks to", into)
 	}
 	baseSHA = strings.TrimSpace(baseSHA)
-	for _, f := range []string{"check", "factory.toml"} {
-		if _, err := git("cat-file", "-e", baseSHA+":"+f); err == nil {
-			return out, conflict("%s already has %s on %s: it has checks of its own, and the hub does not overwrite them", name, f, into)
+	update := false
+	if _, err := git("cat-file", "-e", baseSHA+":check"); err == nil {
+		if _, err := git("cat-file", "-e", baseSHA+":factory.toml"); err != nil {
+			return out, conflict("%s has a ./check of its own and no factory.toml, so it is not a kit project: the hub does not overwrite it", name)
 		}
+		update = true
 	}
 	work, err := os.MkdirTemp(h.gitRoot(), ".checks-")
 	if err != nil {
@@ -157,19 +164,30 @@ func (c *call) prepareChecks(name, preset string) (api.ChecksState, error) {
 	if _, err := git("worktree", "add", "-q", "--detach", work, baseSHA); err != nil {
 		return out, &apiError{500, "internal", "could not prepare the checks: " + err.Error()}
 	}
-	created, notes, err := seedKit(work, name, preset)
-	if err != nil {
-		return out, err
-	}
-	if len(created) == 0 {
-		return out, conflict("nothing to add: the project already has every file the kit would write")
+	var created, notes []string
+	msg := "Add the checks (Handloom kit)"
+	if update {
+		if created, err = upgradeKit(work); err != nil {
+			return out, err
+		}
+		if len(created) == 0 {
+			return out, conflict("the checks of %s are already up to date (kit %s)", name, kitVersion())
+		}
+		msg = "Update the checks (Handloom kit " + kitVersion() + ")"
+	} else {
+		if created, notes, err = seedKit(work, name, preset); err != nil {
+			return out, err
+		}
+		if len(created) == 0 {
+			return out, conflict("nothing to add: the project already has every file the kit would write")
+		}
 	}
 	wgit := func(args ...string) (string, error) { return h.runGit(work, "", args...) }
 	// The folder holds the project's files, so git sees the kit's files as new; add only those.
 	if _, err := wgit("add", "-A"); err != nil {
 		return out, &apiError{500, "internal", "could not record the checks: " + err.Error()}
 	}
-	if _, err := wgit("-c", "commit.gpgsign=false", "commit", "-q", "-m", "Add the checks (Handloom kit)"); err != nil {
+	if _, err := wgit("-c", "commit.gpgsign=false", "commit", "-q", "-m", msg); err != nil {
 		return out, &apiError{500, "internal", "could not record the checks: " + err.Error()}
 	}
 	head, err := wgit("rev-parse", "HEAD")
@@ -180,7 +198,7 @@ func (c *call) prepareChecks(name, preset string) (api.ChecksState, error) {
 	if _, err := git("update-ref", checksRef, strings.TrimSpace(head), ""); err != nil {
 		return out, conflict("checks were prepared by someone else a moment ago; reload and look")
 	}
-	if err := c.record(0, 0, "project.checks_prepare", "project:"+name, map[string]any{"preset": preset, "files": len(created)}); err != nil {
+	if err := c.record(0, 0, "project.checks_prepare", "project:"+name, map[string]any{"preset": preset, "files": len(created), "update": update}); err != nil {
 		return out, err
 	}
 	st, err := c.checksState(name)

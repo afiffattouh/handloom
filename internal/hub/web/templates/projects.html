@@ -36,8 +36,15 @@
         {{if eq $.Extra.Which (print "checks:" .Name)}}{{if $.Error}}<p class="sev-bad" role="alert">{{$.Error}}</p>{{end}}{{end}}
         {{if eq .Checks.State "has"}}
           <p class="text"><span class="badge success"><i class="dot"></i>has the checks</span> <span class="desc">The kit's <code>./check</code> is on the main branch. Jobs are checked with it, and the work cannot be accepted when it fails.</span></p>
+          {{if and .Checks.Outdated $.Extra.CanManage}}
+          <form method="post" action="/projects/{{.Name}}/checks" class="inline">
+            <input type="hidden" name="csrf" value="{{$.CSRF}}">
+            <input type="hidden" name="action" value="prepare">
+            <span class="desc">Its kit is older than this hub's.</span> <button type="submit" class="secondary">Prepare an update</button>
+          </form>
+          {{end}}
         {{else if eq .Checks.State "ready"}}
-          <p class="text"><strong>Checks are prepared</strong> <span class="desc">on a side copy, not on the main branch yet. They add {{len .Checks.Files}} files:</span></p>
+          <p class="text"><strong>{{if .Checks.Update}}An update to the checks is prepared{{else}}Checks are prepared{{end}}</strong> <span class="desc">on a side copy, not on the main branch yet. They {{if .Checks.Update}}refresh{{else}}add{{end}} {{len .Checks.Files}} files:</span></p>
           <p class="mono desc">{{range $i, $f := .Checks.Files}}{{if $i}} · {{end}}{{$f}}{{end}}</p>
           {{range .Checks.Notes}}<p class="desc">Note: {{.}}</p>{{end}}
           <details><summary>What <code>./check</code> will run (factory.toml)</summary><pre class="inset">{{.Checks.Toml}}</pre></details>

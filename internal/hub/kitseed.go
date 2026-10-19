@@ -1,6 +1,7 @@
 package hub
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -249,6 +250,53 @@ func claudeSettingsText() string {
 	return string(b) + "\n"
 }
 
+type kitFileSpec struct {
+	rel  string
+	data []byte
+	mode os.FileMode
+}
+
+// vendoredFiles are the kit's own files a project carries (what `factory upgrade` refreshes).
+func vendoredFiles(web bool) []kitFileSpec {
+	files := []kitFileSpec{
+		{".factory/check.py", kitBytes("kit/check.py"), 0o755},
+		{".factory/_toml.py", kitBytes("kit/_toml.py"), 0o644},
+		{".factory/hooks/protect.py", kitBytes("kit/hooks/protect.py"), 0o755},
+		{".factory/hooks/stop_check.py", kitBytes("kit/hooks/stop_check.py"), 0o755},
+		{"check", kitBytes("kit/templates/check"), 0o755},
+	}
+	if web {
+		files = append(files, kitFileSpec{".factory/checks/web.py", kitBytes("kit/checks/web.py"), 0o755})
+	}
+	return files
+}
+
+// upgradeKit is `factory upgrade`: it refreshes the kit's own files in a project that has them. It returns the
+// files that changed; nothing the project owns (factory.toml, the guides, the tests) is touched.
+func upgradeKit(root string) (changed []string, err error) {
+	if !exists(root, "check") || !exists(root, "factory.toml") {
+		return nil, conflict("this project has no kit to update")
+	}
+	files := append(vendoredFiles(exists(root, ".factory/checks/web.py")), kitFileSpec{".factory/VERSION", []byte(kitVersion() + "\n"), 0o644})
+	for _, f := range files {
+		target := filepath.Join(root, f.rel)
+		if old, e := os.ReadFile(target); e == nil && bytes.Equal(old, f.data) {
+			continue
+		}
+		if err = os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+			return
+		}
+		if err = os.WriteFile(target, f.data, f.mode); err != nil {
+			return
+		}
+		if err = os.Chmod(target, f.mode); err != nil {
+			return
+		}
+		changed = append(changed, f.rel)
+	}
+	return
+}
+
 // seedKit writes the kit into root the way `factory init` does: it adds files and never overwrites one.
 // It returns the files it added and what the person should know.
 func seedKit(root, name, preset string) (created, notes []string, err error) {
@@ -289,30 +337,15 @@ func seedKit(root, name, preset string) (created, notes []string, err error) {
 	}
 	tpl := func(n string) []byte { return kitBytes("kit/templates/" + n) }
 	agents := strings.ReplaceAll(strings.ReplaceAll(string(tpl("AGENTS.md")), "{name}", name), "{commands}", "")
-	steps := []struct {
-		rel  string
-		data []byte
-		mode os.FileMode
-	}{
+	steps := []kitFileSpec{
 		{"factory.toml", []byte(factoryToml(name, stages, fast, links, preset)), 0o644},
 		{"AGENTS.md", []byte(agents), 0o644},
 		{"CLAUDE.md", tpl("CLAUDE.md"), 0o644},
 		{"specs/TEMPLATE.md", tpl("spec.md"), 0o644},
 		{"LESSONS.md", tpl("LESSONS.md"), 0o644},
 		{"tests/acceptance/README.md", tpl("acceptance-README.md"), 0o644},
-		{".factory/check.py", kitBytes("kit/check.py"), 0o755},
-		{".factory/_toml.py", kitBytes("kit/_toml.py"), 0o644},
-		{".factory/hooks/protect.py", kitBytes("kit/hooks/protect.py"), 0o755},
-		{".factory/hooks/stop_check.py", kitBytes("kit/hooks/stop_check.py"), 0o755},
-		{"check", tpl("check"), 0o755},
 	}
-	if preset == "web" {
-		steps = append(steps, struct {
-			rel  string
-			data []byte
-			mode os.FileMode
-		}{".factory/checks/web.py", kitBytes("kit/checks/web.py"), 0o755})
-	}
+	steps = append(steps, vendoredFiles(preset == "web")...)
 	for _, s := range steps {
 		if err = put(s.rel, s.data, s.mode); err != nil {
 			return

@@ -990,13 +990,15 @@ type ChecksReq struct {
 // ready (prepared on a side branch, waiting for a person to put it on the main branch) or has
 // (the main branch has them).
 type ChecksState struct {
-	Project string   `json:"project"`
-	State   string   `json:"state"`
-	Preset  string   `json:"preset,omitempty"`
-	Files   []string `json:"files,omitempty"` // ready: what would be added
-	Toml    string   `json:"factory_toml,omitempty"`
-	Notes   []string `json:"notes,omitempty"`
-	Applied bool     `json:"applied,omitempty"` // the answer to apply: main moved
+	Project  string   `json:"project"`
+	State    string   `json:"state"`
+	Preset   string   `json:"preset,omitempty"`
+	Files    []string `json:"files,omitempty"` // ready: what would be added
+	Toml     string   `json:"factory_toml,omitempty"`
+	Notes    []string `json:"notes,omitempty"`
+	Applied  bool     `json:"applied,omitempty"`  // the answer to apply: main moved
+	Update   bool     `json:"update,omitempty"`   // ready: it refreshes the kit's files the project already has, it does not add the kit
+	Outdated bool     `json:"outdated,omitempty"` // has: the kit on the main branch is older than this hub's
 }
 
 // CodebaseHostReq makes a project the hub holds itself (D106): no address, no GitHub, no login.

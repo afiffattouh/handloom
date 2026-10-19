@@ -35,7 +35,7 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-KIT_VERSION = "0.2.0"
+KIT_VERSION = "0.2.1"
 SUMMARY_SCHEMA = 1
 MODES = ("submit", "merge", "maintain")
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -325,11 +325,25 @@ def run_stage(run: Run, name: str, cmd: str, timeout: int) -> bool:
     return False
 
 
+def project_lines(text: str) -> list:
+    """The lines of a guide that belong to the project: not the block Handloom writes for the agent's tool
+    (between its begin and end markers), which is regenerated on every run and is not the owner's to shorten."""
+    out, inside = [], False
+    for line in text.splitlines():
+        if line.startswith("<!-- handloom:begin"):
+            inside = True
+        elif inside and line.startswith("<!-- handloom:end"):
+            inside = False
+        elif not inside:
+            out.append(line)
+    return out
+
+
 def contract_stage(run: Run, cfg: dict) -> bool:
     limit = int(cfg.get("gate", {}).get("max_agents_md_lines", 100))
     agents = run.root / "AGENTS.md"
     if agents.exists():
-        n = len(agents.read_text().splitlines())
+        n = len(project_lines(agents.read_text()))
         if n > limit:
             run.record("contract", "fail", 0, f"AGENTS.md has {n} lines (limit {limit}). Move detail into docs/ and link it.")
             return False

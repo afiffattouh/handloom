@@ -332,3 +332,48 @@ func TestPreparedChecksPassTheKitsOwnCheck(t *testing.T) {
 		t.Fatalf("./check is not executable in a clone: %v", err)
 	}
 }
+
+// A project whose kit is older than the hub's is offered an update that refreshes only the kit's own files.
+func TestChecksCanBeUpdated(t *testing.T) {
+	e := hostedEnv(t)
+	e.host("site")
+	e.checksDo(e.afif(), "site", "prepare", "")
+	e.checksDo(e.afif(), "site", "apply", "")
+	if st := e.checksState("site"); st.State != "has" || st.Outdated {
+		t.Fatalf("a fresh kit is not outdated: %+v", st)
+	}
+	if code, _, _ := e.checksDo(e.afif(), "site", "prepare", ""); code != 409 {
+		t.Fatalf("an update when there is nothing to update: status %d, want 409", code)
+	}
+	// Make the project's kit old, and give it a toml of its own that an update must leave alone.
+	dir := e.cloneOf("site")
+	if err := os.WriteFile(filepath.Join(dir, ".factory", "VERSION"), []byte("0.0.1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, ".factory", "check.py"), []byte("# old\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	mustGit(t, dir, "", "add", "-A")
+	mustGit(t, dir, "", "commit", "-q", "-m", "an old kit")
+	mustGit(t, "", "", "--git-dir", e.hub.repoPath("site"), "fetch", "-q", dir, "main:main")
+	toml := e.bareGit("site", "show", "main:factory.toml")
+	if st := e.checksState("site"); !st.Outdated {
+		t.Fatalf("an old kit should be outdated: %+v", st)
+	}
+	code, st, raw := e.checksDo(e.afif(), "site", "prepare", "")
+	if code != 200 || !st.Update || len(st.Files) != 2 || !hasString(st.Files, ".factory/check.py") || !hasString(st.Files, ".factory/VERSION") {
+		t.Fatalf("prepare update: %d %s", code, raw)
+	}
+	if code, st, _ := e.checksDo(e.afif(), "site", "apply", ""); code != 200 || !st.Applied {
+		t.Fatalf("apply update: %d", code)
+	}
+	if got := e.bareGit("site", "show", "main:factory.toml"); got != toml {
+		t.Fatal("an update changed the project's own factory.toml")
+	}
+	if got := strings.TrimSpace(e.bareGit("site", "show", "main:.factory/VERSION")); got != kitVersion() {
+		t.Fatalf("version after update: %s", got)
+	}
+	if st := e.checksState("site"); st.Outdated {
+		t.Fatalf("still outdated after the update: %+v", st)
+	}
+}

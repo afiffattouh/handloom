@@ -165,6 +165,15 @@ class CheckTests(unittest.TestCase):
         self.assertEqual(r.returncode, 1)
         self.assertIn("AGENTS.md has 150 lines", r.stdout)
 
+    def test_the_block_handloom_writes_into_agents_md_is_not_counted(self):
+        block = "<!-- handloom:begin (managed by `handloom adapter`; edits here are overwritten) -->\n" + "y\n" * 80 + "<!-- handloom:end -->\n"
+        self.p.write("AGENTS.md", "x\n" * 60 + block)
+        self.assertEqual(self.p.check().returncode, 0)
+        self.p.write("AGENTS.md", "x\n" * 101 + block)
+        r = self.p.check()
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("AGENTS.md has 101 lines", r.stdout)
+
     def test_edited_acceptance_test_fails_even_without_the_gate(self):
         self.p.write("tests/acceptance/test_accept.py", "import unittest\n")
         r = self.p.check()

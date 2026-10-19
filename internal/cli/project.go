@@ -33,6 +33,7 @@ func (e *env) project(args []string) error {
 	preset := fs.String("preset", "", "checks: the kind of project, generic (default) or web")
 	apply := fs.Bool("apply", false, "checks: put the prepared checks on the main branch")
 	discard := fs.Bool("discard", false, "checks: throw the prepared checks away")
+	update := fs.Bool("update", false, "checks: refresh the kit's own files in a project that already has the checks")
 	pos, err := fs.parse(args[1:])
 	if err != nil {
 		return err
@@ -88,7 +89,7 @@ func (e *env) project(args []string) error {
 			fmt.Fprintf(e.out, "%s: jobs are checked with: %s\n", p.Name, p.Check)
 		})
 	case sub == "checks" && len(pos) == 1:
-		// handloom project checks NAME [--preset web]   prepare the kit's checks for a project the hub holds, or show them
+		// handloom project checks NAME [--preset web|--update]   prepare the kit's checks for a project the hub holds, or show them
 		// handloom project checks NAME --apply          put them on the main branch (a person); --discard throws them away
 		var st api.ChecksState
 		var err error
@@ -100,7 +101,7 @@ func (e *env) project(args []string) error {
 		case *discard:
 			err = c.Post("/v1/codebases/"+pos[0]+"/checks", api.ChecksReq{Action: "discard"}, &st)
 		default:
-			if err = c.Get("/v1/codebases/"+pos[0]+"/checks", &st); err == nil && st.State == "none" {
+			if err = c.Get("/v1/codebases/"+pos[0]+"/checks", &st); err == nil && (st.State == "none" || (st.State == "has" && *update)) {
 				err = c.Post("/v1/codebases/"+pos[0]+"/checks", api.ChecksReq{Action: "prepare", Preset: *preset}, &st)
 			}
 		}
@@ -113,8 +114,15 @@ func (e *env) project(args []string) error {
 				fmt.Fprintf(e.out, "The checks are on the main branch of %s. Jobs started from it are checked with ./check.\n", st.Project)
 			case st.State == "has":
 				fmt.Fprintf(e.out, "%s has the checks: ./check is on its main branch.\n", st.Project)
+				if st.Outdated {
+					fmt.Fprintf(e.out, "Its kit is older than this hub's. Refresh it with: handloom project checks %s --update\n", st.Project)
+				}
 			case st.State == "ready":
-				fmt.Fprintf(e.out, "Checks are prepared for %s (not on the main branch yet). They add %d files:\n  %s\n\nWhat ./check will run (factory.toml):\n%s\n", st.Project, len(st.Files), strings.Join(st.Files, "\n  "), st.Toml)
+				what := "add"
+				if st.Update {
+					what = "refresh"
+				}
+				fmt.Fprintf(e.out, "Checks are prepared for %s (not on the main branch yet). They "+what+" %d files:\n  %s\n\nWhat ./check will run (factory.toml):\n%s\n", st.Project, len(st.Files), strings.Join(st.Files, "\n  "), st.Toml)
 				for _, n := range st.Notes {
 					fmt.Fprintln(e.out, "note: "+n)
 				}

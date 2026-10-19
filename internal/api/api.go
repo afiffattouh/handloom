@@ -979,6 +979,25 @@ type CodebaseCheckReq struct {
 	Check string `json:"check"`
 }
 
+// ChecksReq asks the hub to prepare, apply or discard the kit's checks for a project it holds.
+type ChecksReq struct {
+	Action string `json:"action"`           // prepare | apply | discard
+	Preset string `json:"preset,omitempty"` // prepare: generic (default) or web
+}
+
+// ChecksState says where a hosted project is with the kit. State: none (the project has no checks),
+// ready (prepared on a side branch, waiting for a person to put it on the main branch) or has
+// (the main branch has them).
+type ChecksState struct {
+	Project string   `json:"project"`
+	State   string   `json:"state"`
+	Preset  string   `json:"preset,omitempty"`
+	Files   []string `json:"files,omitempty"` // ready: what would be added
+	Toml    string   `json:"factory_toml,omitempty"`
+	Notes   []string `json:"notes,omitempty"`
+	Applied bool     `json:"applied,omitempty"` // the answer to apply: main moved
+}
+
 // CodebaseHostReq makes a project the hub holds itself (D106): no address, no GitHub, no login.
 type CodebaseHostReq struct {
 	Name string `json:"name"`

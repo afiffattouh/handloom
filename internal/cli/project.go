@@ -20,7 +20,7 @@ var (
 
 func (e *env) project(args []string) error {
 	if len(args) == 0 {
-		return usageErr("usage: handloom project new|list|show|clone (see `handloom help`)")
+		return usageErr("usage: handloom project new|list|show|clone|check|checks (see `handloom help`)")
 	}
 	sub := args[0]
 	fs := e.flags("project " + sub)
@@ -30,6 +30,9 @@ func (e *env) project(args []string) error {
 	public := fs.Bool("public", false, "new --create: make it public (private otherwise)")
 	device := fs.String("device", "", "the machine that creates the repository or fetches the copy")
 	base := fs.String("base", "", "new: the main branch (default: the repository's own)")
+	preset := fs.String("preset", "", "checks: the kind of project, generic (default) or web")
+	apply := fs.Bool("apply", false, "checks: put the prepared checks on the main branch")
+	discard := fs.Bool("discard", false, "checks: throw the prepared checks away")
 	pos, err := fs.parse(args[1:])
 	if err != nil {
 		return err
@@ -83,6 +86,42 @@ func (e *env) project(args []string) error {
 				return
 			}
 			fmt.Fprintf(e.out, "%s: jobs are checked with: %s\n", p.Name, p.Check)
+		})
+	case sub == "checks" && len(pos) == 1:
+		// handloom project checks NAME [--preset web]   prepare the kit's checks for a project the hub holds, or show them
+		// handloom project checks NAME --apply          put them on the main branch (a person); --discard throws them away
+		var st api.ChecksState
+		var err error
+		switch {
+		case *apply && *discard:
+			return usageErr("--apply and --discard cannot be used together")
+		case *apply:
+			err = c.Post("/v1/codebases/"+pos[0]+"/checks", api.ChecksReq{Action: "apply"}, &st)
+		case *discard:
+			err = c.Post("/v1/codebases/"+pos[0]+"/checks", api.ChecksReq{Action: "discard"}, &st)
+		default:
+			if err = c.Get("/v1/codebases/"+pos[0]+"/checks", &st); err == nil && st.State == "none" {
+				err = c.Post("/v1/codebases/"+pos[0]+"/checks", api.ChecksReq{Action: "prepare", Preset: *preset}, &st)
+			}
+		}
+		if err != nil {
+			return err
+		}
+		e.print(st, func() {
+			switch {
+			case st.Applied:
+				fmt.Fprintf(e.out, "The checks are on the main branch of %s. Jobs started from it are checked with ./check.\n", st.Project)
+			case st.State == "has":
+				fmt.Fprintf(e.out, "%s has the checks: ./check is on its main branch.\n", st.Project)
+			case st.State == "ready":
+				fmt.Fprintf(e.out, "Checks are prepared for %s (not on the main branch yet). They add %d files:\n  %s\n\nWhat ./check will run (factory.toml):\n%s\n", st.Project, len(st.Files), strings.Join(st.Files, "\n  "), st.Toml)
+				for _, n := range st.Notes {
+					fmt.Fprintln(e.out, "note: "+n)
+				}
+				fmt.Fprintf(e.out, "Put them on the main branch with: handloom project checks %s --apply   (or throw them away: --discard)\n", st.Project)
+			default:
+				fmt.Fprintf(e.out, "%s has no prepared checks.\n", st.Project)
+			}
 		})
 	case sub == "show" && len(pos) == 1:
 		var p api.Codebase

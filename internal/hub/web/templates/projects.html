@@ -31,6 +31,32 @@
         <button type="submit" class="secondary">Save</button>
       </form>
       {{else if .Check}}<p class="desc">Check: <code>{{.Check}}</code></p>{{end}}
+      {{if .Checks}}
+      <div class="stack checks">
+        {{if eq $.Extra.Which (print "checks:" .Name)}}{{if $.Error}}<p class="sev-bad" role="alert">{{$.Error}}</p>{{end}}{{end}}
+        {{if eq .Checks.State "has"}}
+          <p class="text"><span class="badge success"><i class="dot"></i>has the checks</span> <span class="desc">The kit's <code>./check</code> is on the main branch. Jobs are checked with it, and the work cannot be accepted when it fails.</span></p>
+        {{else if eq .Checks.State "ready"}}
+          <p class="text"><strong>Checks are prepared</strong> <span class="desc">on a side copy, not on the main branch yet. They add {{len .Checks.Files}} files:</span></p>
+          <p class="mono desc">{{range $i, $f := .Checks.Files}}{{if $i}} · {{end}}{{$f}}{{end}}</p>
+          <details><summary>What <code>./check</code> will run (factory.toml)</summary><pre class="inset">{{.Checks.Toml}}</pre></details>
+          <p class="desc">Read the stages above. They decide what "done" means for every job here. A stage with an empty command is skipped. A person owns that file: the gate fails any job whose agent changes it.</p>
+          <form method="post" action="/projects/{{.Name}}/checks" class="inline">
+            <input type="hidden" name="csrf" value="{{$.CSRF}}">
+            {{if $.Extra.CanMerge}}<button type="submit" name="action" value="apply">Put on the main branch</button>{{end}}
+            {{if $.Extra.CanManage}}<button type="submit" name="action" value="discard" class="secondary">Throw away</button>{{end}}
+          </form>
+        {{else if $.Extra.CanManage}}
+          <form method="post" action="/projects/{{.Name}}/checks" class="inline">
+            <input type="hidden" name="csrf" value="{{$.CSRF}}">
+            <input type="hidden" name="action" value="prepare">
+            <label class="inline-label">Add the checks <span class="desc">(the kit: one <code>./check</code> that says what "done" means; nothing changes until you approve)</span>
+              <select name="preset" aria-label="Kind of project for {{.Name}}"><option value="generic">code project</option><option value="web">website</option></select></label>
+            <button type="submit" class="secondary">Prepare</button>
+          </form>
+        {{end}}
+      </div>
+      {{end}}
       {{if and $.Extra.CanManage .CloneTo}}
       <form method="post" action="/projects/{{.Name}}/clone" class="inline">
         <input type="hidden" name="csrf" value="{{$.CSRF}}">

@@ -231,6 +231,25 @@ func TestHostedProjectThroughTheCLI(t *testing.T) {
 	if code, _, errs := r.exec("project", "new", "x", "--base", "dev"); code != 2 || !strings.Contains(errs, "takes only a name") {
 		t.Fatalf("--base: %d %s", code, errs)
 	}
+	// The kit's checks: prepared and shown, then put on the main branch by a person.
+	if out := r.as(r.human, "project", "checks", "demo"); !strings.Contains(out, "Checks are prepared for demo") || !strings.Contains(out, "[stages]") || !strings.Contains(out, "--apply") {
+		t.Fatalf("checks: %s", out)
+	}
+	if out := r.as(r.human, "project", "checks", "demo"); !strings.Contains(out, "Checks are prepared for demo") {
+		t.Fatalf("checks again should show them, not fail: %s", out)
+	}
+	if code, _, errs := r.exec("project", "checks", "demo", "--apply", "--discard"); code != 2 || !strings.Contains(errs, "cannot be used together") {
+		t.Fatalf("apply and discard: %d %s", code, errs)
+	}
+	if out := r.as(r.human, "project", "checks", "demo", "--apply"); !strings.Contains(out, "on the main branch of demo") {
+		t.Fatalf("apply: %s", out)
+	}
+	if out := r.as(r.human, "project", "check", "demo"); !strings.Contains(out, "./check") {
+		t.Fatalf("the project's check after apply: %s", out)
+	}
+	if out := r.as(r.human, "project", "checks", "demo"); !strings.Contains(out, "has the checks") {
+		t.Fatalf("checks after apply: %s", out)
+	}
 	// The helper command itself answers git's protocol and prints nothing else.
 	old := gitCredentialIn
 	t.Cleanup(func() { gitCredentialIn = old })

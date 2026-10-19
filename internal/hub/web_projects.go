@@ -16,15 +16,17 @@ import (
 
 type projectView struct {
 	api.Codebase
-	RemoteLink bool     // an https address: shown as a link; anything else stays plain text
-	Size       string   // hosted: disk used on the hub
-	CloneTo    []string // machines that do not have a copy (or whose attempt failed)
+	RemoteLink bool             // an https address: shown as a link; anything else stays plain text
+	Size       string           // hosted: disk used on the hub
+	CloneTo    []string         // machines that do not have a copy (or whose attempt failed)
+	Checks     *api.ChecksState // hosted: where the project is with the kit's checks
 }
 
 type projectsView struct {
 	Projects  []projectView
 	Devices   []string
 	CanManage bool
+	CanMerge  bool // may put prepared checks on the main branch
 	Form      map[string]string
 	Which     string // the form that was refused, to show what was typed
 	PrivateOn bool
@@ -53,7 +55,7 @@ func (q *webReq) projectsPage(status int, errMsg, which string, form map[string]
 	if err != nil {
 		return err
 	}
-	v := &projectsView{Devices: devs, CanManage: q.c.allow(ActProjectManage) == nil, Form: form, Which: which, PrivateOn: which != "create" || form["c_private"] == "1"}
+	v := &projectsView{Devices: devs, CanManage: q.c.allow(ActProjectManage) == nil, CanMerge: q.c.allow(ActProjectMerge) == nil, Form: form, Which: which, PrivateOn: which != "create" || form["c_private"] == "1"}
 	if v.Form == nil {
 		v.Form = map[string]string{}
 	}
@@ -64,6 +66,9 @@ func (q *webReq) projectsPage(status int, errMsg, which string, form map[string]
 		pv := projectView{Codebase: cb, RemoteLink: strings.HasPrefix(cb.Remote, "https://") && !cb.Hosted}
 		if cb.Hosted {
 			pv.Size = humanBytes(q.c.h.repoSize(cb.Name))
+			if st, err := q.c.checksState(cb.Name); err == nil {
+				pv.Checks = &st
+			}
 		}
 		have := map[string]string{}
 		for _, k := range cb.Clones {
@@ -79,12 +84,15 @@ func (q *webReq) projectsPage(status int, errMsg, which string, form map[string]
 		v.Projects = append(v.Projects, pv)
 	}
 	notice := map[string]string{
-		"hosted":   "Project created on this hub. Have a machine fetch its copy with Clone, or start a job from it.",
-		"attached": "Project added.",
-		"creating": "Asked the machine to create the repository. It shows here, with its address, when the machine has done it (usually within a minute): reload this page.",
-		"cloning":  "Asked the machine to fetch its own copy. It shows as ready here when it is done (usually within a minute): reload this page.",
-		"ready":    "That machine already has its copy.",
-		"check":    "Saved. Jobs started from this project use that check.",
+		"hosted":           "Project created on this hub. Have a machine fetch its copy with Clone, or start a job from it.",
+		"attached":         "Project added.",
+		"creating":         "Asked the machine to create the repository. It shows here, with its address, when the machine has done it (usually within a minute): reload this page.",
+		"cloning":          "Asked the machine to fetch its own copy. It shows as ready here when it is done (usually within a minute): reload this page.",
+		"ready":            "That machine already has its copy.",
+		"check":            "Saved. Jobs started from this project use that check.",
+		"checks-ready":     "The checks are prepared on a side copy. Read what they add below, then put them on the main branch or throw them away.",
+		"checks-applied":   "The checks are on the main branch. Jobs started from this project now use ./check.",
+		"checks-discarded": "Thrown away. The project is as it was.",
 	}[q.r.URL.Query().Get("done")]
 	q.page(status, "projects", pageData{Title: "Projects", Error: errMsg, Notice: notice, Extra: v})
 	return nil
@@ -190,5 +198,37 @@ func (h *Hub) webProjectCheck(q *webReq) error {
 		return q.projectFailed(err, "check", f1(f))
 	}
 	http.Redirect(q.w, q.r, "/projects?done=check", http.StatusSeeOther)
+	return nil
+}
+
+// webProjectChecks prepares, applies or discards the kit's checks for a project the hub holds.
+func (h *Hub) webProjectChecks(q *webReq) error {
+	f := q.r.PostForm
+	name := q.r.PathValue("name")
+	var done string
+	var err error
+	switch f.Get("action") {
+	case "prepare":
+		if err = q.c.allow(ActProjectManage); err == nil {
+			_, err = q.c.prepareChecks(name, f.Get("preset"))
+		}
+		done = "checks-ready"
+	case "apply":
+		if err = q.c.allow(ActProjectMerge); err == nil {
+			_, err = q.c.applyChecks(name)
+		}
+		done = "checks-applied"
+	case "discard":
+		if err = q.c.allow(ActProjectManage); err == nil {
+			_, err = q.c.discardChecks(name)
+		}
+		done = "checks-discarded"
+	default:
+		err = badRequest("that is not something to do with the checks")
+	}
+	if err != nil {
+		return q.projectFailed(err, "checks:"+name, f1(f))
+	}
+	http.Redirect(q.w, q.r, "/projects?done="+done, http.StatusSeeOther)
 	return nil
 }

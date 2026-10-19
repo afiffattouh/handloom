@@ -249,6 +249,7 @@ func (h *Hub) webRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /projects/create", web(h.authed(h.webProjectCreate)))
 	mux.HandleFunc("POST /projects/{name}/clone", web(h.authed(h.webProjectClone)))
 	mux.HandleFunc("POST /projects/{name}/check", web(h.authed(h.webProjectCheck)))
+	mux.HandleFunc("POST /projects/{name}/checks", web(h.authed(h.webProjectChecks)))
 	mux.HandleFunc("GET /jobs", web(h.authed(h.webJobs)))
 	mux.HandleFunc("GET /jobs/new", web(h.authed(h.webJobNewForm)))
 	mux.HandleFunc("POST /jobs", web(h.authed(h.webJobCreate)))

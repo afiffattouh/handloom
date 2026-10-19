@@ -119,7 +119,7 @@ Next:
 9. **Client view,** only after roles per project and a security review of the hub.
 10. **A second kit,** when a real project needs it. The shared core is split out then.
 
-Known gap: a project the hub holds cannot take a first push to `main`, so the kit cannot be put in before a first job; today the first job has to run `handloom kit init` itself. A hub action "add checks" (a branch for approval, decision 2) would close it.
+Closed: a project the hub holds cannot take a push to `main`, so the hub adds the kit itself. Projects page (or `handloom project checks NAME [--preset web]`) prepares the checks on a private side ref (`refs/handloom/checks`, which machines cannot push to), shows the files and `factory.toml`, and only a person's "Put on the main branch" (`--apply`) moves `main`, refused if `main` moved since. Applying also sets the project's check to `./check` when it had none. The hub has no Python, so `internal/hub/kitseed.go` is `factory init` written again in Go over the embedded kit files; `TestSeedKitMatchesFactoryInit` runs the real one and compares byte for byte, so they cannot drift. Not covered: a project held elsewhere (GitHub) still uses `handloom kit init` on a copy.
 
 Parked: billing for agent use; more presets until a project needs one; multi-task specs.
 

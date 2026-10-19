@@ -46,7 +46,7 @@ func TestTheCommandCenterShowsTheRecordInWordsAndCharts(t *testing.T) {
 		}
 	}
 	// A machine nobody has joined shows an empty fleet, not an error.
-	if r := e.req("GET", "/command?machine=nowhere", nil, c, nil); r.status != 200 || !strings.Contains(r.body, "No agents on this machine") {
+	if r := e.req("GET", "/command?machine=nowhere", nil, c, nil); r.status != 200 || !strings.Contains(r.body, "No agents on this computer") {
 		t.Fatalf("unknown machine: %d", r.status)
 	}
 	// Viewers read it too.

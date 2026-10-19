@@ -187,7 +187,7 @@ func (q *webReq) devicesPage(status int, errMsg string, fresh *devicesView) erro
 	if err != nil {
 		return err
 	}
-	q.page(status, "devices", pageData{Title: "Machines", Error: errMsg, Notice: map[string]string{"revoked": "Device revoked.", "assigned": "The machine was handed over."}[q.r.URL.Query().Get("done")], Extra: v})
+	q.page(status, "devices", pageData{Title: "Computers", Error: errMsg, Notice: map[string]string{"revoked": "Computer revoked: it can no longer connect.", "assigned": "The computer was handed over."}[q.r.URL.Query().Get("done")], Extra: v})
 	return nil
 }
 
@@ -210,7 +210,7 @@ func (h *Hub) webDevicesFragment(q *webReq) error {
 
 func (h *Hub) webDeviceAdd(q *webReq) error {
 	if q.human.Role == store.RoleViewer {
-		return q.refuse("Viewers cannot add machines.")
+		return q.refuse("Viewers cannot add computers.")
 	}
 	if err := q.stepUp(); err != nil {
 		return q.deviceError(err)
@@ -240,7 +240,7 @@ func (q *webReq) deviceError(err error) error {
 
 func (h *Hub) webDeviceRevoke(q *webReq) error {
 	if q.human.Role == store.RoleViewer {
-		return q.refuse("Viewers cannot revoke machines.")
+		return q.refuse("Viewers cannot revoke computers.")
 	}
 	if err := q.c.revokeDevice(q.r.PathValue("name")); err != nil {
 		return q.deviceError(err)
@@ -253,7 +253,7 @@ func (h *Hub) webDeviceRevoke(q *webReq) error {
 // that someone no longer needs.
 func (h *Hub) webDeviceAssign(q *webReq) error {
 	if !q.isOwner() {
-		return q.refuse("Only the owner can hand a machine to a person.")
+		return q.refuse("Only the owner can hand a computer to a person.")
 	}
 	if err := q.c.assignDevice(q.r.PathValue("name"), q.r.PostForm.Get("to")); err != nil {
 		return q.deviceError(err)

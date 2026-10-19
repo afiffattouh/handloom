@@ -1,21 +1,21 @@
 {{define "content"}}
-<div class="page-head"><div><h1>Machines</h1><p class="desc">A machine runs the link, which starts your agents and carries their messages to this hub. Machines connect out to the hub; nothing connects in. Each machine belongs to the person who added it, and agents run only on your own machines.</p></div></div>
+<div class="page-head"><div><h1>Computers</h1><p class="desc">A computer runs the link, which starts your agents and carries their messages to this hub. Computers connect out to the hub; nothing connects in. Each computer belongs to the person who added it, and agents run only on your own computers.</p></div></div>
 
 {{with .Extra}}
 {{if .JoinCmd}}
 <article class="card attention">
-  <div class="ch"><div class="lead"><svg class="icon sev-info"><use href="#i-server"/></svg><div><h3>Add {{.NewName}}</h3><p class="desc">On that machine, run this once. It installs Handloom if it is not there, joins this hub, keeps the link running and checks the machine. This page shows the machine as ready when it is. The token works for {{.TTL}} and is not shown again.</p></div></div></div>
+  <div class="ch"><div class="lead"><svg class="icon sev-info"><use href="#i-server"/></svg><div><h3>Add {{.NewName}}</h3><p class="desc">On that computer, run this once. It installs Handloom if it is not there, joins this hub, keeps the link running and checks the computer. This page shows the computer as ready when it is. The token works for {{.TTL}} and is not shown again.</p></div></div></div>
   <div class="cc">
   <h4 id="join-unix">Linux or macOS (Terminal)</h4>
   <div class="inset wrap sel" tabindex="0" aria-labelledby="join-unix">{{.JoinCmd}}</div>
-  <p class="desc">Already installed <code>handloom</code> there? Run <code>{{.AltCmd}}</code> instead. The machine needs <code>git</code> and <code>tmux</code>; if they are missing the command offers to install them (it asks first) or shows the exact line.</p>
+  <p class="desc">Already installed <code>handloom</code> there? Run <code>{{.AltCmd}}</code> instead. The computer needs <code>git</code> and <code>tmux</code>; if they are missing the command offers to install them (it asks first) or shows the exact line.</p>
   <details id="join-windows">
     <summary><strong>Windows (PowerShell)</strong></summary>
     <p class="desc">Open PowerShell (not as administrator) and paste this line. Windows 10 (version 2004 or newer) or Windows 11.</p>
     <div class="inset wrap sel" tabindex="0">{{.WinCmd}}</div>
     <p class="desc">Handloom runs its agents in Linux, and Windows has Linux built in (WSL). This line checks for WSL (if it is missing it explains the one-time <code>wsl --install</code>, which needs administrator permission and a restart, and you paste the same line again afterwards), installs Handloom inside Linux, joins this hub there, and makes the link start by itself when you sign in. Agent programs such as Claude Code must be installed in the Linux side: <code>handloom doctor</code> there prints the exact line.</p>
   </details>
-  <p class="desc"><strong>What the line does:</strong> it downloads the installer, which checks its download against the release's checksums, installs Handloom, joins this hub with the one-time token, keeps the link running and checks the machine. It never uses <code>sudo</code> by itself. Safe to paste again.</p></div>
+  <p class="desc"><strong>What the line does:</strong> it downloads the installer, which checks its download against the release's checksums, installs Handloom, joins this hub with the one-time token, keeps the link running and checks the computer. It never uses <code>sudo</code> by itself. Safe to paste again.</p></div>
 </article>
 {{end}}
 
@@ -26,11 +26,11 @@
 
 {{if .CanAdd}}
 <section class="card" aria-labelledby="add" id="add">
-  <div class="ch"><div><h2 id="add-h">Add a machine</h2><p class="desc">Creates a one-time join command to run on it. The machine will be yours: only you (and the owner) can run agents on it.</p></div></div>
+  <div class="ch"><div><h2 id="add-h">Add a computer</h2><p class="desc">Creates a one-time join command to run on it. The computer will be yours: only you (and the owner) can run agents on it.</p></div></div>
   <div class="cc">
   <form method="post" action="/devices" class="stack">
     <input type="hidden" name="csrf" value="{{$.CSRF}}">
-    <label>Name for the machine <input name="name" required maxlength="64" placeholder="laptop" pattern="[A-Za-z0-9][A-Za-z0-9_.\-]*"></label>
+    <label>Name for the computer <input name="name" required maxlength="64" placeholder="laptop" pattern="[A-Za-z0-9][A-Za-z0-9_.\-]*"></label>
     <label>Your password, to confirm <input type="password" name="current_password" autocomplete="current-password" required></label>
     <div class="acts"><button type="submit">Create join command</button></div>
   </form>
@@ -42,7 +42,7 @@
 {{end}}
 
 {{define "machines"}}{{with .Extra}}
-  <div class="ch"><div><h2 id="devs">Machines</h2></div></div>
+  <div class="ch"><div><h2 id="devs">Computers</h2></div></div>
   <div class="cc flush"><div class="rows">
   {{range .Devices}}
   <div class="row line"{{if .Pending}} data-pending="{{.Name}}"{{end}} data-name="{{.Name}}"{{if .Ready}} data-ready="1"{{end}}{{if .Settling}} data-settling="1"{{end}}>
@@ -56,7 +56,7 @@
     {{end}}</span>
   </div>
   {{else}}
-  <div class="empty">{{if $.Extra.CanAdd}}No machines of yours yet. Add one below.{{else}}No machines to show.{{end}}</div>
+  <div class="empty">{{if $.Extra.CanAdd}}No computers of yours yet. Add one below.{{else}}No computers to show.{{end}}</div>
   {{end}}
   </div></div>
 {{end}}{{end}}

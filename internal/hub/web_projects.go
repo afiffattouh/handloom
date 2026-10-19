@@ -84,11 +84,11 @@ func (q *webReq) projectsPage(status int, errMsg, which string, form map[string]
 		v.Projects = append(v.Projects, pv)
 	}
 	notice := map[string]string{
-		"hosted":           "Project created on this hub. Have a machine fetch its copy with Clone, or start a job from it.",
+		"hosted":           "Project created on this hub. Have a computer fetch its copy with Clone, or start a job from it.",
 		"attached":         "Project added.",
-		"creating":         "Asked the machine to create the repository. It shows here, with its address, when the machine has done it (usually within a minute): reload this page.",
-		"cloning":          "Asked the machine to fetch its own copy. It shows as ready here when it is done (usually within a minute): reload this page.",
-		"ready":            "That machine already has its copy.",
+		"creating":         "Asked the computer to create the repository. It shows here, with its address, when the computer has done it (usually within a minute): reload this page.",
+		"cloning":          "Asked the computer to fetch its own copy. It shows as ready here when it is done (usually within a minute): reload this page.",
+		"ready":            "That computer already has its copy.",
 		"check":            "Saved. Jobs started from this project use that check.",
 		"checks-ready":     "The checks are prepared on a side copy. Read what they add below, then put them on the main branch or throw them away.",
 		"checks-applied":   "The checks are on the main branch. Jobs started from this project now use ./check.",

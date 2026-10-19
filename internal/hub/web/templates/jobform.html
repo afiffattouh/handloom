@@ -1,18 +1,18 @@
 {{define "content"}}
-<div class="page-head"><div><h1>New job</h1><p class="desc">Describe the work in plain words. A lead agent plans it, starts workers on your machine, and brings you the result to review. You only fill in what you know; everything else has a sensible default.</p></div></div>
+<div class="page-head"><div><h1>New job</h1><p class="desc">Describe the work in plain words. A lead agent plans it, starts workers on your computer, and brings you the result to review. You only fill in what you know; everything else has a sensible default.</p></div></div>
 {{with .Extra}}
 {{if .Quick}}
 <form method="post" action="/jobs/ask" class="stack">
   <input type="hidden" name="csrf" value="{{$.CSRF}}">
   <section class="card" aria-labelledby="q1">
-    <div class="ch"><div><h2 id="q1">Just ask</h2><p class="desc">One sentence is enough. Handloom picks the machine that has the project and checks the work the way the project says to.</p></div></div>
+    <div class="ch"><div><h2 id="q1">Just ask</h2><p class="desc">One sentence is enough. Handloom picks the computer that has the project and checks the work the way the project says to.</p></div></div>
     <div class="cc">
       <label>What do you want done?
         <textarea name="ask" rows="3" required maxlength="2000" placeholder="Change the opening hours on the contact page to 9 to 5">{{index .Form "ask"}}</textarea></label>
       <label>Project
         <select name="project" required>{{range .Projects}}<option value="{{.Value}}">{{.Label}}</option>{{end}}</select></label>
       <label class="check"><input type="checkbox" name="steps_first" value="1"> Show me the steps first, and wait for my go-ahead</label>
-      <div class="acts"><button type="submit">Ask</button><span class="desc">Need to choose the machine, the lead or the check yourself? Use the full form below.</span></div>
+      <div class="acts"><button type="submit">Ask</button><span class="desc">Need to choose the computer, the lead or the check yourself? Use the full form below.</span></div>
     </div>
   </section>
 </form>
@@ -32,30 +32,30 @@
   </section>
 
   <section class="card" aria-labelledby="s2">
-    <div class="ch"><div><h2 id="s2">2. Where does the work live?</h2><p class="desc">Pick the machine that holds the files. For work that is not code (research, writing), leave the folder empty.</p></div></div>
+    <div class="ch"><div><h2 id="s2">2. Where does the work live?</h2><p class="desc">Pick the computer that holds the files. For work that is not code (research, writing), leave the folder empty.</p></div></div>
     <div class="cc">
       {{if or .Projects .NotReady}}
       <label><span>Project <span class="desc">(optional)</span></span>
         <select name="project" id="project">
-          <option value="">None: use a folder on the machine below</option>
+          <option value="">None: use a folder on the computer below</option>
           {{range .Projects}}<option value="{{.Value}}"{{if eq .Value (index $.Extra.Form "project")}} selected{{end}}>{{.Label}}</option>{{end}}
         </select></label>
-      <p class="desc">A project is a shared git repository that a machine has its own copy of. If you choose one, the folder and machine fields below are ignored: the job starts from that machine's copy. {{if .NotReady}}Not on any machine yet: {{range $i, $n := .NotReady}}{{if $i}}, {{end}}{{$n}}{{end}}. Get it onto a machine from <a href="/projects">Projects</a>.{{end}}</p>
+      <p class="desc">A project is a shared git repository that a computer has its own copy of. If you choose one, the folder and computer fields below are ignored: the job starts from that computer's copy. {{if .NotReady}}Not on any computer yet: {{range $i, $n := .NotReady}}{{if $i}}, {{end}}{{$n}}{{end}}. Get it onto a computer from <a href="/projects">Projects</a>.{{end}}</p>
       {{end}}
-      <label>Machine
+      <label>Computer
         <select name="device" required>
-          {{range .Devices}}<option value="{{.}}"{{if eq . (index $.Extra.Form "device")}} selected{{end}}>{{.}}</option>{{else}}<option value="">no machine has joined yet</option>{{end}}
+          {{range .Devices}}<option value="{{.}}"{{if eq . (index $.Extra.Form "device")}} selected{{end}}>{{.}}</option>{{else}}<option value="">no computer has joined yet</option>{{end}}
         </select></label>
-      {{if not .Devices}}<p class="desc">A machine has to join first: <a href="/devices">Computers</a>.</p>{{end}}
-      <label><span>Project folder on that machine <span class="desc">(optional)</span></span>
+      {{if not .Devices}}<p class="desc">A computer has to join first: <a href="/devices">Computers</a>.</p>{{end}}
+      <label><span>Project folder on that computer <span class="desc">(optional)</span></span>
         <input name="repo" id="repo" list="repos" value="{{index .Form "repo"}}" placeholder="/home/you/projects/your-project" class="mono-input" autocomplete="off"></label>
       {{if .Repos}}<datalist id="repos">{{range .Repos}}<option value="{{.}}">{{end}}</datalist>{{end}}
-      <p class="desc">The full path of a git repository (it starts with <code>/</code>). To find it, run <code>pwd</code> in the project folder on that machine. Each agent works in its own copy, so your files are never touched; accepted work is collected on a branch called <code>job/&lt;number&gt;/integration</code> for you to merge.</p>
+      <p class="desc">The full path of a git repository (it starts with <code>/</code>). To find it, run <code>pwd</code> in the project folder on that computer. Each agent works in its own copy, so your files are never touched; accepted work is collected on a branch called <code>job/&lt;number&gt;/integration</code> for you to merge.</p>
     </div>
   </section>
 
   <section class="card" aria-labelledby="s3">
-    <div class="ch"><div><h2 id="s3">3. How will we know it worked?</h2><p class="desc">A command that exits cleanly when the work is right. The machine runs it on every submission, and a lead cannot accept work that fails it. If the project has the Handloom kit (<code>./check</code>), use that: it also tells the machine what it is checking against and shows the result in plain words.</p></div></div>
+    <div class="ch"><div><h2 id="s3">3. How will we know it worked?</h2><p class="desc">A command that exits cleanly when the work is right. The computer runs it on every submission, and a lead cannot accept work that fails it. If the project has the Handloom kit (<code>./check</code>), use that: it also tells the computer what it is checking against and shows the result in plain words.</p></div></div>
     <div class="cc">
       <label><span>Check command <span class="desc">(optional, needs a project folder)</span></span>
         <input name="verify" id="verify" value="{{index .Form "verify"}}" placeholder="npm test" class="mono-input" autocomplete="off"></label>
@@ -96,7 +96,7 @@
       <p class="desc">If the owner of the project sealed a task with the kit (<code>handloom kit task seal parser-fix</code>), name it here: agents start from its sealed commit, and the check holds them to its spec and its acceptance tests.</p>
       <label><span>Client knowledge folder <span class="desc">(optional)</span></span>
         <input name="knowledge" value="{{index .Form "knowledge"}}" placeholder="/home/you/clients/acme" class="mono-input"></label>
-      <p class="desc">A git repository of notes about the client, on the same machine. Every agent reads it first; what they learn is proposed on a branch you review and merge.</p>
+      <p class="desc">A git repository of notes about the client, on the same computer. Every agent reads it first; what they learn is proposed on a branch you review and merge.</p>
       {{if .AllowConf}}<label class="check"><input type="checkbox" name="confidential" value="1"> This job handles confidential material: only local-model profiles may be used</label>{{end}}
     </div>
   </details>

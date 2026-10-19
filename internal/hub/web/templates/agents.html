@@ -23,7 +23,7 @@
 
 {{if .CanSpawn}}
 <section class="card" aria-labelledby="start">
-  <div class="ch"><div><h2 id="start">Start an agent</h2><p class="desc">A machine's link opens a terminal and runs the agent there. Pick a profile to decide what it may do and know.</p></div></div>
+  <div class="ch"><div><h2 id="start">Start an agent</h2><p class="desc">A computer's link opens a terminal and runs the agent there. Pick a profile to decide what it may do and know.</p></div></div>
   <div class="cc">
   <form method="post" action="/agents/spawn" class="stack">
     <input type="hidden" name="csrf" value="{{$.CSRF}}">
@@ -34,9 +34,9 @@
         {{range .Profiles}}<option value="{{.Name}}"{{if eq .Name (index $.Extra.Form "profile")}} selected{{end}}>{{.Name}} (v{{.Version}}, {{.Runtime}}; {{range $i, $t := .Tools}}{{if $i}}, {{end}}{{$t}}{{end}})</option>{{end}}
       </select>
     </label>
-    <label>Machine
+    <label>Computer
       <select name="device" required>
-        {{range .Devices}}<option value="{{.}}"{{if eq . (index $.Extra.Form "device")}} selected{{end}}>{{.}}</option>{{else}}<option value="">no machine has joined yet</option>{{end}}
+        {{range .Devices}}<option value="{{.}}"{{if eq . (index $.Extra.Form "device")}} selected{{end}}>{{.}}</option>{{else}}<option value="">no computer has joined yet</option>{{end}}
       </select>
     </label>
     <label>Job number (optional) <input name="job" inputmode="numeric" value="{{index .Form "job"}}" placeholder="leave empty for no job"></label>

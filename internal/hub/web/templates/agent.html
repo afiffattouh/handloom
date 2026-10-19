@@ -21,13 +21,13 @@
     <div class="ch"><div><h2 id="term">Terminal</h2><p class="desc">The last lines on its screen, read-only, refreshed while this page is open.</p></div></div>
     <div class="cc">
       {{if .CanWatch}}
-      <pre class="inset screen" data-copy id="screen" data-tail="/agents/{{.Name}}/tail" data-watch="/agents/{{.Name}}/watch">Waiting for the machine to send the screen…</pre>
+      <pre class="inset screen" data-copy id="screen" data-tail="/agents/{{.Name}}/tail" data-watch="/agents/{{.Name}}/watch">Waiting for the computer to send the screen…</pre>
       {{else}}
       <p class="desc">{{.WatchWhy}}</p>
       {{end}}
       {{if .Attach}}<details><summary>Look at it yourself</summary><p class="desc">Run this on {{.Device}} (detach with Ctrl-b d):</p><div class="inset sel">{{.Attach}}</div></details>{{end}}
     </div>
-    <div class="cf"><span class="desc">The screen is read on the machine, held in the hub's memory for a minute, and never written to disk. Secrets that look like tokens are removed first.</span></div>
+    <div class="cf"><span class="desc">The screen is read on the computer, held in the hub's memory for a minute, and never written to disk. Secrets that look like tokens are removed first.</span></div>
   </section>
 
   <div class="stream-col">

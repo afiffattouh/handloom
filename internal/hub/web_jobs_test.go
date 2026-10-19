@@ -245,7 +245,7 @@ func TestTheInboxShowsWhatIsLeftToSetUp(t *testing.T) {
 	e := newWebEnv(t, Options{})
 	c, _ := e.owner()
 	body := e.req("GET", "/inbox", nil, c, nil).body
-	for _, want := range []string{"Get started", "Join a machine", "/devices#add", "Add profiles", "Start your first job"} {
+	for _, want := range []string{"Get started", "Join a computer", "/devices#add", "Add profiles", "Start your first job"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("a new hub's inbox lacks %q", want)
 		}

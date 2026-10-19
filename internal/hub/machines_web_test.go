@@ -43,11 +43,11 @@ func TestAMemberAddsAMachineAndSeesOnlyTheirOwn(t *testing.T) {
 	w := newWebTeam(t)
 	// The Add card shows for the owner and for a member, with the join command; not for a viewer.
 	for name, c := range map[string]*http.Cookie{"owner": w.owner, "member": w.mia, "other member": w.ben} {
-		if r := w.req("GET", "/devices", nil, c, nil); r.status != 200 || !strings.Contains(r.body, "Add a machine") || !strings.Contains(r.body, `action="/devices"`) {
+		if r := w.req("GET", "/devices", nil, c, nil); r.status != 200 || !strings.Contains(r.body, "Add a computer") || !strings.Contains(r.body, `action="/devices"`) {
 			t.Errorf("%s: no Add a machine card (%d)", name, r.status)
 		}
 	}
-	if r := w.req("GET", "/devices", nil, w.vera, nil); r.status != 200 || strings.Contains(r.body, "Add a machine") || has(r.body, "shared") {
+	if r := w.req("GET", "/devices", nil, w.vera, nil); r.status != 200 || strings.Contains(r.body, "Add a computer") || has(r.body, "shared") {
 		t.Errorf("viewer's page: %d", r.status)
 	}
 	if r := w.addAs(w.vera, w.vtok, "vera-box"); r.status != 403 {
@@ -104,7 +104,7 @@ func TestAMemberAddsAMachineAndSeesOnlyTheirOwn(t *testing.T) {
 		}
 	}
 	// A member with no machine is told what to do.
-	if r := w.req("GET", "/devices", nil, w.vera, nil); !strings.Contains(r.body, "No machines to show") {
+	if r := w.req("GET", "/devices", nil, w.vera, nil); !strings.Contains(r.body, "No computers to show") {
 		t.Error("viewer's empty page")
 	}
 }

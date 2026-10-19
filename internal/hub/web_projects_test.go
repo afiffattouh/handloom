@@ -63,7 +63,7 @@ func TestProjectsPageAndForms(t *testing.T) {
 		t.Fatal("project.attach is not in the audit log")
 	}
 	page := e.req("GET", "/projects?done=attached", nil, c, nil)
-	for _, want := range []string{"billing", `href="https://github.com/acme/billing"`, "Project added.", "No machine has a copy yet", "Clone to a machine"} {
+	for _, want := range []string{"billing", `href="https://github.com/acme/billing"`, "Project added.", "No computer has a copy yet", "Clone to a computer"} {
 		if !strings.Contains(page.body, want) {
 			t.Errorf("page lacks %q", want)
 		}
@@ -106,7 +106,7 @@ func TestProjectsPageAndForms(t *testing.T) {
 	// The job form offers the project only on the machine where it is ready, and the project wins over the folder.
 	e.apiOK(e.admin, "", "POST", "/v1/profiles", api.ProfileReq{Name: "boss", Spec: researcher()}, nil)
 	form := e.req("GET", "/jobs/new", nil, c, nil)
-	if !strings.Contains(form.body, `<option value="billing|d1"`) || strings.Contains(form.body, `value="sshy|`) || !strings.Contains(form.body, "Not on any machine yet: sshy") {
+	if !strings.Contains(form.body, `<option value="billing|d1"`) || strings.Contains(form.body, `value="sshy|`) || !strings.Contains(form.body, "Not on any computer yet: sshy") {
 		t.Fatalf("job form: %s", form.body)
 	}
 	jf := url.Values{"title": {"From a project"}, "device": {"d1"}, "repo": {"/ignored/path"}, "project": {"billing|d1"}, "lead_profile": {"boss"}, "csrf": {tok}}

@@ -159,7 +159,7 @@ func TestMembersAndInvites(t *testing.T) {
 		t.Fatalf("an invite worked twice: %d", r.status)
 	}
 	// A member sees the machines page with the add form (D108), and cannot reach settings.
-	if r := e.req("GET", "/devices", nil, done.cookie, nil); r.status != 200 || !strings.Contains(r.body, "Add a machine") {
+	if r := e.req("GET", "/devices", nil, done.cookie, nil); r.status != 200 || !strings.Contains(r.body, "Add a computer") {
 		t.Fatalf("member devices page: %d", r.status)
 	}
 	if r := e.req("GET", "/settings", nil, done.cookie, nil); r.status != 403 {

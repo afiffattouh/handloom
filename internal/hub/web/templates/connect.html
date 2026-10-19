@@ -57,7 +57,7 @@
 <details class="card options"{{if or .NewToken $.Error}} open{{end}}>
 <summary>Advanced: run a program on your computer</summary>
 <div class="cc">
-<p class="text">Instead of the connector, an app can run the <code>handloom</code> program on the computer where the app runs, with a token you make here. This needs the program installed on that computer (the steps are in <a href="https://github.com/afiffattouh/handloom/blob/main/docs/add-a-machine.md">add a machine</a>). Claude Desktop does not use your shell's PATH, so put the full path to the program (the output of <code>command -v handloom</code>) in the command field instead of just <code>handloom</code>.</p>
+<p class="text">Instead of the connector, an app can run the <code>handloom</code> program on the computer where the app runs, with a token you make here. This needs the program installed on that computer (the steps are in <a href="https://github.com/afiffattouh/handloom/blob/main/docs/add-a-machine.md">add a computer</a>). Claude Desktop does not use your shell's PATH, so put the full path to the program (the output of <code>command -v handloom</code>) in the command field instead of just <code>handloom</code>.</p>
 <section aria-labelledby="tok">
   <div class="ch"><div><h2 id="tok">Token</h2><p class="desc">{{if .HasToken}}An app is connected. Making a new token replaces the old one, so the old app stops working until you paste the new one.{{else}}No app is connected yet.{{end}}</p></div></div>
   <div class="cc">
@@ -77,7 +77,7 @@
 </section>
 
 <section aria-labelledby="set">
-  <div class="ch"><div><h2 id="set">The settings</h2><p class="desc">The app runs the <code>handloom</code> program on the machine where the app runs, so install it there first (one file). Then add this, once.{{if not .NewToken}} Make a token above to have it filled in; until then <code>TOKEN</code> stands for it.{{end}}</p></div></div>
+  <div class="ch"><div><h2 id="set">The settings</h2><p class="desc">The app runs the <code>handloom</code> program on the computer where the app runs, so install it there first (one file). Then add this, once.{{if not .NewToken}} Make a token above to have it filled in; until then <code>TOKEN</code> stands for it.{{end}}</p></div></div>
   <div class="cc">
   <h3>Claude Code</h3>
   <div class="inset wrap sel" tabindex="0">claude mcp add handloom --env HANDLOOM_HUB={{.Base}} --env HANDLOOM_TOKEN={{if .NewToken}}{{.NewToken}}{{else}}TOKEN{{end}} -- handloom mcp --operator</div>

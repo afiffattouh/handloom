@@ -71,8 +71,8 @@ func (q *webReq) startSteps() ([]startStep, error) {
 	}
 	steps := []startStep{
 		{Title: "The hub is running", Done: true},
-		{Title: "Join a machine", Done: joined > 0, Link: "/devices#add", Action: "Add a device",
-			Hint: "Create a join command, paste it on a machine that has git, tmux and an agent CLI (Claude Code, Codex, ...), then run handloom doctor there."},
+		{Title: "Join a computer", Done: joined > 0, Link: "/devices#add", Action: "Add a computer",
+			Hint: "Create a join command, paste it on a computer that has git, tmux and an agent CLI (Claude Code, Codex, ...), then run handloom doctor there."},
 		{Title: "Add profiles", Done: profiles > 0, Link: "/profiles/starters", Action: "Browse the starter library",
 			Hint: "A profile says which CLI an agent uses and what it may do. Add a lead and a worker from the ready-made ones, or write your own."},
 		{Title: "Start your first job", Done: jobs > 0, Link: "/jobs/new", Action: "New job",

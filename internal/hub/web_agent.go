@@ -176,7 +176,7 @@ func (h *Hub) webAgent(q *webReq) error {
 	v.CanRemove = q.human.Role != store.RoleViewer
 	v.CanWatch, v.WatchWhy = q.watchAllowed(a)
 	if v.CanWatch && a.wakeTarget == "" {
-		v.CanWatch, v.WatchWhy = false, "This agent has no terminal the machine's link can read."
+		v.CanWatch, v.WatchWhy = false, "This agent has no terminal the computer's link can read."
 	}
 	q.page(http.StatusOK, "agent", pageData{Title: a.name, Extra: v})
 	return nil

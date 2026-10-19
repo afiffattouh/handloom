@@ -216,6 +216,16 @@ class GateTests(unittest.TestCase):
         self.assertEqual(r.returncode, 1)
         self.assertIn("outside the spec's ## Files: src/other.py", r.stdout)
 
+    def test_drafted_tests_in_the_specs_folder_pass_but_the_same_file_in_acceptance_fails(self):
+        # A helper drafts acceptance tests from the spec's Risks. Where it may put them is the whole design:
+        # beside the spec (always in scope, never run), not in tests/acceptance/ (owned by a person).
+        self.p.write("specs/add/drafts/test_hostile_input.py", "import unittest\n")
+        r = self.gate()
+        self.assertEqual(r.returncode, 0, r.stdout)
+        self.assertIn("PASS    scope", r.stdout)
+        self.p.write("tests/acceptance/test_hostile_input.py", "import unittest\n")
+        self.assertEqual(self.gate().returncode, 1)
+
     def test_changed_acceptance_test_fails_even_with_regenerated_manifest(self):
         self.p.write("tests/acceptance/test_accept.py", "import unittest\n")
         sh(FACTORY + ["accept-tests", str(self.p.root)], self.p.root)   # the agent "fixes" the manifest too
@@ -779,9 +789,12 @@ class TaskTests(unittest.TestCase):
                     "class N(unittest.TestCase):\n    def test_neg(self):\n        self.assertEqual(neg(2), -2)\n")
             text = (p.root / "factory.toml").read_text()
             p.write("factory.toml", text.replace('acceptance = ""', 'acceptance = "python3 -m unittest discover -s tests/acceptance -q"', 1))
+            p.write("specs/neg/drafts/test_edge.py", "import unittest\n")
             r = sh(FACTORY + ["task", "seal", "neg", str(p.root)], p.root)
             self.assertEqual(r.returncode, 0, r.stdout)
             self.assertIn("--base task/neg-base", r.stdout)
+            self.assertIn("specs/neg/drafts/ holds drafted tests", r.stdout)
+            self.assertNotIn("drafts", sh("git show --stat --format= HEAD", p.root).stdout, "seal does not commit drafts")
             gate = ["./check", "--gate", "--spec", "specs/neg.md", "--base", "task/neg-base"]
             self.assertEqual(sh(gate, p.root).returncode, 1, "fails on the new acceptance test before the work")
             p.write("src/app.py", "def add(a, b):\n    return a + b\n\ndef neg(x):\n    return -x\n")

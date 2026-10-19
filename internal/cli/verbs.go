@@ -642,7 +642,7 @@ func publishLine(p api.Publish) string {
 
 func (e *env) job(args []string) error {
 	if len(args) == 0 {
-		return usageErr("usage: handloom job new|list|show|publish|merge|resume|close")
+		return usageErr("usage: handloom job new|list|show|publish|merge|resume|close|draft-tests")
 	}
 	sub := args[0]
 	fs := e.flags("job " + sub)
@@ -709,6 +709,11 @@ func (e *env) job(args []string) error {
 				fmt.Fprintln(e.out, "Note: "+w)
 			}
 		})
+	case "draft-tests":
+		if len(pos) != 1 {
+			return usageErr("usage: handloom job draft-tests <task> --project NAME --worker-profile PROFILE [--device D]")
+		}
+		return e.jobDraftTests(c, pos[0], *project, *device, *workerProfile, *tenant)
 	case "list":
 		var js []api.Job
 		if *tenant == "" {

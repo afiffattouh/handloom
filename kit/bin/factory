@@ -328,7 +328,8 @@ def cmd_task(args) -> int:
             target.write_text((TEMPLATES / "spec.md").read_text().replace("<short title>", slug))
         say(f"On {branch}. Now, as the owner:\n"
             f"  1. fill in {spec} (Goal, Files, Out of scope, Checks)\n"
-            f"  2. add the tests that define done under tests/acceptance/ (they should fail today)\n"
+            f"  2. add the tests that define done under tests/acceptance/ (they should fail today);\n"
+            f"     or have a different helper draft them from the spec's Risks first: handloom job draft-tests {slug}\n"
             f"  3. factory task seal {slug}")
         return 0
     # seal
@@ -351,6 +352,10 @@ def cmd_task(args) -> int:
             say(r.stderr.strip())
             return 2
     _git(root, "branch", "-f", base_branch, "HEAD")
+    drafts = root / "specs" / slug / "drafts"
+    if drafts.is_dir() and any(drafts.iterdir()):
+        say(f"Note: specs/{slug}/drafts/ holds drafted tests. They are not sealed and not run. Read them, move the ones "
+            f"you want into tests/acceptance/ and run `factory accept-tests`, then seal again.")
     gate = f"./check --gate --spec {spec} --base {base_branch}"
     say(f"Sealed: {base_branch} -> {_git(root, 'rev-parse', '--short', 'HEAD').stdout.strip()}\n"
         f"Gate (Handloom check command, CI, or by hand):\n  {gate}\n"

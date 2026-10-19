@@ -94,6 +94,7 @@
       <p class="desc">Normally agents start from the project's latest commit. Name a branch to build on unmerged work, such as the integration branch of an earlier job.</p>
       <label><span>Sealed kit task <span class="desc">(optional)</span></span>
         <input name="kit_task" value="{{index .Form "kit_task"}}" placeholder="parser-fix" class="mono-input" autocomplete="off" pattern="[a-z0-9][a-z0-9-]*"></label>
+      <p class="desc">Its spec and tests are written and sealed with the kit. To have a different helper draft the tests from the spec's risks first, run <code>handloom job draft-tests NAME --project P --worker-profile PROFILE</code> on the computer that holds the project.</p>
       <p class="desc">If the owner of the project sealed a task with the kit (<code>handloom kit task seal parser-fix</code>), name it here: agents start from its sealed commit, and the check holds them to its spec and its acceptance tests.</p>
       <label><span>Client knowledge folder <span class="desc">(optional)</span></span>
         <input name="knowledge" value="{{index .Form "knowledge"}}" placeholder="/home/you/clients/acme" class="mono-input"></label>

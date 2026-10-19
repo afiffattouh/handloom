@@ -52,6 +52,7 @@ Agent verbs (run inside an agent's shell, through the local link):
   handloom inbox [--all]                              read new messages (marks them read)
   handloom job list | show <id>                   jobs: a root task with its own lead
   handloom job new <title> [--body B] [--lead AGENT | --lead-profile P | --worker-profile P] [--project NAME | --repo PATH] [--base BRANCH] [--verify CMD] [--device D] [--knowledge PATH] [--confidential]   (human)
+  handloom job draft-tests <task> --project P --worker-profile PROFILE [--device D]   (human) a helper other than the builder drafts acceptance tests from the spec's Risks, into specs/<task>/drafts/, for you to read before sealing
                                                   --project: work on a project; this machine gets its own copy first if it has none
   handloom job resume <id> --lead AGENT                                 (human) a new lead takes over a job whose lead is gone
   handloom job close <id> [--cancel]                                    (human)

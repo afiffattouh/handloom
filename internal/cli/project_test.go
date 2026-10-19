@@ -343,3 +343,65 @@ func TestJobMergeThroughTheCLI(t *testing.T) {
 		t.Fatalf("show: %d %q", code, out)
 	}
 }
+
+// A helper other than the builder drafts acceptance tests from the spec's Risks. The command checks what it
+// can on the computer (the spec is there) and starts one job from the task branch with no lead.
+func TestDraftTestsThroughTheCLI(t *testing.T) {
+	fastWaits(t)
+	r := newRig(t)
+	remote := bareWithCommit(t)
+	r.as(r.human, "project", "new", "shared", "--remote", remote, "--device", "dev")
+	dir := filepath.Join(os.Getenv("HANDLOOM_HOME"), "projects", "shared")
+	prof := filepath.Join(t.TempDir(), "researcher")
+	writeProfileDir(t, prof)
+	r.as(r.admin, "profile", "new", prof)
+	t.Setenv("HANDLOOM_TOKEN", r.human)
+	defer t.Setenv("HANDLOOM_TOKEN", "")
+
+	draft := func(args ...string) (int, string) {
+		code, out, errs := r.exec(append([]string{"job", "draft-tests", "x", "--project", "shared", "--device", "dev", "--worker-profile", "researcher"}, args...)...)
+		return code, out + errs
+	}
+	if code, out := draft(); code == 0 || !strings.Contains(out, "has no branch task/x") {
+		t.Fatalf("no task branch: %d %s", code, out)
+	}
+	cliGit(t, dir, "checkout", "-q", "-b", "task/x")
+	writeSpec := func(text string) {
+		if err := os.MkdirAll(filepath.Join(dir, "specs"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "specs", "x.md"), []byte(text), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		cliGit(t, dir, "add", "-A")
+		cliGit(t, dir, "commit", "-q", "-m", "spec")
+	}
+	writeSpec("# Spec: <short title>\n\n## Risks\n\n- <risk, and the acceptance test that covers it>\n")
+	if code, out := draft(); code == 0 || !strings.Contains(out, "template's placeholders") {
+		t.Fatalf("template spec: %d %s", code, out)
+	}
+	writeSpec("# Spec: x\n\n## Goal\n\nSave a file.\n\n## Files\n\n- src/a.py\n\n## Risks\n\nnone\n\n## Checks\n\n- `true`\n")
+	if code, out := draft(); code == 0 || !strings.Contains(out, "lists no risks") {
+		t.Fatalf("no risks: %d %s", code, out)
+	}
+	writeSpec("# Spec: x\n\n## Goal\n\nSave a file.\n\n## Files\n\n- src/a.py\n\n## Risks\n\n- a name like ../x must not leave the folder: test it\n\n## Checks\n\n- `true`\n")
+	if code, out := draft("--worker-profile", ""); code == 0 {
+		// an empty profile is refused before anything starts
+		t.Fatalf("no profile: %d %s", code, out)
+	}
+	if jobs := r.as(r.human, "job", "list"); strings.Contains(jobs, "Draft acceptance tests") {
+		t.Fatalf("a refused command started a job: %s", jobs)
+	}
+	t.Setenv("HANDLOOM_TOKEN", r.human) // r.as put it back after the listing
+	code, out := draft()
+	if code != 0 || !strings.Contains(out, "Started job #1") || !strings.Contains(out, "specs/x/drafts/") {
+		t.Fatalf("draft-tests: %d %s", code, out)
+	}
+	var js []api.Job
+	if err := json.Unmarshal([]byte(r.as(r.human, "job", "list", "--json")), &js); err != nil || len(js) != 1 {
+		t.Fatalf("jobs: %v %+v", err, js)
+	}
+	if js[0].Base != "task/x" || !strings.Contains(js[0].Body, "specs/x/drafts/") || !strings.Contains(js[0].Body, "never write there") {
+		t.Fatalf("job: %+v", js[0])
+	}
+}

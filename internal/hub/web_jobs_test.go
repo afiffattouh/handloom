@@ -573,4 +573,12 @@ func TestATaskCanBeGivenToANewHelperFromAnotherProfile(t *testing.T) {
 	if got := e.apiTask(hum, t1.ID); got.AssignedTo != fmt.Sprintf("boss-t%d", t1.ID) {
 		t.Fatalf("not assigned on registration: %+v", got)
 	}
+	// The link nudges a helper that has unread mail: the new helper must have its task in its inbox.
+	var da []api.DeviceAgent
+	e.apiOK(ag.device, "", "GET", "/v1/device/agents", nil, &da)
+	for _, a := range da {
+		if a.Name == fmt.Sprintf("boss-t%d", t1.ID) && a.Unread == 0 {
+			t.Fatalf("the new helper has no unread message, so nothing wakes it: %+v", a)
+		}
+	}
 }

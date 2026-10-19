@@ -111,6 +111,13 @@ func (c *call) takePendingAssignments(a *agentRow) error {
 	if err != nil {
 		return err
 	}
+	// The helper is the caller (it is registering), and the hub does not message the agent making the call:
+	// here the message is the point, it is what wakes the helper to its task.
+	if len(pending) > 0 && c.p.agent != nil && c.p.agent.id == a.id {
+		saved := c.p.agent
+		c.p.agent = nil
+		defer func() { c.p.agent = saved }()
+	}
 	for _, t := range pending {
 		if _, err := c.tx.Exec(`UPDATE task SET assigned_to = ?, assign_name = '' WHERE id = ?`, a.id, t.id); err != nil {
 			return err

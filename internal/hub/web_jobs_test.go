@@ -374,7 +374,7 @@ func TestOneSentenceAskUsesTheProjectsMachineAndCheck(t *testing.T) {
 	if !strings.Contains(page, "Just ask") || !strings.Contains(page, "site on d1") {
 		t.Fatalf("the quick ask is not offered:\n%s", page)
 	}
-	r := e.req("POST", "/jobs/ask", url.Values{"csrf": {tok}, "ask": {"Change the opening hours on the contact page. Use 9 to 5."}, "project": {"site|d1"}, "steps_first": {"1"}}, c, nil)
+	r := e.req("POST", "/jobs/ask", url.Values{"csrf": {tok}, "ask": {"Change the opening hours on the contact page. Use 9 to 5."}, "project": {"site|d1"}, "team": {"1"}, "steps_first": {"1"}}, c, nil)
 	if r.status != 303 {
 		t.Fatalf("ask: %d %s", r.status, r.body)
 	}
@@ -382,6 +382,46 @@ func TestOneSentenceAskUsesTheProjectsMachineAndCheck(t *testing.T) {
 	e.apiOK(hum, "", "GET", "/v1/jobs", nil, &jobs)
 	if len(jobs) != 1 || jobs[0].Verify != "./check" || jobs[0].Title != "Change the opening hours on the contact page" || !strings.Contains(jobs[0].Body, "wait for the answer") {
 		t.Fatalf("job: %+v", jobs)
+	}
+}
+
+// Without "have a lead plan it", an ask is one job, one task and one worker: no lead is started.
+func TestAskWithoutALeadStartsOneWorkerOnOneTask(t *testing.T) {
+	e := newWebEnv(t, Options{})
+	e.agents()
+	c, tok := e.owner()
+	hum := e.humanAPI()
+	e.apiOK(e.admin, "", "POST", "/v1/profiles", api.ProfileReq{Name: "boss", Spec: researcher()}, nil)
+	e.apiOK(hum, "", "POST", "/v1/codebases", api.CodebaseReq{Name: "site", Remote: "git@github.com:acme/site.git"}, nil)
+	e.apiOK(hum, "", "POST", "/v1/codebases/site/check", api.CodebaseCheckReq{Check: "./check"}, nil)
+	if _, err := e.hub.db.Exec(`INSERT INTO codebase_clone(codebase_id, device_id, path, status, created_at, updated_at) SELECT cb.id, d.id, '/srv/site', 'ready', 1, 1 FROM codebase cb, device d WHERE cb.name = 'site' AND d.name = 'd1'`); err != nil {
+		t.Fatal(err)
+	}
+	page := e.req("GET", "/jobs/new", nil, c, nil).body
+	if !strings.Contains(page, `name="team"`) || !strings.Contains(page, "Have a lead plan it") {
+		t.Fatal("the form does not offer a lead as the option")
+	}
+	r := e.req("POST", "/jobs/ask", url.Values{"csrf": {tok}, "ask": {"Add an About page. Two sentences."}, "project": {"site|d1"}}, c, nil)
+	if r.status != 303 {
+		t.Fatalf("ask: %d %s", r.status, r.body)
+	}
+	var jobs []api.Job
+	e.apiOK(hum, "", "GET", "/v1/jobs", nil, &jobs)
+	if len(jobs) != 1 || jobs[0].Verify != "./check" || jobs[0].Title != "Add an About page" {
+		t.Fatalf("job: %+v", jobs)
+	}
+	var tasks []api.Task
+	e.apiOK(hum, "", "GET", fmt.Sprintf("/v1/tasks?job=%d", jobs[0].ID), nil, &tasks)
+	if len(tasks) != 1 || tasks[0].Title != "Add an About page" || !strings.Contains(tasks[0].Body, "Do not invent facts") || tasks[0].Status != api.StatusOpen {
+		t.Fatalf("tasks: %+v", tasks)
+	}
+	var sp []api.Spawn
+	e.apiOK(hum, "", "GET", "/v1/spawns", nil, &sp)
+	if len(sp) != 1 || sp[0].Role != api.RoleWorker || !strings.HasPrefix(sp[0].Profile, "boss") || sp[0].Job == nil || *sp[0].Job != jobs[0].ID {
+		t.Fatalf("spawns: %+v", sp)
+	}
+	if body := e.req("GET", fmt.Sprintf("/jobs/%d", jobs[0].ID), nil, c, nil).body; !strings.Contains(body, "Add an About page") {
+		t.Fatalf("the job page: %.400s", body)
 	}
 }
 

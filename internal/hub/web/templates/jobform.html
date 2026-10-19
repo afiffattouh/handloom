@@ -11,8 +11,9 @@
         <textarea name="ask" rows="3" required maxlength="2000" placeholder="Change the opening hours on the contact page to 9 to 5">{{index .Form "ask"}}</textarea></label>
       <label>Project
         <select name="project" required>{{range .Projects}}<option value="{{.Value}}">{{.Label}}</option>{{end}}</select></label>
-      <label class="check"><input type="checkbox" name="steps_first" value="1"> Show me the steps first, and wait for my go-ahead</label>
-      <div class="acts"><button type="submit">Ask</button><span class="desc">Need to choose the computer, the lead or the check yourself? Use the full form below.</span></div>
+      <label class="check"><input type="checkbox" name="team" value="1"> Have a lead plan it and run a team <span class="desc">(slower; for bigger asks. Left off, one helper does it and you review the result)</span></label>
+      <label class="check"><input type="checkbox" name="steps_first" value="1"> With a lead: show me its steps first, and wait for my go-ahead</label>
+      <div class="acts"><button type="submit">Ask</button><span class="desc">Need to choose the computer, the helper or the check yourself? Use the full form below.</span></div>
     </div>
   </section>
 </form>

@@ -501,19 +501,20 @@ type JobCounts struct {
 }
 
 type JobNewReq struct {
-	Title        string `json:"title"`
-	Body         string `json:"body,omitempty"`
-	Lead         string `json:"lead,omitempty"` // an existing agent that becomes the job's lead
-	Confidential bool   `json:"confidential,omitempty"`
-	Project      string `json:"project,omitempty"`  // the hub's tenancy project (not a Handloom project; see Codebase)
-	Codebase     string `json:"codebase,omitempty"` // a Handloom project (D104): Repo and Base come from its ready clone on Device
-	Repo         string `json:"repo,omitempty"`
-	Verify       string `json:"verify,omitempty"`
-	Knowledge    string `json:"knowledge,omitempty"`    // a git repository on the device with what is known about the client
-	Base         string `json:"base,omitempty"`         // a branch of Repo to start the worktrees from
-	Device       string `json:"device,omitempty"`       // where the repo is, and where the lead starts
-	LeadProfile  string `json:"lead_profile,omitempty"` // start the job's lead from this profile (instead of naming an existing agent)
-	LeadName     string `json:"lead_name,omitempty"`    // default lead-<job id>
+	Title         string `json:"title"`
+	Body          string `json:"body,omitempty"`
+	Lead          string `json:"lead,omitempty"` // an existing agent that becomes the job's lead
+	Confidential  bool   `json:"confidential,omitempty"`
+	Project       string `json:"project,omitempty"`  // the hub's tenancy project (not a Handloom project; see Codebase)
+	Codebase      string `json:"codebase,omitempty"` // a Handloom project (D104): Repo and Base come from its ready clone on Device
+	Repo          string `json:"repo,omitempty"`
+	Verify        string `json:"verify,omitempty"`
+	Knowledge     string `json:"knowledge,omitempty"`      // a git repository on the device with what is known about the client
+	Base          string `json:"base,omitempty"`           // a branch of Repo to start the worktrees from
+	Device        string `json:"device,omitempty"`         // where the repo is, and where the lead starts
+	LeadProfile   string `json:"lead_profile,omitempty"`   // start the job's lead from this profile (instead of naming an existing agent)
+	LeadName      string `json:"lead_name,omitempty"`      // default lead-<job id>
+	WorkerProfile string `json:"worker_profile,omitempty"` // no lead: make one task of the brief and start one helper from this profile to do it
 }
 
 type JobCloseReq struct {

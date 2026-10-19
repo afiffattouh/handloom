@@ -317,6 +317,15 @@ func taskCreate(c *call) (any, error) {
 	if err := c.decode(&req); err != nil {
 		return nil, err
 	}
+	t, err := c.createTask(req)
+	if err != nil {
+		return nil, err
+	}
+	return t.api(), nil
+}
+
+// createTask is the work of making a task, for the API and for a job that starts with one task and no lead.
+func (c *call) createTask(req api.TaskCreateReq) (*taskRow, error) {
 	req.Title = strings.TrimSpace(req.Title)
 	if req.Title == "" {
 		return nil, badRequest("title is required")
@@ -402,7 +411,7 @@ func taskCreate(c *call) (any, error) {
 	if err := c.notifyAssigned(t, assignee); err != nil {
 		return nil, err
 	}
-	return t.api(), nil
+	return t, nil
 }
 
 func nullAny(n sql.NullInt64) any {

@@ -35,6 +35,7 @@ type jobFacts struct {
 	liveWorkers int           // workers that are not offline
 	waiting     []waitingTask // open tasks nobody has claimed
 	failedStart string        // the latest failed start, in words, when nothing is running
+	solo        bool          // no lead: a person made the steps and one helper does them
 	now         time.Time
 }
 
@@ -49,7 +50,7 @@ func jobProgress(f jobFacts) api.JobState {
 		return api.JobState{State: api.JobNeedsYou, Reason: plural1(f.questions, "An agent has asked you a question", "Agents have asked you questions"),
 			Action: "Answer in your inbox; the job waits for you."}
 	}
-	if f.lead == "" && f.starting == 0 {
+	if f.lead == "" && f.starting == 0 && !f.solo {
 		return stuck("No lead is running this job.", "Give it a lead: handloom job resume, or start one from the job's page.")
 	}
 	if f.lead != "" && f.leadState == api.StateOffline {
@@ -72,13 +73,25 @@ func jobProgress(f jobFacts) api.JobState {
 				fmt.Sprintf("Start %s again, or give step #%d to another worker.", w.assignee, w.id))
 		}
 	}
+	if f.solo && f.counts.Submitted > 0 {
+		return api.JobState{State: api.JobNeedsYou, Reason: "The helper has finished and its work is waiting for you.", Action: "Look at what changed, then use it or send it back."}
+	}
+	if f.solo && f.counts.Open+f.counts.Claimed > 0 && f.liveWorkers == 0 && f.starting == 0 {
+		return stuck("The helper is not running.", "Give the step to another profile from the job page, or stop the job.")
+	}
+	if f.solo && f.counts.Done < total {
+		if f.liveWorkers == 0 {
+			return api.JobState{State: api.JobWorking, Reason: "Starting the helper."}
+		}
+		return api.JobState{State: api.JobWorking, Reason: "A helper is working on it."}
+	}
 	idle := f.leadState == api.StateIdle && f.now.Sub(f.leadSince) >= leadIdleGrace
 	if f.counts.Open > 0 && f.liveWorkers == 0 && f.starting == 0 && idle {
 		return stuck(plural1(f.counts.Open, "1 step is waiting and nobody is working on it.", fmt.Sprintf("%d steps are waiting and nobody is working on them.", f.counts.Open)),
 			"Message the lead to start workers, or start one yourself.")
 	}
 	if total > 0 && f.counts.Done == total {
-		return api.JobState{State: api.JobReady, Reason: fmt.Sprintf("All %d steps are done and checked.", total),
+		return api.JobState{State: api.JobReady, Reason: plural1(total, "The step is done and checked.", fmt.Sprintf("All %d steps are done and checked.", total)),
 			Action: "Look at the result, then use it or close the job."}
 	}
 	if total == 0 {
@@ -121,6 +134,13 @@ func (c *call) progress(t *taskRow, lead *agentRow, counts api.JobCounts) (api.J
 		}
 		if err := c.tx.QueryRow(`SELECT count(*) FROM agent WHERE job_id = ? AND role != 'lead' AND state != 'offline'`, t.id).Scan(&f.liveWorkers); err != nil {
 			return api.JobState{}, err
+		}
+		if lead == nil { // a job a person made the steps of, with no lead
+			var n int
+			if err := c.tx.QueryRow(`SELECT count(*) FROM task WHERE job_id = ? AND kind != 'job' AND created_by NOT LIKE 'agent:%'`, t.id).Scan(&n); err != nil {
+				return api.JobState{}, err
+			}
+			f.solo = n > 0
 		}
 		rows, err := c.tx.Query(`SELECT t.id, COALESCE(a.name, ''), COALESCE(a.state, ''), a.job_id
 			FROM task t LEFT JOIN agent a ON a.id = t.assigned_to

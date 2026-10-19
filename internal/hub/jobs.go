@@ -132,6 +132,9 @@ func (c *call) createJob(req api.JobNewReq) (any, error) {
 	if req.Lead != "" && req.LeadProfile != "" {
 		return nil, badRequest("name an existing agent as lead, or a profile to start one from, not both")
 	}
+	if req.WorkerProfile != "" && (req.Lead != "" || req.LeadProfile != "") {
+		return nil, badRequest("a job either has a lead plan it, or one helper does it with no lead; not both")
+	}
 	var codebaseID sql.NullInt64
 	if req.Codebase != "" {
 		if req.Repo != "" {
@@ -203,6 +206,11 @@ func (c *call) createJob(req api.JobNewReq) (any, error) {
 	}
 	if lead != nil {
 		if err := c.putInJob(lead, sql.NullInt64{Int64: id, Valid: true}, api.RoleLead); err != nil {
+			return nil, err
+		}
+	}
+	if req.WorkerProfile != "" {
+		if err := c.startSolo(id, req); err != nil {
 			return nil, err
 		}
 	}
@@ -426,3 +434,17 @@ func checkKnowledgeSpec(knowledge, base, repo string) error {
 }
 
 var baseRE = regexp.MustCompile(`^[A-Za-z0-9._/-]+$`)
+
+// soloBrief is added to the task of a job that has no lead: the helper reads it with the owner's words.
+const soloBrief = "How to work: do exactly this and keep it small. Do not invent facts the owner did not give (names, numbers, addresses, phone numbers, claims about the business): leave them out. When it is done, submit it with a note saying what you did; a person reviews it before it is used."
+
+// startSolo makes the job's one task from its title and brief and starts one helper from the profile to do
+// it. The owner accepts or sends back the result; nobody plans.
+func (c *call) startSolo(job int64, req api.JobNewReq) error {
+	t, err := c.createTask(api.TaskCreateReq{Job: job, Title: req.Title, Body: strings.TrimSpace(req.Body + "\n\n---\n" + soloBrief), Project: req.Project})
+	if err != nil {
+		return err
+	}
+	_, err = c.reassignTask(t, api.ReassignReq{Profile: req.WorkerProfile})
+	return err
+}

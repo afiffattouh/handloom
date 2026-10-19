@@ -42,6 +42,11 @@ func TestWhereAJobStands(t *testing.T) {
 		{"steps wait, nobody works, the lead is idle", base(jobFacts{counts: api.JobCounts{Open: 2}, lead: "l", leadState: api.StateIdle, leadSince: long}), api.JobStuck, "2 steps"},
 		{"the lead has only just gone idle", base(jobFacts{counts: api.JobCounts{Open: 2}, lead: "l", leadState: api.StateIdle, leadSince: now}), api.JobWorking, "0 of 2"},
 		{"working", base(jobFacts{counts: api.JobCounts{Claimed: 1, Done: 1}, liveWorkers: 1}), api.JobWorking, "1 of 2"},
+		{"solo: the helper is starting", base(jobFacts{leadState: "none", solo: true, starting: 1, counts: api.JobCounts{Open: 1}}), api.JobWorking, "Starting the helper"},
+		{"solo: the helper works", base(jobFacts{leadState: "none", solo: true, liveWorkers: 1, counts: api.JobCounts{Claimed: 1}}), api.JobWorking, "working on it"},
+		{"solo: the work waits for the person", base(jobFacts{leadState: "none", solo: true, liveWorkers: 1, counts: api.JobCounts{Submitted: 1}}), api.JobNeedsYou, "waiting for you"},
+		{"solo: the helper is gone", base(jobFacts{leadState: "none", solo: true, counts: api.JobCounts{Open: 1}}), api.JobStuck, "not running"},
+		{"solo: done", base(jobFacts{leadState: "none", solo: true, counts: api.JobCounts{Done: 1}}), api.JobReady, "step is done"},
 		{"ready", base(jobFacts{counts: api.JobCounts{Done: 3}}), api.JobReady, "3 steps"},
 	}
 	for _, c := range cases {

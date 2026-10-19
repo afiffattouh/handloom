@@ -127,6 +127,7 @@ func TestProjectsThroughTheCLI(t *testing.T) {
 		{[]string{"project", "clone", "nothing", "--device", "dev"}, "no project", 1},
 		{[]string{"project", "frobnicate"}, "usage", 2},
 		{[]string{"job", "new", "x", "--project", "shared", "--repo", "/srv/app", "--device", "dev"}, "not both", 2},
+		{[]string{"job", "new", "x", "--project", "shared", "--device", "dev", "--worker-profile", "p", "--lead-profile", "q"}, "not both", 1},
 		{[]string{"job", "new", "x", "--project", "nothing", "--device", "dev"}, "no project", 1},
 	} {
 		code, _, errs := r.exec(c.args...)

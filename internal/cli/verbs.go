@@ -655,6 +655,7 @@ func (e *env) job(args []string) error {
 	verify := fs.String("verify", "", "new: a command the device runs in an agent's worktree after it submits (needs --repo)")
 	device := fs.String("device", "", "new: the device the repository is on, and where the lead starts")
 	leadProfile := fs.String("lead-profile", "", "new: start the job's lead from this profile")
+	workerProfile := fs.String("worker-profile", "", "new: no lead; one helper started from this profile does the job's brief as its only task")
 	leadName := fs.String("lead-name", "", "new: a name for that lead (default lead-<job id>)")
 	cancel := fs.Bool("cancel", false, "close: cancel the job and its unfinished tasks")
 	remote := fs.String("remote", "", "publish: the remote to push to (default origin)")
@@ -683,7 +684,7 @@ func (e *env) job(args []string) error {
 	switch sub {
 	case "new":
 		if len(pos) == 0 {
-			return usageErr("usage: handloom job new <title> [--body B] [--lead AGENT | --lead-profile P] [--project NAME | --repo PATH] [--base BRANCH] [--verify CMD] [--device D] [--knowledge PATH] [--confidential]")
+			return usageErr("usage: handloom job new <title> [--body B] [--lead AGENT | --lead-profile P | --worker-profile P] [--project NAME | --repo PATH] [--base BRANCH] [--verify CMD] [--device D] [--knowledge PATH] [--confidential]")
 		}
 		if *project != "" && *repo != "" {
 			return usageErr("name a project (--project) or a repository path (--repo), not both")
@@ -696,7 +697,7 @@ func (e *env) job(args []string) error {
 		}
 		var j api.Job
 		if err := c.Post("/v1/jobs", api.JobNewReq{Title: strings.Join(pos, " "), Body: *body, Lead: *lead, Confidential: *conf, Project: *tenant, Codebase: *project,
-			Repo: *repo, Verify: *verify, Knowledge: *knowledge, Base: *base, Device: *device, LeadProfile: *leadProfile, LeadName: *leadName}, &j); err != nil {
+			Repo: *repo, Verify: *verify, Knowledge: *knowledge, Base: *base, Device: *device, LeadProfile: *leadProfile, LeadName: *leadName, WorkerProfile: *workerProfile}, &j); err != nil {
 			return err
 		}
 		e.print(j, func() {

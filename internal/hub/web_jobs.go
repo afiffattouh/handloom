@@ -152,6 +152,9 @@ func (h *Hub) webJobAsk(q *webReq) error {
 	if r := []rune(title); len(r) > 80 {
 		title = string(r[:80]) + "..."
 	}
+	if f.Get("team") != "1" {
+		return h.webJobSolo(q, title, ask)
+	}
 	how := "How to run this: it is a small ask in the owner's own words. Keep the plan small: as few tasks as will do, one worker if one is enough."
 	if f.Get("steps_first") == "1" {
 		how += " Before you start any worker, send your plan (the tasks, in plain words) to the owner with `handloom ask` and wait for the answer."
@@ -174,6 +177,34 @@ func (h *Hub) webJobAsk(q *webReq) error {
 	f.Set("verify", "") // the project's own check
 	f.Set("repo", "")
 	return h.webJobCreate(q)
+}
+
+// webJobSolo starts a job with no lead: one task from the owner's sentence and one helper, started from a
+// profile for doing work. The owner accepts or sends back the result on the job page.
+func (h *Hub) webJobSolo(q *webReq, title, ask string) error {
+	f := q.r.PostForm
+	worker := f.Get("worker_profile")
+	if worker == "" {
+		pl, err := profileList(q.c)
+		if err != nil {
+			return err
+		}
+		for _, p := range pl.([]api.ProfileInfo) {
+			if p.Name == "coder" || (worker == "" && !strings.HasPrefix(p.Name, "lead")) {
+				worker = p.Name
+			}
+		}
+	}
+	if worker == "" {
+		return q.jobForm(400, "There is no profile to start a helper from yet. Make one on the Profiles page, or ask for a lead to plan it.", map[string]string{"ask": ask})
+	}
+	name, dev, _ := strings.Cut(f.Get("project"), "|")
+	res, err := q.c.createJob(api.JobNewReq{Title: title, Body: ask, Codebase: name, Device: dev, WorkerProfile: worker})
+	if err != nil {
+		return q.jobFormFailed(err, f)
+	}
+	http.Redirect(q.w, q.r, fmt.Sprintf("/jobs/%d?done=started", res.(api.Job).ID), http.StatusSeeOther)
+	return nil
 }
 
 func (h *Hub) webJobNewForm(q *webReq) error { return q.jobForm(200, "", map[string]string{}) }
@@ -205,25 +236,30 @@ func (h *Hub) webJobCreate(q *webReq) error {
 	}
 	res, err := q.c.createJob(req)
 	if err != nil {
-		var ae *apiError
-		status, msg := 500, "Something went wrong."
-		if errors.As(err, &ae) {
-			status, msg = ae.status, ae.msg
-		}
-		// The failed statements are abandoned with the transaction; show the form again with what was typed.
-		q.c.tx.Rollback()
-		tx, terr := q.c.h.db.Begin()
-		if terr != nil {
-			return terr
-		}
-		defer tx.Rollback()
-		q.c.tx = tx
-		q.jobForm(status, msg, f1(f))
-		return errHandled
+		return q.jobFormFailed(err, f)
 	}
 	job := res.(api.Job)
 	http.Redirect(q.w, q.r, fmt.Sprintf("/jobs/%d?done=started", job.ID), http.StatusSeeOther)
 	return nil
+}
+
+// jobFormFailed shows the form again with the refusal in words and what was typed. The failed statements
+// are abandoned with the transaction.
+func (q *webReq) jobFormFailed(err error, f map[string][]string) error {
+	var ae *apiError
+	status, msg := 500, "Something went wrong."
+	if errors.As(err, &ae) {
+		status, msg = ae.status, ae.msg
+	}
+	q.c.tx.Rollback()
+	tx, terr := q.c.h.db.Begin()
+	if terr != nil {
+		return terr
+	}
+	defer tx.Rollback()
+	q.c.tx = tx
+	q.jobForm(status, msg, f1(f))
+	return errHandled
 }
 
 // ---- one job ----

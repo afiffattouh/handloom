@@ -39,6 +39,7 @@
         {{else if eq .Checks.State "ready"}}
           <p class="text"><strong>Checks are prepared</strong> <span class="desc">on a side copy, not on the main branch yet. They add {{len .Checks.Files}} files:</span></p>
           <p class="mono desc">{{range $i, $f := .Checks.Files}}{{if $i}} · {{end}}{{$f}}{{end}}</p>
+          {{range .Checks.Notes}}<p class="desc">Note: {{.}}</p>{{end}}
           <details><summary>What <code>./check</code> will run (factory.toml)</summary><pre class="inset">{{.Checks.Toml}}</pre></details>
           <p class="desc">Read the stages above. They decide what "done" means for every job here. A stage with an empty command is skipped. A person owns that file: the gate fails any job whose agent changes it.</p>
           <form method="post" action="/projects/{{.Name}}/checks" class="inline">

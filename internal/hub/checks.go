@@ -104,6 +104,9 @@ func (c *call) checksState(name string) (api.ChecksState, error) {
 	for _, f := range strings.Fields(files) {
 		out.Files = append(out.Files, f)
 	}
+	if !hasString(out.Files, ".claude/settings.json") {
+		out.Notes = append(out.Notes, "the project already has .claude/settings.json, so the two Claude Code hooks were not added; the gate does not depend on them")
+	}
 	if t, err := git("show", tip+":factory.toml"); err == nil {
 		out.Toml = t
 		if m := tomlPresetRE.FindStringSubmatch(t); m != nil {

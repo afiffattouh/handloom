@@ -20,7 +20,10 @@ import (
 // Python. The files themselves are the kit's own, read from the embedded copy; only the
 // choices around them (which stages, the manifest, the hooks file) are repeated here, and
 // kitseed_test.go runs the real `factory init` and compares, so the two cannot drift apart
-// unnoticed.
+// unnoticed. One difference is deliberate: where `factory init` merges its two hooks into an
+// existing .claude/settings.json, this leaves the file alone and says so (the gate does not
+// depend on the hooks), because merging JSON without losing the file's key order needs more
+// code than the case is worth.
 
 // kv is an ordered pair: the order stages are added in is the order of the file.
 type kv struct{ k, v string }

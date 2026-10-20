@@ -315,7 +315,7 @@ func TestClaudeAdapterInstallAndHooks(t *testing.T) {
 	}
 }
 
-// Codex has the same hook shape as Claude Code; Pi, OMP and OpenCode get a
+// Codex has the same hook shape as Claude Code; Pi and OMP get a
 // shim that forwards their events to `handloom hook <kind>`.
 func TestOtherAdapters(t *testing.T) {
 	r := newRig(t)
@@ -323,7 +323,6 @@ func TestOtherAdapters(t *testing.T) {
 		"codex":    {".codex/hooks.json", " hook codex", "AGENTS.md"},
 		"pi":       {".pi/extensions/handloom.ts", `["hook", KIND]`, "AGENTS.md"},
 		"omp":      {".handloom/omp-extension.ts", `pi.on("agent_end"`, "AGENTS.md"},
-		"opencode": {".opencode/plugins/handloom.js", `"session.idle"`, "AGENTS.md"},
 	} {
 		dir := t.TempDir()
 		name := "agent-" + kind

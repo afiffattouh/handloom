@@ -1,7 +1,6 @@
 package profile
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 )
@@ -20,14 +19,13 @@ type Caps struct {
 }
 
 // Kinds are the agent CLIs a profile can name, in the order people see them.
-var Kinds = []string{"claude", "codex", "omp", "pi", "opencode"}
+var Kinds = []string{"claude", "codex", "omp", "pi"}
 
 var caps = map[string]Caps{
 	"claude":   {Label: "Claude Code", DenyCommands: true, NativeSkills: true, Web: true},
 	"codex":    {Label: "Codex", AlwaysShell: true, Web: true, Sandbox: true},
 	"omp":      {Label: "OMP", AlwaysShell: true, Web: true, LocalCapable: true},
 	"pi":       {Label: "Pi", AlwaysShell: true, Web: false, LocalCapable: true},
-	"opencode": {Label: "OpenCode", DenyCommands: true, Web: true, LocalCapable: true},
 }
 
 // CapsFor returns what a kind can enforce. An unknown kind has no caps.
@@ -101,62 +99,6 @@ func PiArgv(s *Spec, model string) []string {
 	return argv
 }
 
-// OpenCodeArgv is the command line for a spawned OpenCode. What it may do is
-// in opencode.json (OpenCodeConfig), written into the work directory.
-func OpenCodeArgv(s *Spec, model string) []string {
-	argv := []string{"opencode"}
-	if model == "" {
-		model = s.Model
-	}
-	if model != "" {
-		argv = append(argv, "-m", model)
-	}
-	return argv
-}
-
-// OpenCodeConfig is the opencode.json for a profile: tool permissions, with
-// the denied shell commands refused one by one, and handloom's commands always allowed.
-func OpenCodeConfig(s *Spec, model string) ([]byte, error) {
-	allow := func(ok bool) string {
-		if ok {
-			return "allow"
-		}
-		return "deny"
-	}
-	bash := map[string]string{}
-	if has(s.Tools.Allow, "shell") {
-		bash["*"] = "allow"
-		for _, c := range s.Tools.DenyCommands {
-			bash[c+"*"] = "deny"
-		}
-	} else {
-		bash["*"] = "deny"
-	}
-	bash["handloom *"] = "allow" // an agent must always be able to talk to its hub
-	read := allow(has(s.Tools.Allow, "read"))
-	perm := map[string]any{
-		"read": read, "glob": read, "grep": read, "list": read,
-		"edit":               allow(has(s.Tools.Allow, "edit")),
-		"bash":               bash,
-		"webfetch":           allow(has(s.Tools.Allow, "web")),
-		"websearch":          allow(has(s.Tools.Allow, "web")),
-		"external_directory": "allow", // a git worktree keeps its repository outside the work directory
-	}
-	doc := map[string]any{"$schema": "https://opencode.ai/config.json", "permission": perm}
-	if model == "" {
-		model = s.Model
-	}
-	if model != "" {
-		// Pin every place OpenCode picks a model: a user's own config can name a
-		// different one for an agent (the default "build" agent) or for small
-		// tasks such as titles, and a profile that says "local" must not leak to it.
-		doc["model"] = model
-		doc["small_model"] = model
-		doc["agent"] = map[string]any{"build": map[string]any{"model": model}, "plan": map[string]any{"model": model}, "general": map[string]any{"model": model}}
-	}
-	return json.MarshalIndent(doc, "", "  ")
-}
-
 // InlineSkills is the text of a profile's skills for CLIs that do not load
 // SKILL.md folders: it goes into the agent's instructions.
 func InlineSkills(s *Spec) string {
@@ -180,7 +122,7 @@ func InlineSkills(s *Spec) string {
 // shellNote is why OMP, Pi and Codex keep their shell.
 const shellNote = "allowed: shell, always (handloom's own commands run through it; it cannot be taken away without cutting the agent off from the team)"
 
-// toolEnforcement is the enforcement text for OMP, Pi and OpenCode.
+// toolEnforcement is the enforcement text for OMP and Pi.
 func toolEnforcement(kind string, s *Spec) []string {
 	label := KindLabel(kind)
 	allow := func(t string) bool { return has(s.Tools.Allow, t) }
@@ -195,25 +137,13 @@ func toolEnforcement(kind string, s *Spec) []string {
 	} else {
 		out = append(out, "refused by "+label+": edit and write")
 	}
-	switch kind {
-	case "opencode":
-		if allow("shell") {
-			out = append(out, "allowed: shell")
-		} else {
-			out = append(out, "refused by OpenCode: every shell command except handloom's")
-		}
-		for _, c := range s.Tools.DenyCommands {
-			out = append(out, "refused by OpenCode: the shell command "+c)
-		}
-	default:
-		out = append(out, shellNote)
-		if len(s.Tools.DenyCommands) > 0 {
-			out = append(out, "not enforced: denied commands ("+strings.Join(s.Tools.DenyCommands, ", ")+"): "+label+" cannot refuse specific commands")
-		} else if soft := SoftDenied(s); soft != "" {
-			out = append(out, "asked in its instructions, not enforced: do not run "+soft)
-		} else {
-			out = append(out, "not enforced: which shell commands run")
-		}
+	out = append(out, shellNote)
+	if len(s.Tools.DenyCommands) > 0 {
+		out = append(out, "not enforced: denied commands ("+strings.Join(s.Tools.DenyCommands, ", ")+"): "+label+" cannot refuse specific commands")
+	} else if soft := SoftDenied(s); soft != "" {
+		out = append(out, "asked in its instructions, not enforced: do not run "+soft)
+	} else {
+		out = append(out, "not enforced: which shell commands run")
 	}
 	switch {
 	case kind == "pi":

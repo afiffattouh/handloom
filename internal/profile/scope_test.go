@@ -11,7 +11,7 @@ func TestGeneratedAndAdapterPathsAreNotWork(t *testing.T) {
 			t.Errorf("GeneratedPath(%q) = %v, want %v", p, got, want)
 		}
 	}
-	if !AdapterPath("opencode.json") || AdapterPath("sub/opencode.json") {
-		t.Error("opencode.json at the root is the one Handloom writes")
+	if AdapterPath("opencode.json") || AdapterPath(".opencode/plugins/handloom.js") {
+		t.Error("OpenCode is retired: its files are ordinary files now")
 	}
 }

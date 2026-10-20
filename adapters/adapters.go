@@ -8,5 +8,5 @@ package adapters
 
 import "embed"
 
-//go:embed AGENTS.snippet.md LEAD.snippet.md claude codex pi omp opencode
+//go:embed AGENTS.snippet.md LEAD.snippet.md claude codex pi omp
 var FS embed.FS

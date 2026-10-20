@@ -89,10 +89,10 @@ func Normalize(s *Spec) []string {
 	} else {
 		// Say what the CLI cannot enforce instead of dropping the wish.
 		if len(s.Tools.DenyCommands) > 0 && !kc.DenyCommands {
-			bad = append(bad, s.Kind+" cannot refuse specific shell commands (deny_commands): use claude or opencode for that")
+			bad = append(bad, s.Kind+" cannot refuse specific shell commands (deny_commands): use claude for that")
 		}
 		if kc.AlwaysShell && !has(s.Tools.Allow, "shell") {
-			bad = append(bad, s.Kind+" always has a shell (handloom's own commands run through it): list shell in tools, or use claude or opencode to take it away")
+			bad = append(bad, s.Kind+" always has a shell (handloom's own commands run through it): list shell in tools, or use claude to take it away")
 		}
 		if has(s.Tools.Allow, "web") && !kc.Web {
 			bad = append(bad, s.Kind+" has no web tool: remove web from tools")
@@ -405,7 +405,7 @@ func Adapt(s *Spec) []string {
 		list := strings.Join(s.Tools.DenyCommands, ", ")
 		s.Prompt = strings.TrimSpace(StripSoftDeny(s.Prompt) + "\n\n" + softDeny + list + ".")
 		s.Tools.DenyCommands = nil
-		notes = append(notes, label+" cannot refuse specific commands, so "+list+" is written into the agent's instructions as a rule it is asked to follow. That is a request, not a block. Choose Claude Code or OpenCode if it must be impossible.")
+		notes = append(notes, label+" cannot refuse specific commands, so "+list+" is written into the agent's instructions as a rule it is asked to follow. That is a request, not a block. Choose Claude Code if it must be impossible.")
 	}
 	if kc.AlwaysShell && !has(s.Tools.Allow, "shell") {
 		s.Tools.Allow = append(s.Tools.Allow, "shell")

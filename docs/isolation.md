@@ -1,6 +1,6 @@
 # Isolation: running agents in a box (designed, not built)
 
-Today an agent runs directly on the machine, as the user who runs the link, in a tmux window the link opens. What limits it is its CLI (tool limits, and for Claude Code and OpenCode named shell commands), its own git worktree, the scope check at submit, the device's check command, and the fact that only a human merges. Nothing separates it from the rest of that user's files.
+Today an agent runs directly on the machine, as the user who runs the link, in a tmux window the link opens. What limits it is its CLI (tool limits, and for Claude Code named shell commands), its own git worktree, the scope check at submit, the device's check command, and the fact that only a human merges. Nothing separates it from the rest of that user's files.
 
 A **container mode** would run each agent CLI in a container that sees only its work folder. This page is the design, so that adding it later is a contained piece of work and not a redesign. It is not built, and `handloom link run --isolation container` says so.
 
@@ -20,7 +20,7 @@ To add it: write the isolator, register it in `isolators`, remove its name from 
 These are the places the current code assumes the host. Each is a task, not a surprise.
 
 1. **The link socket.** `spawn-exec` and the agent's `handloom` commands talk to the link through `$HANDLOOM_HOME/link.sock`. Mount the socket and set `HANDLOOM_HOME` to the mounted path. The device credential must never enter the box: only the socket does, as now.
-2. **The CLI's login.** Claude Code, Codex, OMP, Pi and OpenCode each keep credentials in the user's home (`~/.claude/.credentials.json` and `~/.claude.json`, `~/.codex/auth.json`, `~/.omp/agent`, `~/.pi/agent`, `~/.config/opencode` and `~/.local/share/opencode`). Give each agent its own home directory under `<handloom home>/boxes/<agent>/home`, seeded with the minimum of those files, read-only where the CLI allows. `trustClaudeDir` and `trustCodexDir` then write into that home instead of the real one.
+2. **The CLI's login.** Claude Code, Codex, OMP and Pi each keep credentials in the user's home (`~/.claude/.credentials.json` and `~/.claude.json`, `~/.codex/auth.json`, `~/.omp/agent`, `~/.pi/agent`). Give each agent its own home directory under `<handloom home>/boxes/<agent>/home`, seeded with the minimum of those files, read-only where the CLI allows. `trustClaudeDir` and `trustCodexDir` then write into that home instead of the real one.
 3. **Git worktrees.** A worktree's `.git` is a file that points into the repository's own `.git/worktrees/<name>`, outside the work folder. Mount the repository's `.git` read-write (and the knowledge repository's, for jobs that have one). This is the one place the box can still damage the repository's history, so the scope check and the integration branch remain the real protection.
 4. **The model.** A local model is a network address (for example `model-host.example:8083` over Tailscale). The container needs a route to exactly that, and nothing else if the profile allows no web: `--network none` plus a proxy, or a network that only reaches the model.
 5. **Usage and session logs.** The link reads token counts from the CLI's own logs. With a per-agent home they are in `boxes/<agent>/home`, which the link can read as before; point the readers at it.

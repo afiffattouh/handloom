@@ -89,7 +89,7 @@ Device:
   handloom git-credential get|store|erase             git's credential helper for projects the hub holds (set up by the link; answers only for the hub)
   handloom doctor [--fix]                             is this machine ready? checks the link, git, tmux and the agent CLIs; --fix installs git and tmux (asks first)
   handloom adapter install <kind> --name N [--dir D]  install an agent adapter in a project
-                                                  (kinds: claude, codex, pi, omp, opencode)
+                                                  (kinds: claude, codex, pi, omp)
   handloom run <name> -- <command...>                 start an agent CLI as a registered, wakeable agent
   handloom mcp [--operator [--allow-approvals]]       MCP server (stdio): the agent verbs as tools, or with --operator the tools of a person driving Handloom from their own AI app
 

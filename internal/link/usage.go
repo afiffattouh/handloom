@@ -3,7 +3,6 @@ package link
 import (
 	"bufio"
 	"context"
-	"database/sql"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -20,7 +19,7 @@ import (
 
 // Usage, device side. The agent CLIs write their own logs; this reads the
 // token counts out of them (never the text) and reports running totals per
-// agent and model. Claude Code, Codex, OMP, Pi and OpenCode are read.
+// agent and model. Claude Code, Codex, OMP and Pi are read.
 // For any other CLI nothing is reported, so the page says "no usage reported" instead of guessing.
 
 const usageEvery = time.Minute
@@ -82,8 +81,6 @@ func (l *Link) runUsage(ctx context.Context, agents []api.DeviceAgent) {
 			models = l.piLikeUsage(filepath.Join(home, ".omp", "agent", "sessions"), a.Dir, a.RegisteredAt)
 		case "pi":
 			models = l.piLikeUsage(filepath.Join(home, ".pi", "agent", "sessions"), a.Dir, a.RegisteredAt)
-		case "opencode":
-			models = openCodeUsage(filepath.Join(home, ".local", "share", "opencode", "opencode.db"), a.Dir, a.RegisteredAt)
 		}
 		if len(models) == 0 {
 			continue
@@ -389,39 +386,4 @@ func parsePiLog(path string) (map[string]api.UsageModel, string, time.Time) {
 		res[d.Message.Model] = m
 	}
 	return res, cwd, start
-}
-
-// openCodeUsage reads OpenCode's own database, read-only: the tokens of the
-// assistant messages written in this agent's working directory since it started.
-func openCodeUsage(dbPath, dir string, since time.Time) map[string]api.UsageModel {
-	if _, err := os.Stat(dbPath); err != nil {
-		return nil
-	}
-	db, err := sql.Open("sqlite", "file:"+dbPath+"?mode=ro&_pragma=busy_timeout(2000)")
-	if err != nil {
-		return nil
-	}
-	defer db.Close()
-	rows, err := db.Query(`SELECT json_extract(data, '$.modelID'),
-			coalesce(sum(json_extract(data, '$.tokens.input')), 0), coalesce(sum(json_extract(data, '$.tokens.output')), 0),
-			coalesce(sum(json_extract(data, '$.tokens.cache.read')), 0), coalesce(sum(json_extract(data, '$.tokens.cache.write')), 0)
-		FROM message WHERE json_extract(data, '$.role') = 'assistant' AND json_extract(data, '$.path.cwd') = ? AND time_created >= ?
-		GROUP BY 1`, dir, since.Add(-time.Minute).UnixMilli())
-	if err != nil {
-		return nil
-	}
-	defer rows.Close()
-	out := map[string]api.UsageModel{}
-	for rows.Next() {
-		var m api.UsageModel
-		var name sql.NullString
-		if rows.Scan(&name, &m.Input, &m.Output, &m.CacheRead, &m.CacheWrite) != nil || !name.Valid || name.String == "" {
-			continue
-		}
-		m.Model = name.String
-		if m.Input+m.Output+m.CacheRead+m.CacheWrite > 0 {
-			out[m.Model] = m
-		}
-	}
-	return out
 }

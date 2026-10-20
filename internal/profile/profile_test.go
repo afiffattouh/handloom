@@ -1,7 +1,6 @@
 package profile
 
 import (
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -356,33 +355,9 @@ func TestKindsSayWhatTheyCannotEnforce(t *testing.T) {
 			t.Errorf("%s: %q does not say %q", kind, bad, c.want)
 		}
 	}
-	// OpenCode can refuse commands and can drop the shell: handloom's commands stay allowed.
-	oc := &Spec{Kind: "opencode", Tools: Tools{Allow: []string{"read"}}, Prompt: "x"}
-	if bad := Normalize(oc); len(bad) != 0 {
-		t.Fatalf("opencode: %v", bad)
-	}
-	var cfg struct {
-		Permission map[string]any `json:"permission"`
-		Model      string         `json:"model"`
-	}
-	raw, _ := OpenCodeConfig(oc, "gb10/qwen3.8-27b")
-	if !strings.Contains(string(raw), `"small_model": "gb10/qwen3.8-27b"`) || strings.Count(string(raw), `"model": "gb10/qwen3.8-27b"`) < 4 {
-		t.Fatalf("the model must be pinned for the default agents and small tasks: %s", raw)
-	}
-	if err := json.Unmarshal(raw, &cfg); err != nil || cfg.Model != "gb10/qwen3.8-27b" {
-		t.Fatalf("opencode config: %v %s", err, raw)
-	}
-	bash := cfg.Permission["bash"].(map[string]any)
-	if bash["*"] != "deny" || bash["handloom *"] != "allow" || cfg.Permission["edit"] != "deny" || cfg.Permission["read"] != "allow" {
-		t.Fatalf("opencode permissions: %v", cfg.Permission)
-	}
-	oc.Tools.Allow = []string{"read", "shell"}
-	oc.Tools.DenyCommands = []string{"rm", "git push"}
-	raw, _ = OpenCodeConfig(oc, "")
-	json.Unmarshal(raw, &cfg)
-	bash = cfg.Permission["bash"].(map[string]any)
-	if bash["*"] != "allow" || bash["rm*"] != "deny" || bash["git push*"] != "deny" || bash["handloom *"] != "allow" {
-		t.Fatalf("opencode bash: %v", bash)
+	// OpenCode is retired: it is no longer a kind a profile can name.
+	if bad := Normalize(&Spec{Kind: "opencode", Tools: Tools{Allow: []string{"read"}}, Prompt: "x"}); len(bad) == 0 {
+		t.Error("opencode was accepted as a kind")
 	}
 }
 
@@ -400,10 +375,6 @@ func TestArgvPerKind(t *testing.T) {
 	p := &Spec{Kind: "pi", Tools: Tools{Allow: []string{"read", "shell"}}}
 	if got := strings.Join(PiArgv(p, "provider/model:high"), " "); got != "pi --approve --tools read,bash --model provider/model:high" {
 		t.Errorf("pi: %s", got)
-	}
-	o := &Spec{Kind: "opencode"}
-	if got := strings.Join(OpenCodeArgv(o, "local:qwen3.8-27b?effort=high"), " "); got != "opencode -m local:qwen3.8-27b?effort=high" {
-		t.Errorf("opencode: %s", got)
 	}
 	// The model names people really use are accepted.
 	for _, m := range []string{"gb10/qwen3.8-27b", "local:qwen3.8-27b?effort=high", "anthropic/claude-sonnet-5-5:high", "sonnet"} {

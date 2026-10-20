@@ -32,7 +32,6 @@ var agentCLIs = []struct{ bin, login, loginHint string }{
 	{"codex", ".codex/auth.json", "run codex login"},
 	{"pi", "", ""},
 	{"omp", "", ""},
-	{"opencode", "", ""},
 }
 
 // fixerFor is replaceable in tests.
@@ -202,7 +201,7 @@ func runDoctor(look func(string) (string, error), linkStatus func() (map[string]
 		}
 	}
 	if ready == 0 {
-		add("agent CLI", "fail", "no agent CLI that is installed and logged in", "install and log in to at least one of: claude, codex, pi, omp, opencode")
+		add("agent CLI", "fail", "no agent CLI that is installed and logged in", "install and log in to at least one of: claude, codex, pi, omp")
 	}
 	return out
 }

@@ -56,12 +56,12 @@ func matchSegments(pat, name []string) bool {
 // work and are left out of the scope check.
 func AdapterPath(p string) bool {
 	p = path.Clean(p)
-	for _, prefix := range []string{".handloom/", ".claude/", ".codex/", ".pi/", ".opencode/"} {
+	for _, prefix := range []string{".handloom/", ".claude/", ".codex/", ".pi/"} {
 		if strings.HasPrefix(p, prefix) {
 			return true
 		}
 	}
-	return p == "CLAUDE.md" || p == "AGENTS.md" || p == "opencode.json" || p == ".handloom" || p == ".claude" || p == ".codex"
+	return p == "CLAUDE.md" || p == "AGENTS.md" || p == ".handloom" || p == ".claude" || p == ".codex"
 }
 
 // GeneratedPath reports whether a path is a build or tool cache that no one wrote on purpose

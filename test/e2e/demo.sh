@@ -24,7 +24,7 @@ admin device add build-box >/dev/null
 $CLEAN "$BIN" link join "$H" "$JT" >/dev/null
 $CLEAN "$BIN" link run --tmux-socket "$SOCK" --tick 2s --live-every 3s > "$OUT/link.log" 2>&1 & LINK=$!
 for i in $(seq 1 30); do $CLEAN "$BIN" link status >/dev/null 2>&1 && break; sleep 0.3; done
-for p in "lead-engineering --kind claude --runtime cloud --name lead" "coder --kind claude --runtime cloud" "researcher --kind omp --runtime local --model qwen3.8-27b" "qa-tester --kind opencode --runtime local --model qwen3.8-27b"; do admin profile add $p --adapt >/dev/null; done
+for p in "lead-engineering --kind claude --runtime cloud --name lead" "coder --kind claude --runtime cloud" "researcher --kind omp --runtime local --model qwen3.8-27b" "qa-tester --kind pi --runtime local --model qwen3.8-27b"; do admin profile add $p --adapt >/dev/null; done
 admin people add Jonas --role member >/dev/null; admin people add Priya --role viewer >/dev/null
 # a lead whose terminal has something to read
 $T new-session -d -s lead -x 110 -y 28 "HANDLOOM_HOME=$OUT/home $BIN run lead-ui --kind shell -- sh -c 'printf \"\\033[2m\$ handloom inbox\\033[0m\\n2 messages\\n  worker-1: sign-in form submitted (task #2)\\n  worker-2: session API submitted (task #3)\\n\\033[2m\$ handloom task show 2\\033[0m\\n#2 submitted  Write the sign-in form\\n  evidence: commit:3fa9c2e, test:go test ./... -> ok\\n  check: passed on build-box (1.4s)\\n\\nReviewing both before I accept. One question for you first.\\n\"; sleep 900'"

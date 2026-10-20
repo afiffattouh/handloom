@@ -196,7 +196,7 @@ func (e *env) spawnExec(args []string) error {
 		if err := trustCodexDir(dir); err != nil {
 			fmt.Fprintf(e.err, "handloom: could not pre-approve %s for Codex (%v); it may ask\n", dir, err)
 		}
-	case "omp", "pi", "opencode":
+	case "omp", "pi":
 		prof, err := fetchSpawnProfile(c, s)
 		if err != nil {
 			return fail(err)
@@ -213,15 +213,6 @@ func (e *env) spawnExec(args []string) error {
 			argv = profile.OmpArgv(ps, s.Model, s.Role, filepath.Join(dir, ".handloom", "omp-extension.ts"))
 		case "pi":
 			argv = profile.PiArgv(ps, s.Model)
-		case "opencode":
-			argv = profile.OpenCodeArgv(ps, s.Model)
-			cfg, err := profile.OpenCodeConfig(ps, s.Model)
-			if err != nil {
-				return fail(err)
-			}
-			if err := os.WriteFile(filepath.Join(dir, "opencode.json"), append(cfg, '\n'), 0o644); err != nil {
-				return fail(err)
-			}
 		}
 	default:
 		return fail(fmt.Errorf("cannot start %q agents yet", s.Kind))

@@ -199,7 +199,7 @@ If a device with that name exists, pick another with --name, or revoke it first:
   cat <<EOF
 
 $HOST is connected. To add an agent there, in the project it will work in:
-  handloom adapter install claude --name <agent> --dir .     # or codex, pi, omp, opencode
+  handloom adapter install claude --name <agent> --dir .     # or codex, pi, omp
   tmux new -s <agent> claude                              # the install prints the exact start line per kind
 Give one agent the lead role (admin or human token): handloom agent role <agent> lead
 EOF

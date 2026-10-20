@@ -166,12 +166,6 @@ func TestEveryStarterBecomesValidClaudeAndCodexFlags(t *testing.T) {
 				line = strings.Join(profile.OmpArgv(a.Spec, "", "worker", "/w/e.ts"), " ")
 			case "pi":
 				line = strings.Join(profile.PiArgv(a.Spec, ""), " ")
-			case "opencode":
-				cfg, err := profile.OpenCodeConfig(a.Spec, "")
-				if err != nil || !strings.Contains(string(cfg), `"handloom *": "allow"`) {
-					t.Errorf("%s: opencode config: %v %s", st.Name, err, cfg)
-				}
-				line = strings.Join(profile.OpenCodeArgv(a.Spec, ""), " ")
 			}
 			if line == "" || strings.Contains(line, "  ") {
 				t.Errorf("%s as %s: bad flags %q", st.Name, kind, line)

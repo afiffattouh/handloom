@@ -226,7 +226,7 @@ func (l *Link) autoCommit(ctx context.Context, rec *scopeRecord, taskID int64) e
 		return l.opt.Git(ctx, "git", append([]string{"-C", rec.Dir}, args...)...)
 	}
 	args := []string{"add", "-A", "--", "."}
-	for _, p := range []string{".handloom", ".claude", ".codex", ".pi", ".opencode", "CLAUDE.md", "AGENTS.md"} {
+	for _, p := range []string{".handloom", ".claude", ".codex", ".pi", "CLAUDE.md", "AGENTS.md"} {
 		args = append(args, ":(exclude)"+p)
 	}
 	// git add exits 1 when a path it was told to leave out is also ignored (excludeAdapterFiles makes them so),

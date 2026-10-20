@@ -17,7 +17,7 @@ import (
 )
 
 // hookInput is the part of an agent CLI's hook JSON that handloom reads. Claude
-// Code and Codex send it natively; the Pi, OMP and OpenCode shims build the
+// Code and Codex send it natively; the Pi and OMP shims build the
 // same shape from their own events.
 type hookInput struct {
 	Event            string `json:"hook_event_name"`
@@ -48,7 +48,7 @@ func StopReason(unread int) string {
 // logged and the exit code is always 0.
 func (e *env) hook(args []string) int {
 	if len(args) != 1 || adapterSpecs[args[0]] == nil {
-		fmt.Fprintln(e.err, "handloom: usage: handloom hook claude|codex|pi|omp|opencode  (hook JSON on stdin)")
+		fmt.Fprintln(e.err, "handloom: usage: handloom hook claude|codex|pi|omp  (hook JSON on stdin)")
 		return 2
 	}
 	if err := e.agentHook(args[0], os.Stdin); err != nil {

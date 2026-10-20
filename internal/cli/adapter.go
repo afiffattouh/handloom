@@ -79,12 +79,6 @@ var adapterSpecs = map[string]*adapterSpec{
 `},
 		start: "Start `omp -e {{dir}}/.handloom/omp-extension.ts` in that directory, inside tmux or herdr.",
 	},
-	"opencode": {
-		instructions: "AGENTS.md",
-		shim:         "opencode/handloom.js",
-		shimPath:     ".opencode/plugins/handloom.js",
-		start:        "Start `opencode` in that directory, inside tmux or herdr.",
-	},
 }
 
 func adapterKinds() string {
@@ -295,7 +289,7 @@ func editJSON(path string, edit func(map[string]any)) error {
 }
 
 // handloomHookRE recognises handloom's own hook commands, whatever the kind.
-var handloomHookRE = regexp.MustCompile(` hook (claude|codex|pi|omp|opencode)$`)
+var handloomHookRE = regexp.MustCompile(` hook (claude|codex|pi|omp)$`)
 
 // setHooks removes handloom's hook entries and, if command is not empty, adds
 // them again for the given events. Other hooks are left alone. Hooks must be

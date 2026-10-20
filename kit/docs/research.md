@@ -91,7 +91,7 @@ MVI: per task, save transcript (stream-json), gate output, diff, tokens and wall
 - **Claude Code**: hooks (Stop, PreToolUse), subagents, worktrees, `-p` stream-json. Best gating primitives.
 - **Codex CLI** (`codex exec`): second implementer and cross-vendor reviewer.
 - **Aider** architect/editor mode: ready-made two-model implementer (cloud architect, local editor).
-- **OpenCode / OMP**: front ends for local qwen.
+- **OMP / Pi**: front ends for local qwen.
 - **git worktree**: free isolation per task.
 - **just + pre-commit**: one `just check` for agents, hooks and CI.
 - **Playwright**: user-level acceptance checks.

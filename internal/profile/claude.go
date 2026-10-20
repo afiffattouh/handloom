@@ -79,7 +79,7 @@ func Enforcement(s *Spec) []string {
 	switch s.Kind {
 	case "codex":
 		return codexEnforcement(s)
-	case "omp", "pi", "opencode":
+	case "omp", "pi":
 		return toolEnforcement(s.Kind, s)
 	}
 	var out []string

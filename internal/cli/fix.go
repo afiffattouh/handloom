@@ -115,7 +115,6 @@ func commandLine(argv []string) string { return strings.Join(argv, " ") }
 var agentHelp = []struct{ bin, name, install, login, page string }{
 	{"claude", "Claude Code", "curl -fsSL https://claude.ai/install.sh | bash", "run `claude` once and sign in when it asks", "https://docs.claude.com/en/docs/claude-code"},
 	{"codex", "Codex", "npm install -g @openai/codex", "run `codex login`", "https://github.com/openai/codex"},
-	{"opencode", "OpenCode", "curl -fsSL https://opencode.ai/install | bash", "run `opencode auth login`", "https://opencode.ai"},
 }
 
 // agentHelpText says, in plain words, how to get an agent CLI working. It installs nothing.

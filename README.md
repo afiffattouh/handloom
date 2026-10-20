@@ -26,7 +26,7 @@
 | **Projects** | A name plus a shared git repository. With no GitHub at all, the hub can hold it for you; or attach one that exists, or have a machine create one on GitHub. Any machine fetches its own copy on demand. |
 | **Jobs with a lead** | Each job has its own lead agent, a team of workers, tasks with owners and dependencies, and a brief that says what done looks like. |
 | **Profiles and skills** | What an agent may do and know, as versioned, hash-pinned profiles: tools, denied commands, allowed paths, skills. 41 ready-made starters (engineering, design, research, consulting, marketing, sales, finance, HR) and a form that asks "what should it do?" in plain words. |
-| **Any agent CLI, any model** | Claude Code, Codex, OMP, Pi and OpenCode, including models running on your own machine. Handloom limits each as far as that CLI allows and says plainly what it cannot enforce. |
+| **Any agent CLI, any model** | Claude Code, Codex, OMP and Pi, including models running on your own machine. Handloom limits each as far as that CLI allows and says plainly what it cannot enforce. |
 | **Proof, not claims** | A task is submitted with evidence. The device runs the job's check, refuses edits outside the profile's paths, merges accepted work into an integration branch and re-checks it. A lead cannot accept failed work. |
 | **Only people approve** | Starting and closing jobs, answering questions and writing profiles need a signed-in person. Agents, devices and AI apps cannot. |
 | **Web, terminal, CLI, MCP** | A server-rendered web UI, a full-screen terminal console, every action as a command, and an MCP server so your own AI app can look at your work and start jobs. |
@@ -118,7 +118,7 @@ curl -fsSL https://raw.githubusercontent.com/afiffattouh/handloom/main/install.s
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; & ([scriptblock]::Create((irm https://raw.githubusercontent.com/afiffattouh/handloom/main/install.ps1))) -Hub https://handloom.example.com -Token <join-token>
 ```
 
-On every system the machine also needs at least one agent CLI that is signed in (Claude Code, Codex, OMP, Pi or OpenCode). Handloom never installs those for you: `handloom doctor` says in plain words what is missing and prints the official install line and the sign-in step (on Windows, install them in the Linux side). `handloom doctor --fix` installs `git` and `tmux` with the machine's package manager, after showing the command and asking. Already have the program? `handloom join https://handloom.example.com <join-token>` does the same. Other ways to install the program (Homebrew, packages, a container) are under [Install](#install).
+On every system the machine also needs at least one agent CLI that is signed in (Claude Code, Codex, OMP or Pi). Handloom never installs those for you: `handloom doctor` says in plain words what is missing and prints the official install line and the sign-in step (on Windows, install them in the Linux side). `handloom doctor --fix` installs `git` and `tmux` with the machine's package manager, after showing the command and asking. Already have the program? `handloom join https://handloom.example.com <join-token>` does the same. Other ways to install the program (Homebrew, packages, a container) are under [Install](#install).
 
 
 **3. Add profiles.** In the web UI: Profiles, Starter library, add a lead and a worker and choose their CLI. Or from the command line:
@@ -280,7 +280,6 @@ A profile names the CLI and where its model runs (cloud or local). Each CLI enfo
 | Codex | cloud models | no (always has a shell) | in its instructions | yes |
 | OMP | yes | no (always has a shell) | in its instructions | yes |
 | Pi | yes | no (always has a shell) | in its instructions | no |
-| OpenCode | yes | yes | in its instructions | yes |
 
 For a CLI that cannot refuse commands, "never run risky commands" becomes a standing rule in the agent's instructions: asked, not blocked, and the profile page says so.
 
@@ -306,7 +305,7 @@ For a CLI that cannot refuse commands, "never run risky commands" becomes a stan
 
 Handloom is used for real work by its author and is pre-1.0. Honest about what is and is not proven:
 
-- **Proven with real agents:** Claude Code, Codex, OMP, Pi and OpenCode as workers; Claude Code and OMP as leads; parallel workers; a forced merge conflict resolved by a lead; fully local jobs on a local model. Evidence is in [docs/evidence](docs/evidence) and [DECISIONS.md](DECISIONS.md).
+- **Proven with real agents:** Claude Code, Codex, OMP and Pi as workers; Claude Code and OMP as leads; parallel workers; a forced merge conflict resolved by a lead; fully local jobs on a local model. Evidence is in [docs/evidence](docs/evidence) and [DECISIONS.md](DECISIONS.md).
 - **Released:** signed multi-platform binaries, deb/rpm packages, a container image and a Homebrew formula (see [Install](#install)); version 0.1.2 adds search.
 - **Proven on a clean machine:** a Linux amd64 VPS with nothing of Handloom on it: install from a release, join, run the link as a service, register an agent, then `handloom uninstall --purge` left the machine identical to before.
 - **Not proven yet:** phone push against a real ntfy topic; macOS (the launchd service, the path and socket handling and the install script are checked by unit tests only; the link has only been run on Linux so far); Windows (`install.ps1` and the Windows build have not been run on a Windows machine).

@@ -138,7 +138,6 @@ func kindOptions() []kindOpt {
 		"codex":    "Codex: cloud models, sandboxed files and network, cannot refuse commands",
 		"omp":      "OMP: any model, including your local one; cannot refuse commands",
 		"pi":       "Pi: any model, including your local one; no web tool",
-		"opencode": "OpenCode: any model; refuses the shell commands you name",
 	}
 	var out []kindOpt
 	for _, k := range profile.Kinds {

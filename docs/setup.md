@@ -6,7 +6,7 @@ You need:
 
 - **A server** that is on all the time, with Docker. A small VPS is enough. This runs the hub.
 - **A domain name** you control (for example `handloom.example.com`), for https. The web UI refuses plain http on the internet. Without a domain, see "No domain" below.
-- **One or more machines** that will run agents (the server itself can be one). Each needs `git`, `tmux` and at least one agent CLI you are logged in to: Claude Code, Codex, Pi, OMP or OpenCode.
+- **One or more machines** that will run agents (the server itself can be one). Each needs `git`, `tmux` and at least one agent CLI you are logged in to: Claude Code, Codex, Pi or OMP.
 
 ## Stage 1: the hub, on the server
 
@@ -61,7 +61,7 @@ If the program is already installed, `handloom join https://handloom.example.com
 The check starts with one line, "Ready: this machine can run agents" or "Not ready yet: 2 things to do", and then gives each thing as a sentence and the exact step. Run it any time with `handloom doctor`.
 
 - **git or tmux missing.** `handloom doctor --fix` (and `handloom join` itself, on a terminal) shows the install command for this machine's package manager (apt, dnf, yum, pacman, apk, zypper or Homebrew) and asks `[y/N]` before running it. It uses `sudo` only if you are not root, and only after you say yes. With no terminal to ask on, it prints the commands and runs nothing.
-- **No agent program.** Handloom never installs these. The check prints the official install line for Claude Code, Codex or OpenCode and the sign-in step; do them, then run `handloom doctor` again.
+- **No agent program.** Handloom never installs these. The check prints the official install line for Claude Code, Codex, Pi or OMP and the sign-in step; do them, then run `handloom doctor` again.
 
 To take a machine out again: `handloom uninstall --purge` (see the README), then revoke it on the Machines page.
 

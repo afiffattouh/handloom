@@ -102,7 +102,7 @@ Verified live with Claude Code 2.1.299: the agent was refused an edit to an acce
 did not route around it; asked to make a change that broke a test, it was stopped twice and
 wrote `BLOCKED.md` instead of weakening the test.
 
-A shell command can still write a protected file, and OMP, Pi, OpenCode and Codex have no such
+A shell command can still write a protected file, and OMP, Pi and Codex have no such
 hooks. The gate is the real protection; the hooks make the honest path the easy one.
 
 ## Use it from

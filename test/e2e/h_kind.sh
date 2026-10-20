@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # A real agent of another CLI, started by Handloom from a profile, on one machine:
 #
-#   KIND=omp MODEL=gb10/qwen3.8-27b test/e2e/h_kind.sh      (also: KIND=pi, KIND=opencode)
+#   KIND=omp MODEL=gb10/qwen3.8-27b test/e2e/h_kind.sh      (also: KIND=pi)
 #
 # A profile (prompt, tools, a skill, a model) is stored on the hub, the agent is
 # spawned from it through the link (a tmux window the link opens), and the agent
@@ -11,7 +11,7 @@
 #   - and reports state to the hub.
 # One local-model agent at a time. Needs: go, tmux, the CLI, python3, curl.
 set -euo pipefail
-KIND="${KIND:?set KIND to omp, pi or opencode}"
+KIND="${KIND:?set KIND to omp or pi}"
 MODEL="${MODEL:?set MODEL, e.g. gb10/qwen3.8-27b}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 OUT="$ROOT/test/e2e/out/h-$KIND"
@@ -84,7 +84,6 @@ say "the model it ran on, from the CLI's own session log"
 case "$KIND" in
   omp)      LOGS="$HOME/.omp/agent/sessions" ;;
   pi)       LOGS="$HOME/.pi/agent/sessions" ;;
-  opencode) LOGS="$HOME/.local/share/opencode" ;;
 esac
 MN="${MODEL##*/}"
 found="$(grep -rl --include='*' -e "$MN" "$LOGS" 2>/dev/null | xargs -r ls -t 2>/dev/null | head -1 || true)"

@@ -31,7 +31,6 @@ var headlessCommands = map[string][]string{
 	"codex":    {"codex", "exec", "resume", "{session_id}", "{prompt}"},
 	"pi":       {"pi", "-p", "--session", "{session_id}", "{prompt}"},
 	"omp":      {"omp", "-p", "--resume", "{session_id}", "{prompt}"},
-	"opencode": {"opencode", "run", "--session", "{session_id}", "{prompt}"},
 }
 
 // LoadHeadlessOverrides reads $HANDLOOM_HOME/headless.json (next to the link's

@@ -37,7 +37,7 @@
         <h3><span class="mono muted">#{{.ID}}</span> {{.Title}}</h3>
         <p class="desc">{{if .Owner}}Helper <strong>{{.Owner}}</strong>{{if .Live}} · {{.Live}}{{end}}{{else}}Nobody has taken it yet{{end}}{{if .DependsOn}} · after {{range .DependsOn}}#{{.}} {{end}}{{end}}</p>
       </div><div class="acts">
-        {{if eq .Status "done"}}<span class="badge success">Used</span>{{else if eq .Status "submitted"}}<span class="badge info">Ready for you</span>{{else if eq .Status "claimed"}}<span class="badge warning"><i class="dot"></i>Working</span>{{else if eq .Status "cancelled"}}<span class="badge outline">Stopped</span>{{else}}<span class="badge">{{.Status}}</span>{{end}}
+        {{if eq .Status "done"}}<span class="badge success" {{if .AcceptedBy}}title="Accepted by {{.AcceptedBy}}"{{end}}>Used</span>{{if .AcceptedBy}}<span class="desc">accepted by {{.AcceptedBy}}</span>{{end}}{{else if eq .Status "submitted"}}<span class="badge info">Ready for you</span>{{else if eq .Status "claimed"}}<span class="badge warning"><i class="dot"></i>Working</span>{{else if eq .Status "cancelled"}}<span class="badge outline">Stopped</span>{{else}}<span class="badge">{{.Status}}</span>{{end}}
         {{if .Rejects}}<span class="badge warning" title="Its work was sent back; after three times it stops and you are asked">sent back {{.Rejects}}×</span>{{end}}
         {{if .Check}}{{if .CheckOK}}<span class="badge success">Check passed</span>{{else}}<span class="badge destructive">{{.Words}}</span>{{end}}{{end}}
       </div></div>

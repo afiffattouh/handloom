@@ -508,6 +508,9 @@ func TestTheJobPageShowsWhatChangedAndLetsAPersonActOnIt(t *testing.T) {
 	if got := e.apiTask(hum, t1.ID); got.Status != "done" {
 		t.Fatalf("after accept: %+v", got)
 	}
+	if body := e.req("GET", fmt.Sprintf("/jobs/%d", j.ID), nil, c, nil).body; !strings.Contains(body, "accepted by ") {
+		t.Error("the job page does not say who accepted the task")
+	}
 	// A task that is another job's cannot be reached through this job.
 	if r := e.req("POST", fmt.Sprintf("/jobs/%d/tasks/%d/cancel", j.ID+5, t1.ID), url.Values{"csrf": {tok}}, c, nil); r.status == 303 {
 		t.Error("a task was stopped through the wrong job")

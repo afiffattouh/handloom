@@ -91,3 +91,11 @@ func TestAJobShowsWhereItStandsThroughTheAPI(t *testing.T) {
 		t.Fatalf("closed: %+v", got.Progress)
 	}
 }
+
+func TestAcceptorWords(t *testing.T) {
+	for in, want := range map[string]string{"human:afif": "afif", "agent:lead-9": "the lead lead-9", "": "", "admin": "admin"} {
+		if got := acceptorWords(in); got != want {
+			t.Errorf("acceptorWords(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

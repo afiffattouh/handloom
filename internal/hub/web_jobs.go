@@ -274,6 +274,21 @@ type taskView struct {
 	IsPage   map[string]bool
 	CanWatch bool   // the owner's terminal can be read from here
 	Live     string // what the owner is doing, in a word
+	// AcceptedBy says who accepted the task, from the audit log: a person's name, or a helper's.
+	AcceptedBy string
+}
+
+// acceptorWords turns an audit actor ("human:afif", "agent:lead-9") into words.
+func acceptorWords(actor string) string {
+	switch {
+	case strings.HasPrefix(actor, "agent:"):
+		return "the lead " + strings.TrimPrefix(actor, "agent:")
+	case strings.HasPrefix(actor, "human:"):
+		return strings.TrimPrefix(actor, "human:")
+	case actor == "":
+		return ""
+	}
+	return actor
 }
 
 // diffLine is one line of a diff and how to colour it.
@@ -392,6 +407,12 @@ func (q *webReq) jobPage(status int, errMsg string, id int64) error {
 			tv.Result, tv.Lines, tv.IsPage = res, diffLines(res.Diff), map[string]bool{}
 			for _, p := range res.Pages {
 				tv.IsPage[p] = true
+			}
+		}
+		if tk.status == api.StatusDone {
+			var actor string
+			if err := q.c.tx.QueryRow(`SELECT actor FROM audit WHERE action = 'task.accept' AND target = ? ORDER BY seq DESC LIMIT 1`, tk.target()).Scan(&actor); err == nil {
+				tv.AcceptedBy = acceptorWords(actor)
 			}
 		}
 		if tk.owner.Valid && (tk.status == api.StatusClaimed || tk.status == api.StatusSubmitted) {

@@ -115,22 +115,40 @@ Done:
 - **Words and order:** Inbox is first and is where sign-in lands; "Command center" is now "Overview"; the job form offers `./check (the kit)`.
 
 Next, in the order proposed (2026-10-20):
-1. **Look at the pages in a real browser.** The job page, the "Just ask" card, the Projects page and the terminal width fix have been tested and read but not seen by the builder (no web password). A short walk-through by the owner, or a screenshot pass, before more is built on them.
-2. **Trial with three people** (a team member, a second owner, someone playing the client). Four tasks: add a computer, ask for a small change, decide whether to use it, undo it. Record where each stops. The ratings in the review are replaced by what is seen.
-3. **Web button for drafting tests, and a sealed-task picker.** The hub cannot read a spec that lives on a computer's local branch, so the link must first report which `task/*` branches it holds.
-4. **Delete and tidy:** no way yet to remove a project, an agent or a job; idle helper terminals pile up in the link's tmux server; the Dokploy key and two test repositories await cleanup.
-5. **Cost per ask** on the review page, then the **spend cap** per job (needs prices entered; parked by the owner, 2026-10-18).
-6. **Plain words, the rest:** the other pages still use agent/machine words in places.
-7. **Agency track:** preview step in the handover, and `MAINTAIN.md` for the operator.
-8. **A kit download for people without Handloom** (a release asset and a one-line install exist; confirm the path on a stock Mac and on Windows).
-9. **Client view,** only after roles per project and a security review of the hub.
-10. **A second kit,** when a real project needs it. The shared core is split out then.
+1. **Pi replaces OpenCode** (owner's decision, 2026-10-20: "focus on Pi and OMP, ditch OpenCode all together"). Remove the `opencode` agent kind, its adapter and plugin, its usage reader, its setup and doctor steps, and its words in the docs; move the `coder` starter and any live profile that used it to Pi. Pi and OMP share one extension API, so `pi/handloom.ts` already serves both. Pi can also enforce per-command limits with an extension, which `CapsFor` now reports as "cannot enforce" for both.
+2. **Tidy:** archive (not delete) finished jobs, retired helpers and old projects, with a "Show archived" toggle and Restore. Drops them from lists, counts and the Inbox; history in the audit log stays whole. The Dokploy key and two test repositories await cleanup.
+3. **Handloom side of the product-development stages** (the kit's design, below). Items that can be done now, from the factory-kit handover of 2026-10-20: align `product-manager`'s write scope with the kit (`specs/**` and `product/**`, not `docs/specs/**`); the OMP `--thinking` level does nothing (OMP 18.4.10 sends `enable_thinking: true` and no `reasoning_effort`, so every OMP worker runs at the slowest setting; the fix is in the owner's OMP `models.yml`, so do not rely on `--thinking` for speed or cost); keep `qa-tester` and the build profiles as separate jobs. Waiting on kit phases: write scopes for `research/**`, `design/**`, `product/**` (with phase 2); one starter job brief per stage and a pending-gate card in the Inbox (phase 3); a confidentiality flag on evidence that limits a job to local profiles.
+4. **Look at the pages in a real browser,** now partly covered: pages can be rendered headless here, so screenshots of each page are a quick check; a person still has to walk the live hub.
+5. **Trial with three people** (a team member, a second owner, someone playing the client). Four tasks: add a computer, ask for a small change, decide whether to use it, undo it. Record where each stops. The ratings in the review are replaced by what is seen. Get started and Help are in this trial.
+6. **Web button for drafting tests, and a sealed-task picker.** The hub cannot read a spec that lives on a computer's local branch, so the link must first report which `task/*` branches it holds.
+7. **Cost per ask** on the review page, then the **spend cap** per job (needs prices entered; parked by the owner, 2026-10-18).
+8. **Plain words, the rest:** the other pages still use agent/machine words in places.
+9. **Agency track:** preview step in the handover, and `MAINTAIN.md` for the operator.
+10. **A kit download for people without Handloom** (a release asset and a one-line install exist; confirm the path on a stock Mac and on Windows).
+11. **Client view,** only after roles per project and a security review of the hub.
+12. **A second kit,** when a real project needs it. The shared core is split out then.
 
 Known limits: settings hooks in an existing `.claude/settings.json` are not merged by the hub's seed (a note is shown); hosted projects refuse a push of `task/*`, so the sealed-task flow needs a computer's own copy; a drafted test only runs under `./check` once the project's `acceptance` stage is set.
 
 Closed: a project the hub holds cannot take a push to `main`, so the hub adds the kit itself. Projects page (or `handloom project checks NAME [--preset web]`) prepares the checks on a private side ref (`refs/handloom/checks`, which machines cannot push to), shows the files and `factory.toml`, and only a person's "Put on the main branch" (`--apply`) moves `main`, refused if `main` moved since. Applying also sets the project's check to `./check` when it had none. The hub has no Python, so `internal/hub/kitseed.go` is `factory init` written again in Go over the embedded kit files; `TestSeedKitMatchesFactoryInit` runs the real one and compares byte for byte, so they cannot drift. Not covered: a project held elsewhere (GitHub) still uses `handloom kit init` on a copy.
 
 Parked: billing for agent use; more presets until a project needs one; multi-task specs.
+
+## Product development stages (the kit's design, 2026-10-20)
+
+From `factory-kit/docs/product-dev-review/SYNTHESIS.md` and the handover beside it. Design only: no kit code is written yet, and each phase updates the kit's contract when it lands. The division of labour does not change: **the kit says what must be true of a file; Handloom says who writes it.** The kit runs no agent and calls no model; Handloom runs every role as a profile and a job. No new runner on either side.
+
+- **Nine stages, five owner gates:** intake; frame (G1, worth discovering?); evidence; concept (G2, build, pivot, park or kill); shape, meaning scenarios, journeys, flows and wireframes (G3, is this what we build?); specify; build, which is today's sealed-task loop; verify and release (G4, ship?); learn (G5, keep, iterate or kill).
+- **Four tiers choose the stages:** T0 a fix (today's flow, unchanged), T1 a feature (short 1, 4 and 8), T2 a product (all nine), T3 a probe (stages 0 to 3 and a throwaway prototype that never merges).
+- **Rules every reviewer reached alone:** agents never create user evidence (session and interview files are owner-only, with source tags and word-for-word quotes); one chain of IDs checked by code; only the owner decides at a gate ("park" and "kill" are legal answers); the author never reviews its own work, and the local model works on given material and never gives a verdict; tests are written in a separate session before the build.
+- **Kit phases:** 1 the bridge (`## Covers: AC-n` in specs, traced in `task seal` and the gate); 2 evidence and a stage checker (`factory evidence add`, `research/` protection, `product.py`); 3 seals and status (`factory stage seal|status`, `factory product new --tier`); 4 design (`design/` protection, trace rules, `ui.py`); 5 feature level (journey tests, Playwright checks).
+- **Handloom's side:** a product stage is an ordinary task whose spec's `## Checks` runs the stage check, so no new verify mode. Handloom needs write scopes for the new folders, one starter brief per stage, a pending gate shown in the Inbox (only a person seals, on the base branch outside job worktrees), and confidential evidence kept on local profiles. Stage logic, ID checks and seals stay in the kit, not in Handloom.
+- **Already done on this side, though the handover calls them open:** exit 3 shows as "blocked: a person decides" and a lead is told not to retry it; `HANDLOOM_BASE`, `HANDLOOM_SPEC` and `HANDLOOM_MODE` are passed into the check (`verifyEnv`).
+- **Open with the owner:** the layout split by lifetime (`research/` and `design/` product-wide, `product/<slug>/` per feature), which vendor reviews screenshots (Codex is the likely choice), and the pilot feature for phase 1.
+
+## Agent programs
+
+Pi and OMP are the local agents; Claude Code and Codex are the cloud ones. **OpenCode is retired** (owner, 2026-10-20), removed from GB10 and the other computers. Its adapter was a version-1 plugin that the current version cannot load, and the usage reader read a database that no longer exists. Pi and OMP share one extension API (`pi/handloom.ts`); a guard extension ran unchanged in both on 2026-10-20, blocking a command by pattern and rewriting the final answer.
 
 ## Risks
 

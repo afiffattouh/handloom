@@ -63,3 +63,7 @@ Built: a project the hub holds itself (a bare repository per project under the d
 ## Working on one project together (D103)
 
 Left undone: pull a teammate's published branch into a clone from Handloom; run one job's agents on several machines; warn on overlap by changed files rather than by repository; an MCP tool for publishing (kept out on purpose: it is an approval-class action).
+
+## Where the build stands (2026-10-20)
+
+The kit, solo asks, drafted tests, checks added or updated from the hub, and the rebuilt job page are live. The ordered list of what comes next, with the reason for each, is under "Next" in `docs/direction/modular-design.md`. New since the last note here: who accepted a task is shown on the job page; deleting projects, agents and jobs is still not possible.

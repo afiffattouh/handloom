@@ -13,6 +13,7 @@
 <script src="/static/theme.js"></script>
 <script src="/static/shell.js" defer></script>
 <script src="/static/copy.js" defer></script>
+{{if eq .Active "help"}}<script src="/static/help.js" defer></script>{{end}}
 </head>
 <body>
 {{template "icons"}}
@@ -39,7 +40,11 @@
         {{if eq .Human.Role "owner"}}<li><a class="sb-btn" href="/settings" title="Settings"{{if eq .Active "settings"}} aria-current="page"{{end}}><svg class="icon"><use href="#i-settings"/></svg><span>Settings</span></a></li>{{end}}
       </ul></div>
       <div class="sb-group"><ul class="sb-menu">
-        <li><a class="sb-btn" href="/help" title="Help"{{if eq .Active "help"}} aria-current="page"{{end}}><svg class="icon"><use href="#i-circle-help"/></svg><span>Help</span></a></li>
+        <li><a class="sb-btn" href="/help" title="Help"{{if eq .Active "help"}} aria-current="page"{{end}}><svg class="icon"><use href="#i-circle-help"/></svg><span>Help</span></a>
+          {{if eq .Active "help"}}<ul class="sb-sub" aria-label="On this page">
+            <li><a href="#cycle">The cycle</a></li><li><a href="#order">Order of things</a></li><li><a href="#parts">The parts</a></li>
+            <li><a href="#daily">Every day</a></li><li><a href="#tips">Tips</a></li><li><a href="#faq">Questions</a></li>
+          </ul>{{end}}</li>
       </ul></div>
     </nav>
   </aside>

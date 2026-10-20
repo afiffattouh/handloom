@@ -467,3 +467,37 @@ label.intent { align-items: flex-start; }
 .diff .meta { font-weight: 600; }
 .inline-details { display: inline-block; vertical-align: top; }
 .inline-details > summary { list-style: none; cursor: pointer; }
+
+/* Help page */
+.sb-sub { list-style: none; margin: 2px 0 4px 20px; padding: 0 0 0 8px; display: flex; flex-direction: column; gap: 1px; }
+.sb-sub a { display: block; padding: 4px 8px; border-radius: 6px; font-size: 13px; color: var(--muted-foreground); text-decoration: none; }
+.sb-sub a:hover { background: var(--accent); color: var(--foreground); }
+.sb-sub a[aria-current] { color: var(--foreground); font-weight: 500; background: var(--accent); }
+html[data-sidebar="collapsed"] .sb-sub { display: none; }
+.hsec { scroll-margin-top: 72px; gap: 14px; }
+.hsec h3 { font-size: 13px; font-weight: 600; color: var(--muted-foreground); text-transform: none; margin: 6px 0 0; }
+.hgrid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; }
+.hcard { position: relative; background: var(--card); color: var(--card-foreground); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.hcard .desc { font-size: 13px; line-height: 1.55; }
+.hic, .cy-ic { width: 32px; height: 32px; border-radius: 8px; background: var(--muted); color: var(--primary); display: grid; place-items: center; }
+.hic .icon, .cy-ic .icon { width: 17px; height: 17px; }
+.hnum { position: absolute; top: 12px; right: 14px; font-size: 22px; font-weight: 600; color: var(--border); font-variant-numeric: tabular-nums; }
+.hsteps { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+.hsteps .hcard { padding-right: 44px; }
+.cycle { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0; counter-reset: cy; }
+.cycle li { position: relative; display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; background: var(--card); border: 1px solid var(--border); margin-left: -1px; min-width: 0; }
+.cycle li:first-child { border-radius: var(--radius) 0 0 var(--radius); margin-left: 0; }
+.cycle li:last-child { border-radius: 0 var(--radius) var(--radius) 0; }
+.cycle li + li::before { content: "›"; position: absolute; left: -7px; top: 22px; width: 14px; height: 14px; line-height: 12px; text-align: center; border-radius: 50%; background: var(--card); border: 1px solid var(--border); color: var(--muted-foreground); font-size: 13px; }
+.cycle .desc { font-size: 13px; }
+@media (max-width: 900px) { .cycle { grid-template-columns: 1fr; } .cycle li, .cycle li:first-child, .cycle li:last-child { border-radius: 0; margin: -1px 0 0; } .cycle li:first-child { border-radius: var(--radius) var(--radius) 0 0; margin: 0; } .cycle li:last-child { border-radius: 0 0 var(--radius) var(--radius); } .cycle li + li::before { content: none; } }
+.hdiagram { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; }
+.hdiagram svg { display: block; width: 100%; min-width: 640px; height: auto; }
+.dg-box { fill: var(--card); stroke: var(--border); stroke-width: 1.5; }
+.dg-wide { fill: var(--muted); }
+.dg-acc { fill: var(--muted); stroke: var(--primary); }
+.dg-ok { fill: var(--success-soft); stroke: var(--success); }
+.dg-t { fill: var(--foreground); font-size: 14px; font-weight: 600; font-family: var(--font); }
+.dg-m { fill: var(--muted-foreground); font-size: 12px; font-family: var(--font); }
+.dg-line { stroke: var(--muted-foreground); stroke-width: 1.5; fill: none; }
+.dg-head { fill: var(--muted-foreground); }

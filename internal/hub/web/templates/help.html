@@ -1,89 +1,118 @@
 {{define "content"}}
-<div class="page-head"><div><h1>Help</h1><p class="desc">How Handloom fits together and how to work with it day to day. Five minutes to read; the questions at the end cover what people usually get stuck on.</p></div>
-  <div class="tabs" role="group" aria-label="On this page"><a href="#order">Order of things</a><a href="#parts">The parts</a><a href="#daily">Every day</a><a href="#tips">Tips</a><a href="#faq">Questions</a></div></div>
+<div class="page-head"><div><h1>Help</h1><p class="desc">How Handloom fits together and how to work with it day to day. Five minutes to read; the questions at the end cover what people usually get stuck on.</p></div></div>
 
-<section class="card" aria-labelledby="short"><div class="ch"><div><h2 id="short">The short version</h2></div></div>
-  <div class="cc stack">
-    <p class="text">Handloom lets you give work to coding helpers (AI agents that run in a terminal on one of your computers), then <strong>look at what they did before any of it is used</strong>. The helpers never change your project by themselves. A person reads the result, and a check that Handloom runs itself says whether it passes.</p>
-    <p class="text">You ask for something, a helper does it on a copy, you see the files that changed and the check result, and you press <em>Use this result</em> or <em>Send back</em> with a note.</p>
+<section class="section hsec" id="cycle" aria-labelledby="h-cycle">
+  <h2 id="h-cycle">The cycle</h2>
+  <p class="desc">Every piece of work goes the same way. Nothing reaches your project until a person says so.</p>
+  <ol class="cycle">
+    <li><span class="cy-ic"><svg class="icon"><use href="#i-message-square"/></svg></span><strong>Ask</strong><span class="desc">Say what you want, in a sentence.</span></li>
+    <li><span class="cy-ic"><svg class="icon"><use href="#i-terminal"/></svg></span><strong>Work</strong><span class="desc">A helper does it in its own copy.</span></li>
+    <li><span class="cy-ic"><svg class="icon"><use href="#i-circle-check"/></svg></span><strong>Check</strong><span class="desc">The project's checks run on the result.</span></li>
+    <li><span class="cy-ic"><svg class="icon"><use href="#i-search"/></svg></span><strong>Review</strong><span class="desc">You read what changed.</span></li>
+    <li><span class="cy-ic"><svg class="icon"><use href="#i-git-merge"/></svg></span><strong>Use</strong><span class="desc">You accept it, then merge it.</span></li>
+  </ol>
+</section>
+
+<section class="section hsec" id="order" aria-labelledby="h-order">
+  <h2 id="h-order">The order of things</h2>
+  <p class="desc">The first time, once. Steps 1 to 3 are usually done by whoever runs the hub.</p>
+  <ol class="hgrid hsteps">
+    <li class="hcard"><span class="hnum">1</span><span class="hic"><svg class="icon"><use href="#i-server"/></svg></span><strong>Add a computer</strong><span class="desc">On <a href="/devices">Computers</a>, add the machine that will run helpers and run the one command it shows. It needs git, tmux and an agent program you are signed in to (Claude Code, Codex, OMP, OpenCode or Pi).</span></li>
+    <li class="hcard"><span class="hnum">2</span><span class="hic"><svg class="icon"><use href="#i-file-user"/></svg></span><strong>Add a profile</strong><span class="desc">On <a href="/profiles">Profiles</a>, pick one from the starter library or make your own. It says which agent program a helper uses and what it may do. Keep one that only reads, and one that writes code.</span></li>
+    <li class="hcard"><span class="hnum">3</span><span class="hic"><svg class="icon"><use href="#i-library"/></svg></span><strong>Add a project</strong><span class="desc">On <a href="/projects">Projects</a>, let Handloom hold it, or attach one from GitHub or another host. Then have your computer fetch its own copy.</span></li>
+    <li class="hcard"><span class="hnum">4</span><span class="hic"><svg class="icon"><use href="#i-circle-check"/></svg></span><strong>Add the checks</strong><span class="desc">On the same page, <em>Add checks</em> prepares a <code>./check</code>. It shows you the files first; nothing changes until you press <em>Put on the main branch</em>.</span></li>
+    <li class="hcard"><span class="hnum">5</span><span class="hic"><svg class="icon"><use href="#i-play"/></svg></span><strong>Ask for something small</strong><span class="desc">On <a href="/jobs">Jobs</a>, use <em>Just ask</em>: a sentence, a project, Start. Watch the helper work, read the result, accept or send back.</span></li>
+    <li class="hcard"><span class="hnum">6</span><span class="hic"><svg class="icon"><use href="#i-git-merge"/></svg></span><strong>Finish</strong><span class="desc">When the work is what you wanted, merge it into the project. Until you do, the project itself is untouched.</span></li>
+  </ol>
+</section>
+
+<section class="section hsec" id="parts" aria-labelledby="h-parts">
+  <h2 id="h-parts">The parts</h2>
+  <p class="desc">Where things run. Your code is worked on at the computers, not on the hub.</p>
+  <div class="tw hdiagram"><svg viewBox="0 0 800 250" role="img" aria-label="You use the hub in a browser. The hub talks to computers. On each computer a link starts helpers, which work on a copy of the project and are checked.">
+    <defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="dg-head"/></marker></defs>
+    <rect class="dg-box" x="10" y="85" width="150" height="80" rx="10"/>
+    <text class="dg-t" x="85" y="120" text-anchor="middle">You</text>
+    <text class="dg-m" x="85" y="142" text-anchor="middle">browser or terminal</text>
+    <line class="dg-line" x1="160" y1="125" x2="215" y2="125" marker-end="url(#arr)"/>
+    <rect class="dg-box dg-acc" x="220" y="70" width="170" height="110" rx="10"/>
+    <text class="dg-t" x="305" y="108" text-anchor="middle">Hub</text>
+    <text class="dg-m" x="305" y="130" text-anchor="middle">jobs, results, people,</text>
+    <text class="dg-m" x="305" y="148" text-anchor="middle">the record of who did what</text>
+    <line class="dg-line" x1="390" y1="125" x2="445" y2="125" marker-end="url(#arr)" marker-start="url(#arr)"/>
+    <rect class="dg-box dg-wide" x="450" y="10" width="340" height="230" rx="10"/>
+    <text class="dg-t" x="470" y="38">Computer</text>
+    <text class="dg-m" x="470" y="56">the link starts and watches everything below</text>
+    <rect class="dg-box" x="470" y="72" width="140" height="62" rx="8"/>
+    <text class="dg-t" x="540" y="100" text-anchor="middle">Helper</text>
+    <text class="dg-m" x="540" y="118" text-anchor="middle">an agent in a terminal</text>
+    <line class="dg-line" x1="610" y1="103" x2="640" y2="103" marker-end="url(#arr)"/>
+    <rect class="dg-box" x="645" y="72" width="130" height="62" rx="8"/>
+    <text class="dg-t" x="710" y="100" text-anchor="middle">Project copy</text>
+    <text class="dg-m" x="710" y="118" text-anchor="middle">its own branch</text>
+    <rect class="dg-box dg-ok" x="470" y="160" width="305" height="62" rx="8"/>
+    <text class="dg-t" x="622" y="188" text-anchor="middle">The check</text>
+    <text class="dg-m" x="622" y="206" text-anchor="middle">run by the computer, not by the helper</text>
+    <line class="dg-line" x1="710" y1="134" x2="710" y2="158" marker-end="url(#arr)"/>
+  </svg></div>
+  <div class="hgrid">
+    <div class="hcard"><span class="hic"><svg class="icon"><use href="#i-server"/></svg></span><strong>Computer</strong><span class="desc">A machine you connected. A small program on it (the link) starts helpers, keeps their copies of the project and runs the checks.</span></div>
+    <div class="hcard"><span class="hic"><svg class="icon"><use href="#i-library"/></svg></span><strong>Project</strong><span class="desc">A code repository. Each computer keeps its own copy. Held by Handloom, or attached from elsewhere.</span></div>
+    <div class="hcard"><span class="hic"><svg class="icon"><use href="#i-file-user"/></svg></span><strong>Profile</strong><span class="desc">A recipe for a helper: which agent program, what it may touch, what it was told. Every change makes a new version.</span></div>
+    <div class="hcard"><span class="hic"><svg class="icon"><use href="#i-bot"/></svg></span><strong>Helper</strong><span class="desc">A running agent made from a profile, in a terminal on a computer. You can watch its screen from its task.</span></div>
+    <div class="hcard"><span class="hic"><svg class="icon"><use href="#i-briefcase"/></svg></span><strong>Job and task</strong><span class="desc">A job is something you asked for. It is split into tasks, each done by one helper in its own copy. A plain ask is one task.</span></div>
+    <div class="hcard"><span class="hic"><svg class="icon"><use href="#i-user-round"/></svg></span><strong>Lead</strong><span class="desc">A helper that plans a bigger job, hands out tasks and reviews them. Ask for one when a job has several steps.</span></div>
+    <div class="hcard"><span class="hic"><svg class="icon"><use href="#i-circle-check"/></svg></span><strong>Checks</strong><span class="desc">A <code>./check</code> in the project. Its answer comes from the machine, not from the helper's own claim.</span></div>
+    <div class="hcard"><span class="hic"><svg class="icon"><use href="#i-inbox"/></svg></span><strong>Inbox</strong><span class="desc">Everything waiting for you: results to look at, questions from helpers, work that stopped.</span></div>
   </div>
 </section>
 
-<section class="card" aria-labelledby="order"><div class="ch"><div><h2 id="order">The order of things</h2><p class="desc">The first time, once. Steps 1 to 3 are usually done by whoever runs the hub.</p></div></div>
-  <div class="cc stack">
-    <ol class="guide">
-      <li><strong>Add a computer.</strong> On <a href="/devices">Computers</a>, add the machine that will run helpers and run the one command it shows. It needs git, tmux and at least one agent program you are signed in to (Claude Code, Codex, OMP, OpenCode or Pi).</li>
-      <li><strong>Add a profile.</strong> On <a href="/profiles">Profiles</a>, pick one from the starter library or make your own. A profile says which agent program a helper uses, what it may do, and what it should know. Keep one that only reads and reports, and one that writes code.</li>
-      <li><strong>Add a project.</strong> On <a href="/projects">Projects</a>, either let Handloom hold the project (it keeps the repository itself), or attach one you already have on GitHub or another host. Then have your computer fetch its own copy.</li>
-      <li><strong>Add the checks.</strong> On the same page, <em>Add checks</em> prepares a <code>./check</code> that tests, lints and guards the project. It shows you the files first, and nothing changes until you press <em>Put on the main branch</em>. Without checks, Handloom can still run the work, but it has nothing objective to say about the result.</li>
-      <li><strong>Ask for something small.</strong> On <a href="/jobs">Jobs</a>, use <em>Just ask</em>: a sentence, a project, and Start. Watch the helper work, read the result, accept or send back.</li>
-      <li><strong>Finish.</strong> When the work is what you wanted, merge it into the project. Until you do, the project itself is untouched.</li>
-    </ol>
+<section class="section hsec" id="daily" aria-labelledby="h-daily">
+  <h2 id="h-daily">Every day</h2>
+  <h3>Pick how much planning you want</h3>
+  <div class="hgrid">
+    <div class="hcard"><span class="hic"><svg class="icon"><use href="#i-play"/></svg></span><strong>One clear change</strong><span class="desc"><em>Just ask</em>. One helper, no lead. Fastest; good for small, well-described work.</span></div>
+    <div class="hcard"><span class="hic"><svg class="icon"><use href="#i-user-round"/></svg></span><strong>Bigger or vague</strong><span class="desc">Tick <em>Have a lead plan it</em>, and <em>Show me the steps first</em> so you approve the plan before anything runs.</span></div>
+    <div class="hcard"><span class="hic"><svg class="icon"><use href="#i-file-user"/></svg></span><strong>A written definition of done</strong><span class="desc">Use the kit's tasks: write a spec with its risks, have a <em>different</em> helper draft failing tests (<code>handloom job draft-tests</code>), keep the ones you want, then seal the task.</span></div>
+  </div>
+  <h3>Reading a result</h3>
+  <div class="hgrid">
+    <div class="hcard"><strong>What changed</strong><span class="desc">Files, lines added and removed, the full diff. A changed web page opens in a safe preview.</span></div>
+    <div class="hcard"><strong>The check</strong><span class="desc">Green means the project's own tests and rules passed. It does not mean the work is the right work: read the diff.</span></div>
+    <div class="hcard"><strong>Your options</strong><span class="desc"><em>Use this result</em>, <em>Send back</em> with a note (after three the task stops and asks you), <em>Try again with another profile</em>, or <em>Stop this task</em>. A finished task says who accepted it.</span></div>
+  </div>
+  <h3>When something stops</h3>
+  <p class="text">Look in the <a href="/inbox">Inbox</a> first. It says in words what is waiting and what the options are. A stuck helper can be watched live from its task; a computer that went quiet shows on <a href="/devices">Computers</a>.</p>
+</section>
+
+<section class="section hsec" id="tips" aria-labelledby="h-tips">
+  <h2 id="h-tips">Tips</h2>
+  <div class="hgrid tips">
+    <div class="hcard"><strong>Start small</strong><span class="desc">Your first ask should be a change you could review in two minutes.</span></div>
+    <div class="hcard"><strong>Say what not to do</strong><span class="desc">"Change only the footer; leave the navigation alone" gives a smaller diff and a faster review.</span></div>
+    <div class="hcard"><strong>Describe done, not steps</strong><span class="desc">"Every page shows the year in its footer" beats a list of edits.</span></div>
+    <div class="hcard"><strong>Don't trust stated facts</strong><span class="desc">Ask the helper to use what is in the project, and read for anything it invented.</span></div>
+    <div class="hcard"><strong>Test and build by different helpers</strong><span class="desc">The one who writes the code should not also decide what counts as done.</span></div>
+    <div class="hcard"><strong>Keep checks honest</strong><span class="desc">A stage left empty in <code>factory.toml</code> (for example <code>acceptance</code>) is skipped. Fill it in once you have tests for it.</span></div>
+    <div class="hcard"><strong>Update the checks now and then</strong><span class="desc">When Projects shows an update, <em>Prepare an update</em> brings the kit up to date, with the same look-first step.</span></div>
+    <div class="hcard"><strong>You can always say no</strong><span class="desc">Nothing reaches the main branch without you. A result that looks wrong costs nothing to refuse.</span></div>
   </div>
 </section>
 
-<section class="card" aria-labelledby="parts"><div class="ch"><div><h2 id="parts">The parts, in plain words</h2></div></div>
-  <div class="cc flush"><div class="rows">
-    <div class="row"><div class="grow"><strong>Hub</strong><span class="desc">This web page and the system behind it. It keeps the list of jobs, who did what, the results and the people. It does not run helpers itself.</span></div></div>
-    <div class="row"><div class="grow"><strong>Computer</strong><span class="desc">A machine you connected. A small program on it (the link) starts helpers, keeps their copies of the project, and runs the checks. Your code is worked on there, not on the hub.</span></div></div>
-    <div class="row"><div class="grow"><strong>Project</strong><span class="desc">A code repository. Each computer keeps its own copy. Held by Handloom, or attached from elsewhere.</span></div></div>
-    <div class="row"><div class="grow"><strong>Profile</strong><span class="desc">A recipe for a helper: which agent program, what it may touch, what it was told. A new version is made each time you change it.</span></div></div>
-    <div class="row"><div class="grow"><strong>Helper</strong><span class="desc">A running agent made from a profile, in a terminal on a computer. You can watch its screen on its task.</span></div></div>
-    <div class="row"><div class="grow"><strong>Job and task</strong><span class="desc">A job is something you asked for. It is split into tasks, each one done by one helper in its own copy. With <em>Just ask</em> and no lead, the job is one task for one helper.</span></div></div>
-    <div class="row"><div class="grow"><strong>Lead</strong><span class="desc">A helper that plans a bigger job, hands out tasks and reviews them. You can ask for one when a job has several steps.</span></div></div>
-    <div class="row"><div class="grow"><strong>Checks</strong><span class="desc">A <code>./check</code> in the project. Handloom runs it on a task's result and on the merge. Its answer comes from the machine, not from the helper's own claim.</span></div></div>
-    <div class="row"><div class="grow"><strong>Inbox</strong><span class="desc">Everything waiting for you: results to look at, questions from helpers, work that stopped.</span></div></div>
-  </div></div>
-</section>
-
-<section class="card" aria-labelledby="daily"><div class="ch"><div><h2 id="daily">Working with it every day</h2></div></div>
-  <div class="cc stack">
-    <h3>Pick how much planning you want</h3>
-    <ul class="plain">
-      <li><strong>One clear change:</strong> <em>Just ask</em>. One helper, no lead. Fastest, good for small and well-described work.</li>
-      <li><strong>Bigger or vague:</strong> tick <em>Have a lead plan it</em>, and <em>Show me the steps first</em> so you approve the plan before anything runs.</li>
-      <li><strong>Work that must meet a written definition of done:</strong> use the project kit's tasks. Write a spec with its risks, have a <em>different</em> helper draft failing tests (<code>handloom job draft-tests</code>), read them, keep the ones you want, then seal the task.</li>
-    </ul>
-    <h3>Reading a result</h3>
-    <ul class="plain">
-      <li>Open the job. Each task shows <strong>what changed</strong> (files, lines added and removed, the full diff), the <strong>check</strong> result, and the helper's note.</li>
-      <li>A green check means the project's own tests and rules passed. It does not mean the work is the right work: read the diff.</li>
-      <li><strong>Use this result</strong> accepts it. <strong>Send back</strong> returns it with your note; after three send-backs the task stops and asks you what to do. <strong>Try again with another profile</strong> hands it to a different kind of helper. <strong>Stop this task</strong> ends it.</li>
-      <li>A finished task says who accepted it.</li>
-    </ul>
-    <h3>When something stops</h3>
-    <p class="text">Look in the <a href="/inbox">Inbox</a> first. It says in words what is waiting and what the options are. A helper that is stuck can be watched live from its task; a computer that went quiet shows on <a href="/devices">Computers</a>.</p>
-  </div>
-</section>
-
-<section class="card" aria-labelledby="tips"><div class="ch"><div><h2 id="tips">Tips</h2></div></div>
-  <div class="cc stack">
-    <ul class="plain">
-      <li><strong>Start small.</strong> Your first ask should be a change you could review in two minutes.</li>
-      <li><strong>Say what not to do.</strong> "Change only the footer; leave the navigation alone" gives a smaller diff and a faster review.</li>
-      <li><strong>Describe done, not steps.</strong> "Every page shows the year in its footer" beats a list of edits.</li>
-      <li><strong>Don't trust a helper to state facts.</strong> Ask it to use what is in the project, and read for anything it invented.</li>
-      <li><strong>Use a different helper to write tests than to build.</strong> The one who writes the code should not also decide what counts as done.</li>
-      <li><strong>Keep checks honest.</strong> If a stage in <code>factory.toml</code> is empty (for example <code>acceptance</code>), it is skipped. Fill it in when you have tests for it.</li>
-      <li><strong>Update the checks now and then.</strong> When Projects shows an update, <em>Prepare an update</em> brings the project's copy of the kit to the current one, with the same look-first step.</li>
-      <li><strong>Nothing reaches the main branch without you.</strong> If a result looks wrong, you lose nothing by saying no.</li>
-    </ul>
-  </div>
-</section>
-
-<section class="card" aria-labelledby="faq"><div class="ch"><div><h2 id="faq">Questions</h2></div></div>
-  <div class="cc stack">
+<section class="section hsec" id="faq" aria-labelledby="h-faq">
+  <h2 id="h-faq">Questions</h2>
+  <div class="card"><div class="cc stack">
     <details><summary>Does a helper change my project directly?</summary><p class="text">No. It works in its own copy on a computer. Its result is shown to you, and only a person merges it into the project.</p></details>
     <details><summary>Where does my code live?</summary><p class="text">Held projects: in a repository on the hub. Attached projects: on your git host. In both cases each computer keeps its own copy, and helpers work there. The hub stores results, not your whole working tree.</p></details>
-    <details><summary>The helper says it is done, but I don't trust it.</summary><p class="text">You shouldn't have to. Look at the check result, which Handloom's computer ran, and at the diff. Neither comes from the helper's own report.</p></details>
+    <details><summary>The helper says it is done, but I don't trust it.</summary><p class="text">You shouldn't have to. Look at the check result, which the computer ran, and at the diff. Neither comes from the helper's own report.</p></details>
     <details><summary>The check failed. What now?</summary><p class="text">Open the task: it lists which stage failed and why. <em>Send back</em> with that reason, or try another profile. A check that says "the project's own checks are broken" is a problem in the project, not in the helper: fix that first.</p></details>
     <details><summary>A task says "blocked: a person decides".</summary><p class="text">The check reached something only a person may settle (for example a change to a protected file). Read the helper's note, decide, and either accept, send back with instructions, or change the project yourself.</p></details>
-    <details><summary>Nothing happens after I press Start.</summary><p class="text">Look at the job's status line. "Starting the helper" can take a minute while the computer starts it. If the computer shows as offline on <a href="/devices">Computers</a>, the link on it is not running. If a helper is waiting for a model that is rate-limited, try again with another profile.</p></details>
+    <details><summary>Nothing happens after I press Start.</summary><p class="text">Look at the job's status line. "Starting the helper" can take a minute while the computer starts it. If the computer shows as offline on <a href="/devices">Computers</a>, the link on it is not running. If a helper is waiting on a rate-limited model, try again with another profile.</p></details>
     <details><summary>When do I need a lead?</summary><p class="text">When the work has several parts that depend on each other, or you want a plan before work begins. For one clear change, skip it.</p></details>
     <details><summary>What is "Add checks" and do I have to?</summary><p class="text">It gives the project a standard <code>./check</code> and rules about what a helper may change. You don't have to, but without it Handloom can only show the diff. It always shows you the files first and changes nothing until you confirm.</p></details>
     <details><summary>Who can do what?</summary><p class="text">Owners manage people, computers, profiles and settings. Anyone who can manage projects can add a project or its checks. Accepting work and merging it are for a person, never a helper. Viewers can look but not act.</p></details>
     <details><summary>Can I use it from the command line or an AI app?</summary><p class="text">Yes. Everything on these pages is also a <code>handloom</code> command. See <a href="/connect">Connect an AI app</a> for using it from Claude or another app.</p></details>
     <details><summary>How do I undo something?</summary><p class="text">Before merging: stop the task, or just don't use it. After merging: it is an ordinary commit in your project, so revert it the way you would any other. Deleting projects, helpers or jobs from the hub is not possible yet.</p></details>
-  </div>
+  </div></div>
 </section>
 {{end}}

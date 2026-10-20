@@ -38,6 +38,9 @@
         {{if ne .Human.Role "viewer"}}<li><a class="sb-btn" href="/connect" title="Connect an AI app"{{if eq .Active "connect"}} aria-current="page"{{end}}><svg class="icon"><use href="#i-plug"/></svg><span>Connect an AI app</span></a></li>{{end}}
         {{if eq .Human.Role "owner"}}<li><a class="sb-btn" href="/settings" title="Settings"{{if eq .Active "settings"}} aria-current="page"{{end}}><svg class="icon"><use href="#i-settings"/></svg><span>Settings</span></a></li>{{end}}
       </ul></div>
+      <div class="sb-group"><ul class="sb-menu">
+        <li><a class="sb-btn" href="/help" title="Help"{{if eq .Active "help"}} aria-current="page"{{end}}><svg class="icon"><use href="#i-circle-help"/></svg><span>Help</span></a></li>
+      </ul></div>
     </nav>
   </aside>
   <div class="scrim" data-sidebar-close hidden></div>

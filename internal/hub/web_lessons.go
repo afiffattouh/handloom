@@ -53,3 +53,9 @@ func (h *Hub) webLessonDecide(accept bool) func(*webReq) error {
 		return nil
 	}
 }
+
+// webHelp is a page of plain reading: the order of things, the parts, tips and questions.
+func (h *Hub) webHelp(q *webReq) error {
+	q.page(200, "help", pageData{Title: "Help"})
+	return nil
+}

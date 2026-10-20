@@ -142,3 +142,15 @@ func TestSearchFromADeviceWithNoAgentIdentityExplainsWhat(t *testing.T) {
 		t.Fatalf("the refusal does not say what to do: %s", msg)
 	}
 }
+
+func TestHelpPageIsInTheMenuAndReadable(t *testing.T) {
+	e := newWebEnv(t, Options{})
+	c, _ := e.owner()
+	r := e.req("GET", "/help", nil, c, nil)
+	if r.status != 200 || !strings.Contains(r.body, "The order of things") || !strings.Contains(r.body, "Questions") {
+		t.Fatalf("help page: %d", r.status)
+	}
+	if !strings.Contains(e.req("GET", "/jobs", nil, c, nil).body, `href="/help"`) {
+		t.Error("the menu has no Help entry")
+	}
+}

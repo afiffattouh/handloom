@@ -267,6 +267,10 @@ html[data-sidebar="collapsed"] .sb-btn:has(.sb-badge.hot)::after { content: ""; 
 
 .skill { border: 1px solid var(--border); border-radius: 8px; padding: 12px; display: grid; gap: 10px; }
 ul.plain { margin: 0; padding-left: 18px; display: grid; gap: 2px; }
+ol.guide { margin: 0; padding-left: 20px; display: grid; gap: 10px; }
+.stack > details + details { border-top: 1px solid var(--border); padding-top: 10px; }
+.stack > details > summary { cursor: pointer; font-weight: 500; }
+.stack > details[open] > summary { margin-bottom: 6px; }
 .check-result { font-size: 12.5px; }
 .check-result.ok { color: var(--success); } .check-result.bad { color: var(--destructive); font-weight: 500; }
 .sel { user-select: all; }

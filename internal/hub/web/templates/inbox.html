@@ -9,15 +9,11 @@
 {{with .Extra}}
 {{if .Start}}
 <section class="card" aria-labelledby="start">
-  <div class="ch"><div><h2 id="start">Get started</h2><p class="desc">Four steps from an empty hub to your first job.</p></div></div>
-  <div class="cc"><ol class="steps">
-  {{range .Start}}
-    <li class="{{if .Done}}done{{end}}">
-      <span class="mark" aria-hidden="true">{{if .Done}}<svg class="icon"><use href="#i-circle-check"/></svg>{{end}}</span>
-      <div><strong>{{.Title}}</strong>{{if .Done}} <span class="desc">done</span>{{else}}<p class="desc">{{.Hint}}</p><p><a class="button" href="{{.Link}}">{{.Action}}</a></p>{{end}}</div>
-    </li>
-  {{end}}
-  </ol></div>
+  <div class="ch"><div><h2 id="start">Get started</h2><p class="desc">{{.Start.Done}} of {{len .Start.Steps}} steps done.</p></div><a class="button secondary" href="/start">See all steps</a></div>
+  <div class="cc stack">
+    <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="{{len .Start.Steps}}" aria-valuenow="{{.Start.Done}}"><span class="w{{.Start.Pct}}"></span></div>
+    {{with .Start.Next}}<div><strong>Next: {{.Title}}</strong><p class="desc">{{.Hint}}</p><p><a class="button" href="{{.Link}}">{{.Action}}</a></p></div>{{end}}
+  </div>
 </section>
 {{end}}
 

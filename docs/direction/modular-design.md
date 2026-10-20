@@ -111,6 +111,7 @@ Done:
 - **Updating a project's checks from the hub:** the same prepare / put-on-main step also brings an older kit copy up to date (`handloom project checks NAME --update`), refreshing only the kit's own files.
 - **Who accepted a task:** a finished task on the job page says "accepted by NAME" (a person, or the lead), read from the audit log.
 - **Screen width:** the helper's terminal view scrolls inside its card instead of stretching the page.
+- **Get started and Help (2026-10-20):** a Help page (the cycle, the order of things, a diagram of the parts, daily use, tips, questions; its sections are listed in the sidebar), and a Get started page with six steps (computer, profile, project, checks, first ask, first accepted result) that tick themselves off from what the hub already holds. The Inbox shows a short card (steps done, the next one) until all six are done.
 - **Words and order:** Inbox is first and is where sign-in lands; "Command center" is now "Overview"; the job form offers `./check (the kit)`.
 
 Next, in the order proposed (2026-10-20):

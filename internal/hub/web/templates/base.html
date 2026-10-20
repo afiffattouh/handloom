@@ -40,6 +40,7 @@
         {{if eq .Human.Role "owner"}}<li><a class="sb-btn" href="/settings" title="Settings"{{if eq .Active "settings"}} aria-current="page"{{end}}><svg class="icon"><use href="#i-settings"/></svg><span>Settings</span></a></li>{{end}}
       </ul></div>
       <div class="sb-group"><ul class="sb-menu">
+        <li><a class="sb-btn" href="/start" title="Get started"{{if eq .Active "start"}} aria-current="page"{{end}}><svg class="icon"><use href="#i-play"/></svg><span>Get started</span></a></li>
         <li><a class="sb-btn" href="/help" title="Help"{{if eq .Active "help"}} aria-current="page"{{end}}><svg class="icon"><use href="#i-circle-help"/></svg><span>Help</span></a>
           {{if eq .Active "help"}}<ul class="sb-sub" aria-label="On this page">
             <li><a href="#cycle">The cycle</a></li><li><a href="#order">Order of things</a></li><li><a href="#parts">The parts</a></li>

@@ -1,0 +1,24 @@
+{{define "content"}}
+{{with .Extra}}
+<div class="page-head"><div><h1>Get started</h1><p class="desc">From an empty hub to your first accepted result. Each step ticks itself off when Handloom can see it is true, so you can leave and come back. The <a href="/help#order">Help page</a> explains why the steps come in this order.</p></div></div>
+
+<section class="card" aria-labelledby="progress">
+  <div class="ch"><div><h2 id="progress">{{if .Complete}}All done{{else}}{{.Done}} of {{len .Steps}} steps done{{end}}</h2>{{if .Complete}}<p class="desc">You have set everything up. Ask for something on <a href="/jobs/new">Jobs</a> whenever you like.</p>{{end}}</div></div>
+  <div class="cc"><div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="{{len .Steps}}" aria-valuenow="{{.Done}}"><span class="w{{.Pct}}"></span></div></div>
+</section>
+
+<ol class="hgrid wiz">
+{{range .Steps}}
+  <li class="hcard wstep{{if .Done}} wdone{{end}}{{if and $.Extra.Next (eq .N $.Extra.Next.N)}} wnext{{end}}">
+    <span class="hnum">{{.N}}</span>
+    <span class="hic"><svg class="icon"><use href="#i-{{if .Done}}circle-check{{else}}{{.Icon}}{{end}}"/></svg></span>
+    <strong>{{.Title}}</strong>
+    {{if .Done}}<span class="badge success">Done</span>{{if .Note}}<span class="desc">{{.Note}}</span>{{end}}
+    {{else}}{{if and $.Extra.Next (eq .N $.Extra.Next.N)}}<span class="badge primary">Next</span>{{end}}
+    <span class="desc">{{.Hint}}</span>
+    {{if $.Extra.CanAct}}<p><a class="button{{if not (and $.Extra.Next (eq .N $.Extra.Next.N))}} secondary{{end}}" href="{{.Link}}">{{.Action}}</a></p>{{end}}{{end}}
+  </li>
+{{end}}
+</ol>
+{{end}}
+{{end}}

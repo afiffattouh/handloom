@@ -501,3 +501,10 @@ html[data-sidebar="collapsed"] .sb-sub { display: none; }
 .dg-m { fill: var(--muted-foreground); font-size: 12px; font-family: var(--font); }
 .dg-line { stroke: var(--muted-foreground); stroke-width: 1.5; fill: none; }
 .dg-head { fill: var(--muted-foreground); }
+
+/* Get started page */
+.wiz { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+.wstep { padding-right: 44px; }
+.wstep .badge { align-self: flex-start; }
+.wstep.wnext { box-shadow: 0 0 0 2px var(--primary); }
+.wstep.wdone .hic { color: var(--success); background: var(--success-soft); }

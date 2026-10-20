@@ -36,7 +36,7 @@ const (
 	maxForm      = 64 << 10
 )
 
-var pageNames = []string{"setup", "login", "inbox", "closed", "message", "devices", "settings", "invite", "agents", "profiles", "profile", "jobs", "jobform", "job", "command", "agent", "starters", "starter", "connect", "consent", "search", "lessons", "projects", "help"}
+var pageNames = []string{"setup", "login", "inbox", "closed", "message", "devices", "settings", "invite", "agents", "profiles", "profile", "jobs", "jobform", "job", "command", "agent", "starters", "starter", "connect", "consent", "search", "lessons", "projects", "help", "start"}
 
 type pageData struct {
 	Title  string
@@ -64,14 +64,14 @@ type crumb struct{ Label, Href string }
 // sections are the menu items as the header's path names them.
 var sections = map[string]crumb{"command": {"Overview", "/command"}, "inbox": {"Inbox", "/inbox"}, "jobs": {"Jobs", "/jobs"}, "projects": {"Projects", "/projects"},
 	"agents": {"Helpers", "/agents"}, "profiles": {"Profiles", "/profiles"}, "devices": {"Computers", "/devices"},
-	"settings": {"Settings", "/settings"}, "connect": {"Connect an AI app", "/connect"}, "help": {"Help", "/help"}}
+	"settings": {"Settings", "/settings"}, "connect": {"Connect an AI app", "/connect"}, "help": {"Help", "/help"}, "start": {"Get started", "/start"}}
 
 // navCounts are the small numbers beside the menu items.
 type navCounts struct{ Needs, Jobs, Agents, Devices int }
 
 // activeMenu says which menu item a page belongs to.
 var activeMenu = map[string]string{"inbox": "inbox", "jobs": "jobs", "jobform": "jobs", "job": "jobs", "agents": "agents", "agent": "agents",
-	"profiles": "profiles", "profile": "profiles", "starters": "profiles", "starter": "profiles", "devices": "devices", "settings": "settings", "command": "command", "connect": "connect", "consent": "connect", "lessons": "profiles", "projects": "projects", "help": "help"}
+	"profiles": "profiles", "profile": "profiles", "starters": "profiles", "starter": "profiles", "devices": "devices", "settings": "settings", "command": "command", "connect": "connect", "consent": "connect", "lessons": "profiles", "projects": "projects", "help": "help", "start": "start"}
 
 // narrowPages are forms and reading pages.
 var narrowPages = map[string]bool{"jobform": true, "profile": true, "message": true, "consent": true}
@@ -285,6 +285,7 @@ func (h *Hub) webRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /settings/notifications", web(h.authed(h.webNotifications)))
 	mux.HandleFunc("POST /settings/notifications/test", web(h.authed(h.webNotifyTest)))
 	mux.HandleFunc("POST /settings/token", web(h.authed(h.webToken)))
+	mux.HandleFunc("GET /start", web(h.authed(h.webStart)))
 	mux.HandleFunc("GET /help", web(h.authed(h.webHelp)))
 	mux.HandleFunc("GET /connect", web(h.authed(h.webConnect)))
 	mux.HandleFunc("POST /connect/token", web(h.authed(h.webConnectToken)))

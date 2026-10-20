@@ -245,20 +245,41 @@ func TestTheInboxShowsWhatIsLeftToSetUp(t *testing.T) {
 	e := newWebEnv(t, Options{})
 	c, _ := e.owner()
 	body := e.req("GET", "/inbox", nil, c, nil).body
-	for _, want := range []string{"Get started", "Join a computer", "/devices#add", "Add profiles", "Start your first job"} {
+	for _, want := range []string{"Get started", "0 of 6 steps done", "Next: Join a computer", "/devices#add", `href="/start"`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("a new hub's inbox lacks %q", want)
 		}
 	}
-	e.agents() // a device joins
+	ag := e.agents() // a device joins
 	body = e.req("GET", "/inbox", nil, c, nil).body
-	if !strings.Contains(body, "Get started") || strings.Contains(body, "Add a device") || !strings.Contains(body, "starter library") {
+	if !strings.Contains(body, "1 of 6 steps done") || !strings.Contains(body, "Next: Add a profile") || !strings.Contains(body, "starter library") {
 		t.Fatalf("after a device joined: %s", body)
 	}
 	e.apiOK(e.admin, "", "POST", "/v1/profiles", api.ProfileReq{Name: "boss", Spec: researcher()}, nil)
-	e.apiOK(e.humanAPI(), "", "POST", "/v1/jobs", api.JobNewReq{Title: "x", Lead: "lead"}, nil)
-	if body = e.req("GET", "/inbox", nil, c, nil).body; strings.Contains(body, "Get started") {
-		t.Fatal("the checklist stays after everything is done")
+	hum := e.humanAPI()
+	e.apiOK(hum, "", "POST", "/v1/codebases", api.CodebaseReq{Name: "site", Remote: "git@github.com:acme/site.git"}, nil)
+	e.apiOK(hum, "", "POST", "/v1/codebases/site/check", api.CodebaseCheckReq{Check: "./check"}, nil)
+	start := e.req("GET", "/start", nil, c, nil).body
+	for _, want := range []string{"4 of 6 steps done", "Ask for something small", "Add a profile", "1 profile", "1 project has checks"} {
+		if !strings.Contains(start, want) {
+			t.Errorf("the start page lacks %q", want)
+		}
+	}
+	var j api.Job
+	e.apiOK(hum, "", "POST", "/v1/jobs", api.JobNewReq{Title: "x", Lead: "lead", Repo: "/srv/app", Device: "d1"}, &j)
+	if body = e.req("GET", "/inbox", nil, c, nil).body; !strings.Contains(body, "5 of 6 steps done") || !strings.Contains(body, "Next: Use a result") {
+		t.Fatalf("after the first job: %s", body)
+	}
+	var t1 api.Task
+	ag.lead("POST", "/v1/tasks", api.TaskCreateReq{Title: "one", AssignedTo: "worker"}, &t1)
+	ag.worker("POST", fmt.Sprintf("/v1/tasks/%d/claim", t1.ID), nil, nil)
+	ag.worker("POST", fmt.Sprintf("/v1/tasks/%d/submit", t1.ID), api.SubmitReq{Evidence: []string{"commit:abc"}, Note: "done"}, nil)
+	ag.lead("POST", fmt.Sprintf("/v1/tasks/%d/accept", t1.ID), nil, nil)
+	if body = e.req("GET", "/inbox", nil, c, nil).body; strings.Contains(body, "steps done") {
+		t.Fatal("the checklist stays in the inbox after everything is done")
+	}
+	if start = e.req("GET", "/start", nil, c, nil).body; !strings.Contains(start, "All done") {
+		t.Error("the start page does not say it is all done")
 	}
 }
 
@@ -266,7 +287,7 @@ func TestAViewerDoesNotSeeTheSetupChecklist(t *testing.T) {
 	e := newWebEnv(t, Options{})
 	e.owner()
 	vc, _ := e.member("vera", "viewer")
-	if body := e.req("GET", "/inbox", nil, vc, nil).body; strings.Contains(body, "Get started") {
+	if body := e.req("GET", "/inbox", nil, vc, nil).body; strings.Contains(body, "steps done") {
 		t.Fatal("a viewer is told to set things up")
 	}
 }

@@ -1,6 +1,7 @@
 package hub
 
 import (
+	"strings"
 	"errors"
 	"fmt"
 	"net/http"
@@ -37,53 +38,112 @@ type inboxView struct {
 	Activity []activityView
 	Seq      int64
 	CanAct   bool        // owners and members may answer and review; viewers only look
-	Start    []startStep // the first-run checklist, while something on it is not done
+	Start    *startList // the first-run checklist, while something on it is not done
 }
 
 // startStep is one line of the "Get started" checklist.
 type startStep struct {
+	N                         int
 	Title, Hint, Link, Action string
+	Note                      string // what is true now, in words ("GB10 is connected")
+	Icon                      string
 	Done                      bool
 }
 
-// startSteps is what a new owner still has to do, in order. It is empty once
-// all of it is done, and for viewers, who cannot do any of it.
-func (q *webReq) startSteps() ([]startStep, error) {
+// startList is the checklist and how far along it is.
+type startList struct {
+	Steps    []startStep
+	Done     int
+	Next     *startStep // the first step not done; nil when everything is
+	Complete bool
+	Pct      int // done, as a percentage, for the bar
+}
+
+// inboxStart is the checklist for the inbox card: nothing once it is all done, and for viewers, who cannot do any of it.
+func (q *webReq) inboxStart() (*startList, error) {
 	if q.human.Role == store.RoleViewer {
 		return nil, nil
 	}
+	l, err := q.startList()
+	if err != nil || l.Complete {
+		return nil, err
+	}
+	return l, nil
+}
+
+// startList reads each step's state from what the hub already holds: nothing is stored for it.
+func (q *webReq) startList() (*startList, error) {
 	ds, err := store.ListDevices(q.c.tx, q.c.deviceScope())
 	if err != nil {
 		return nil, err
 	}
-	joined := 0
+	var joinedNames []string
 	for _, d := range ds {
 		if d.Joined && !d.Revoked.Valid {
-			joined++
+			joinedNames = append(joinedNames, d.Name)
 		}
 	}
-	var profiles, jobs int
-	if err := q.c.tx.QueryRow(`SELECT count(DISTINCT name) FROM profile`).Scan(&profiles); err != nil {
-		return nil, err
+	var profiles, projects, withChecks, jobs, accepted int
+	for _, c := range []struct {
+		sql string
+		to  *int
+	}{
+		{`SELECT count(DISTINCT name) FROM profile`, &profiles},
+		{`SELECT count(*) FROM codebase`, &projects},
+		{`SELECT count(*) FROM codebase WHERE check_cmd != ''`, &withChecks},
+		{`SELECT count(*) FROM task WHERE kind = 'job'`, &jobs},
+		{`SELECT count(*) FROM task WHERE kind = 'task' AND status = 'done'`, &accepted},
+	} {
+		if err := q.c.tx.QueryRow(c.sql).Scan(c.to); err != nil {
+			return nil, err
+		}
 	}
-	if err := q.c.tx.QueryRow(`SELECT count(*) FROM task WHERE kind = 'job'`).Scan(&jobs); err != nil {
-		return nil, err
+	plural := func(n int, one, many string) string {
+		if n == 1 {
+			return "1 " + one
+		}
+		return fmt.Sprintf("%d %s", n, many)
+	}
+	note := func(ok bool, s string) string {
+		if ok {
+			return s
+		}
+		return ""
 	}
 	steps := []startStep{
-		{Title: "The hub is running", Done: true},
-		{Title: "Join a computer", Done: joined > 0, Link: "/devices#add", Action: "Add a computer",
-			Hint: "Create a join command, paste it on a computer that has git, tmux and an agent CLI (Claude Code, Codex, ...), then run handloom doctor there."},
-		{Title: "Add profiles", Done: profiles > 0, Link: "/profiles/starters", Action: "Browse the starter library",
-			Hint: "A profile says which CLI an agent uses and what it may do. Add a lead and a worker from the ready-made ones, or write your own."},
-		{Title: "Start your first job", Done: jobs > 0, Link: "/jobs/new", Action: "New job",
-			Hint: "Describe the work. The lead plans it and starts the workers."},
+		{Title: "Join a computer", Icon: "server", Done: len(joinedNames) > 0, Link: "/devices#add", Action: "Add a computer",
+			Note: note(len(joinedNames) > 0, strings.Join(joinedNames, ", ")+" connected"),
+			Hint: "Create a join command, paste it on a computer that has git, tmux and an agent CLI (Claude Code, Codex, ...), then run handloom doctor there. This is the one step that happens outside the browser."},
+		{Title: "Add a profile", Icon: "file-user", Done: profiles > 0, Link: "/profiles/starters", Action: "Browse the starter library",
+			Note: note(profiles > 0, plural(profiles, "profile", "profiles")),
+			Hint: "A profile says which agent program a helper uses and what it may do. Take a ready-made one, or write your own. A profile that writes code is enough to start."},
+		{Title: "Add a project", Icon: "library", Done: projects > 0, Link: "/projects", Action: "Add a project",
+			Note: note(projects > 0, plural(projects, "project", "projects")),
+			Hint: "Let Handloom hold the repository, or attach one from GitHub or another host. Then ask your computer for its own copy."},
+		{Title: "Add the checks", Icon: "circle-check", Done: withChecks > 0, Link: "/projects", Action: "Add checks to a project",
+			Note: note(withChecks > 0, plural(withChecks, "project has", "projects have")+" checks"),
+			Hint: "Checks give every result an objective pass or fail. Handloom prepares them and shows you the files first; nothing changes until you confirm."},
+		{Title: "Ask for something small", Icon: "play", Done: jobs > 0, Link: "/jobs/new", Action: "Ask for a change",
+			Note: note(jobs > 0, plural(jobs, "job", "jobs")+" asked for"),
+			Hint: "Use Just ask: one sentence about a small change you could review in two minutes. A helper does it on a copy."},
+		{Title: "Use a result", Icon: "git-merge", Done: accepted > 0, Link: "/jobs", Action: "Open your jobs",
+			Note: note(accepted > 0, plural(accepted, "result", "results")+" accepted"),
+			Hint: "Open the job, read what changed and the check result, then press Use this result. Merge it when you want it in the project."},
 	}
-	for _, s := range steps {
-		if !s.Done {
-			return steps, nil
+	l := &startList{Steps: steps, Complete: true}
+	for i := range l.Steps {
+		l.Steps[i].N = i + 1
+		if l.Steps[i].Done {
+			l.Done++
+		} else {
+			l.Complete = false
+			if l.Next == nil {
+				l.Next = &l.Steps[i]
+			}
 		}
 	}
-	return nil, nil
+	l.Pct = l.Done * 100 / len(l.Steps)
+	return l, nil
 }
 
 func ago(now, t time.Time) string {
@@ -117,7 +177,7 @@ func (q *webReq) inboxView() (*inboxView, error) {
 		return nil, err
 	}
 	v := &inboxView{Seq: d.Seq, CanAct: q.human.Role != store.RoleViewer}
-	if v.Start, err = q.startSteps(); err != nil {
+	if v.Start, err = q.inboxStart(); err != nil {
 		return nil, err
 	}
 	conv := func(in []api.DigestItem) []itemView {

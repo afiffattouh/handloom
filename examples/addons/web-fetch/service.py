@@ -16,7 +16,8 @@ from datetime import datetime, timezone
 from html.parser import HTMLParser
 
 MAX_REDIRECTS = 5
-MAX_BODY = 512 * 1024  # bytes read from the network; the tool's own limit (1MB) covers the saved file too
+MAX_BODY = 512 * 1024  # bytes read from the network
+MAX_FILE = 1024 * 1024  # the tool's own limit (max_output in addon.yaml) on the saved file
 TIMEOUT = 20  # seconds for each network step; the link's per-call timeout is the real limit
 
 
@@ -129,7 +130,7 @@ def file_name(url, digest):
     return "%s-%s.md" % (slug or "page", digest[:8])
 
 
-def fetch(args, results, max_body=MAX_BODY):
+def fetch(args, results, max_body=MAX_BODY, max_file=MAX_FILE):
     url = check_address(args.get("url"))
     if not results:
         raise FetchError("there is no results folder to save into")
@@ -154,9 +155,14 @@ def fetch(args, results, max_body=MAX_BODY):
     fetched = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     header = "---\naddress: %s\nfetched: %s\nsha256: %s\n---\n\n" % (url, fetched, digest)
     name = file_name(url, digest)
+    # Bytes that are not valid text become a 3-byte replacement mark, so the saved file can be larger than the
+    # download: check the size it will have, not the size that was read.
+    content = (header + text + "\n").encode("utf-8")
+    if len(content) > max_file:
+        raise FetchError("the text of the page would be %d bytes once saved, more than the %d bytes allowed, so nothing was saved" % (len(content), max_file))
     os.makedirs(results, exist_ok=True)
-    with open(os.path.join(results, name), "w", encoding="utf-8") as f:
-        f.write(header + text + "\n")
+    with open(os.path.join(results, name), "wb") as f:
+        f.write(content)
     return {"text": "Saved the text of the page as %s (%d characters)." % (name, len(text)), "files": [name]}
 
 

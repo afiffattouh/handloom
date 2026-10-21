@@ -162,15 +162,19 @@ func TestPromoteRefusesWhatLeavesTheWorktreeOrIsNotAResult(t *testing.T) {
 	os.MkdirAll(outside, 0o755)
 	writeFile(t, filepath.Join(wt, "keep.txt"), "project file")
 	writeFile(t, filepath.Join(wt, ".handloom", "scope.json"), "{}")
+	writeFile(t, filepath.Join(wt, ".git"), "gitdir: /x/y")
 	src := filepath.Join(resultsRoot(wt), "a", "c1", "r.txt")
 	writeFile(t, src, "r")
 	os.Symlink(outside, filepath.Join(wt, "escape"))
 	os.Symlink(filepath.Join(wt, "keep.txt"), filepath.Join(resultsRoot(wt), "a", "c1", "l.txt"))
 
-	for _, to := range []string{"../out.txt", "a/../../out.txt", filepath.Join(outside, "out.txt"), "escape/out.txt", ".handloom/out.txt", "", "."} {
+	for _, to := range []string{"../out.txt", "a/../../out.txt", filepath.Join(outside, "out.txt"), "escape/out.txt", ".handloom/out.txt", ".git", ".GIT", ".git/info/exclude", "", "."} {
 		if _, err := promote(wt, src, to, true); err == nil {
 			t.Errorf("destination %q was allowed", to)
 		}
+	}
+	if b, _ := os.ReadFile(filepath.Join(wt, ".git")); string(b) != "gitdir: /x/y" {
+		t.Fatalf(".git was changed: %q", b)
 	}
 	if exists(filepath.Join(outside, "out.txt")) || exists(filepath.Join(base, "out.txt")) {
 		t.Fatal("a file was written outside the worktree")

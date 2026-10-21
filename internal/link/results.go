@@ -155,6 +155,9 @@ func promote(worktree, file, to string, force bool) (string, error) {
 	if to == ".handloom" || strings.HasPrefix(to, ".handloom"+string(filepath.Separator)) {
 		return "", fmt.Errorf("the destination %q is in .handloom, which is not part of the project", to)
 	}
+	if first, _, _ := strings.Cut(filepath.ToSlash(to), "/"); strings.EqualFold(first, ".git") {
+		return "", fmt.Errorf("the destination %q is in .git, which is not part of the project", to)
+	}
 	dst := filepath.Join(worktree, to)
 	// No part of the destination's folders may be a link: a link could point out of the worktree.
 	if err := noLinksBelow(worktree, filepath.Dir(to)); err != nil {

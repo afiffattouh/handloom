@@ -38,6 +38,10 @@ func pageServer(t *testing.T) *httptest.Server {
 		w.Header().Set("Content-Type", "text/plain")
 		w.Write([]byte(strings.Repeat("x", 600<<10)))
 	})
+	mux.HandleFunc("/garbage", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		w.Write([]byte(strings.Repeat("\xff", 500<<10)))
+	})
 	mux.HandleFunc("/bigchunked", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
 		chunk := []byte(strings.Repeat("y", 64<<10))
@@ -159,8 +163,13 @@ func TestWebFetchStopsAtTheSizeCapAndTheRedirectLimit(t *testing.T) {
 			t.Errorf("%s: %+v", path, res)
 		}
 	}
+	// A page under the read cap whose saved text would be over the tool's limit is refused, not saved.
+	res := r.call("web-fetch", Call{Tool: "fetch", Args: map[string]any{"url": srv.URL + "/garbage"}, Results: results})
+	if res.Code != CodeError || !strings.Contains(res.Error, "once saved") {
+		t.Errorf("/garbage: %+v", res)
+	}
 	// Five hops are followed, six are not, and a loop ends too.
-	if res := r.call("web-fetch", Call{Tool: "fetch", Args: map[string]any{"url": srv.URL + "/hop/4"}, Results: results}); res.Code != CodeOK {
+	if res = r.call("web-fetch", Call{Tool: "fetch", Args: map[string]any{"url": srv.URL + "/hop/4"}, Results: results}); res.Code != CodeOK {
 		t.Errorf("five redirects: %+v", res)
 	}
 	for _, path := range []string{"/hop/6", "/loop"} {

@@ -247,7 +247,7 @@ func TestAddonGrantVerbs(t *testing.T) {
 	if out = r.as(r.human, "addon", "grants"); !strings.Contains(out, "leaves this computer") {
 		t.Fatalf("the cautious default: %s", out)
 	}
-	if out = r.as(r.human, "addon", "revoke", "reader", "echo.wait"); !strings.Contains(out, "Revoked echo.wait from reader") {
+	if out = r.as(r.human, "addon", "revoke", "reader", "echo.wait"); !strings.Contains(out, "Revoked echo.wait from reader") || !strings.Contains(out, "already running keep the tool until they end") {
 		t.Fatalf("revoke: %s", out)
 	}
 	for _, bad := range [][]string{{"grant", "reader", "echo"}, {"grant", "reader", "echo.nothing"}, {"grant", "reader", "echo.say", "--leaves", "maybe"}, {"revoke", "reader", "echo.wait"}, {"grant", "nobody", "echo.say"}} {

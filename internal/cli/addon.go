@@ -430,7 +430,7 @@ func (e *env) addonGrant(args []string) error {
 		return err
 	}
 	e.print(g, func() {
-		fmt.Fprintf(e.out, "Granted %s.%s to %s: it %s, up to %d calls a job.\n", g.Addon, g.Tool, g.Profile, leavesWords(g.LeavesMachine), g.MaxCalls)
+		fmt.Fprintf(e.out, "Granted %s.%s to %s: it %s, up to %d calls a job.\nHelpers already running keep the tools they started with; the change reaches helpers started from now on.\n", g.Addon, g.Tool, g.Profile, leavesWords(g.LeavesMachine), g.MaxCalls)
 	})
 	return nil
 }
@@ -453,7 +453,7 @@ func (e *env) addonRevoke(args []string) error {
 		return err
 	}
 	e.print(map[string]string{"profile": pos[0], "addon": a, "tool": t}, func() {
-		fmt.Fprintf(e.out, "Revoked %s.%s from %s.\n", a, t, pos[0])
+		fmt.Fprintf(e.out, "Revoked %s.%s from %s.\nHelpers already running keep the tool until they end; helpers started from now on do not get it.\n", a, t, pos[0])
 	})
 	return nil
 }

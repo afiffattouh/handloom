@@ -118,39 +118,39 @@ func (s *Supervisor) service(name string) *service {
 // Check says whether the add-on on disk is the one the owner approved. When it is not, the Result says
 // why and the add-on must not run; ok is false.
 func (s *Supervisor) Check(name string) (*Manifest, Result, bool) {
-	m, _, res, ok := s.CheckHash(name)
+	m, _, _, res, ok := s.CheckHash(name)
 	return m, res, ok
 }
 
-// CheckHash is Check that also gives the hash of the manifest it checked, for a caller that must know the
-// manifest is the one a grant was made for.
-func (s *Supervisor) CheckHash(name string) (*Manifest, string, Result, bool) {
+// CheckHash is Check that also gives the hashes of the manifest and of the package it checked, for a caller that must know the
+// add-on is the one a grant was made for.
+func (s *Supervisor) CheckHash(name string) (*Manifest, string, string, Result, bool) {
 	if !nameRe.MatchString(name) {
-		return nil, "", Result{Code: CodeNotInstalled, Error: fmt.Sprintf("%q is not an add-on name", name)}, false
+		return nil, "", "", Result{Code: CodeNotInstalled, Error: fmt.Sprintf("%q is not an add-on name", name)}, false
 	}
 	dir := filepath.Join(s.Root, name)
 	if _, err := os.Stat(dir); err != nil {
-		return nil, "", Result{Code: CodeNotInstalled, Error: "this computer does not have the add-on " + name}, false
+		return nil, "", "", Result{Code: CodeNotInstalled, Error: "this computer does not have the add-on " + name}, false
 	}
 	ap, ok, err := s.Store.Get(name)
 	if err != nil {
-		return nil, "", Result{Code: CodeError, Error: err.Error()}, false
+		return nil, "", "", Result{Code: CodeError, Error: err.Error()}, false
 	}
 	if !ok {
-		return nil, "", Result{Code: CodeNotInstalled, Error: name + " is on this computer but was never approved here"}, false
+		return nil, "", "", Result{Code: CodeNotInstalled, Error: name + " is on this computer but was never approved here"}, false
 	}
 	m, ph, mh, err := Load(dir)
 	var apiErr *APIError
 	if errors.As(err, &apiErr) {
-		return nil, "", Result{Code: CodeDown, Error: name + " is not started: " + apiErr.Error()}, false
+		return nil, "", "", Result{Code: CodeDown, Error: name + " is not started: " + apiErr.Error()}, false
 	}
 	if err != nil {
-		return nil, "", Result{Code: CodeChanged, Error: name + " changed since it was approved and can no longer be read: " + err.Error()}, false
+		return nil, "", "", Result{Code: CodeChanged, Error: name + " changed since it was approved and can no longer be read: " + err.Error()}, false
 	}
 	if ph != ap.PackageHash || mh != ap.ManifestHash || m.Name != name {
-		return nil, "", Result{Code: CodeChanged, Error: name + " changed since it was approved; approve it again with handloom addon add"}, false
+		return nil, "", "", Result{Code: CodeChanged, Error: name + " changed since it was approved; approve it again with handloom addon add"}, false
 	}
-	return m, mh, Result{}, true
+	return m, mh, ph, Result{}, true
 }
 
 // Call runs one tool and waits for its answer, at most the tool's timeout. A Go error means the call was

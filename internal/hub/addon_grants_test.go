@@ -593,3 +593,22 @@ func TestAnAddonCanNeverTakeABuiltInAuditName(t *testing.T) {
 		}
 	}
 }
+
+// Code that changed under the same manifest is a new version: the grant stops until it is made again.
+func TestAGrantStopsWhenOnlyTheCodeChanged(t *testing.T) {
+	e := grantEnv(t)
+	e.grant(e.afif(), "reader", "notes", "search")
+	if u := unavailable(e.pendingSpawn("first", "reader", 0), "notes", "search"); u != nil {
+		t.Fatalf("the tool should be there before the change: %+v", u)
+	}
+	it := api.AddonItem{Name: "notes", Version: "0.1.0", PackageHash: hashB, ManifestHash: manifestHash(notesManifest("")), Manifest: notesManifest(""), Status: "ready"}
+	e.ok(caller{e.d1, ""}, "POST", "/v1/device/addons", api.AddonReport{Addons: []api.AddonItem{it}}, nil)
+	u := unavailable(e.pendingSpawn("second", "reader", 0), "notes", "search")
+	if u == nil || u.Cause != api.CauseChanged || u.Action != actionGrantAgain {
+		t.Fatalf("code changed under one manifest: %+v", u)
+	}
+	e.grant(e.afif(), "reader", "notes", "search")
+	if u := unavailable(e.pendingSpawn("third", "reader", 0), "notes", "search"); u != nil {
+		t.Fatalf("granting again should bring it back: %+v", u)
+	}
+}

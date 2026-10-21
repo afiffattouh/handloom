@@ -35,6 +35,7 @@ func TestDecideGivesEachCodeAndKeepsTheOrder(t *testing.T) {
 		{"one call left", gateInput{Tool: tool(false, 3), Used: 2}, codeOK},
 		{"changed on this computer", gateInput{Tool: tool(false, 5), Local: localState{Changed: true}}, codeChanged},
 		{"granted for another manifest than the installed one", gateInput{Tool: &api.SpawnTool{Addon: "echo", Tool: "say", MaxCalls: 5, ManifestHash: "aaa"}, Local: localState{ManifestHash: "bbb"}}, codeChanged},
+		{"granted for another package than the installed one", gateInput{Tool: &api.SpawnTool{Addon: "echo", Tool: "say", MaxCalls: 5, ManifestHash: "aaa", PackageHash: "p1"}, Local: localState{ManifestHash: "aaa", PackageHash: "p2"}}, codeChanged},
 		{"granted for the installed manifest", gateInput{Tool: &api.SpawnTool{Addon: "echo", Tool: "say", MaxCalls: 5, ManifestHash: "aaa"}, Local: localState{ManifestHash: "aaa"}}, codeOK},
 		{"changed, said by the hub", gateInput{Unavailable: gone(api.CauseChanged)}, codeChanged},
 		{"cannot be started, said by the hub", gateInput{Unavailable: gone(api.CausePluginDown)}, codeDown},

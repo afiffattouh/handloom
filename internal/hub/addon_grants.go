@@ -52,13 +52,13 @@ func grantFrom(s scanner) (api.AddonGrant, error) {
 	var g api.AddonGrant
 	var leaves int
 	var at int64
-	err := s.Scan(&g.Profile, &g.Addon, &g.Tool, &g.ManifestHash, &leaves, &g.MaxCalls, &g.GrantedBy, &at)
+	err := s.Scan(&g.Profile, &g.Addon, &g.Tool, &g.ManifestHash, &g.PackageHash, &leaves, &g.MaxCalls, &g.GrantedBy, &at)
 	g.LeavesMachine = leaves != 0
 	g.GrantedAt = store.Time(at)
 	return g, err
 }
 
-const grantSelect = `SELECT profile, addon, tool, manifest_hash, leaves_machine, max_calls, granted_by, granted_at FROM addon_grant `
+const grantSelect = `SELECT profile, addon, tool, manifest_hash, package_hash, leaves_machine, max_calls, granted_by, granted_at FROM addon_grant `
 
 func (c *call) grants(profile string) ([]api.AddonGrant, error) {
 	q, args := grantSelect, []any{}
@@ -84,8 +84,8 @@ func (c *call) grants(profile string) ([]api.AddonGrant, error) {
 
 // grantTarget finds the manifest a grant is for: the one an approved copy of the add-on reported, with the
 // tool in it. Computers may hold different versions; then the owner names the computer.
-func (c *call) grantTarget(addonName, tool, computer string) (string, error) {
-	q := `SELECT d.name, a.manifest_hash, a.manifest, a.status FROM addon a JOIN device d ON d.id = a.device_id
+func (c *call) grantTarget(addonName, tool, computer string) (manifestHash, packageHash string, err error) {
+	q := `SELECT d.name, a.manifest_hash, a.package_hash, a.manifest, a.status FROM addon a JOIN device d ON d.id = a.device_id
 		WHERE d.revoked_at IS NULL AND a.name = ?`
 	args := []any{addonName}
 	if computer != "" {
@@ -94,20 +94,21 @@ func (c *call) grantTarget(addonName, tool, computer string) (string, error) {
 	}
 	rows, err := c.tx.Query(q+` ORDER BY d.name`, args...)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	defer rows.Close()
 	var known, approved int
 	var tools []string
-	hashes := map[string]bool{}
+	type version struct{ manifest, pkg string }
+	versions := map[version]bool{}
 	for rows.Next() {
-		var dev, hash, text, status string
-		if err := rows.Scan(&dev, &hash, &text, &status); err != nil {
-			return "", err
+		var dev, hash, pkg, text, status string
+		if err := rows.Scan(&dev, &hash, &pkg, &text, &status); err != nil {
+			return "", "", err
 		}
 		known++
 		// Only a manifest that was approved on its computer can be granted: a changed one has not been.
-		if (status != "ready" && status != "down") || text == "" || hash == "" {
+		if (status != "ready" && status != "down") || text == "" || hash == "" || pkg == "" {
 			continue
 		}
 		m, err := addon.Parse([]byte(text))
@@ -116,7 +117,7 @@ func (c *call) grantTarget(addonName, tool, computer string) (string, error) {
 		}
 		approved++
 		if _, ok := m.Tool(tool); ok {
-			hashes[hash] = true
+			versions[version{hash, pkg}] = true
 		} else {
 			for _, t := range m.Tools {
 				tools = append(tools, t.Name)
@@ -124,25 +125,25 @@ func (c *call) grantTarget(addonName, tool, computer string) (string, error) {
 		}
 	}
 	if err := rows.Err(); err != nil {
-		return "", err
+		return "", "", err
 	}
 	switch {
 	case known == 0 && computer != "":
-		return "", notFound("the computer %s has not reported an add-on called %s", computer, addonName)
+		return "", "", notFound("the computer %s has not reported an add-on called %s", computer, addonName)
 	case known == 0:
-		return "", notFound("no computer has reported an add-on called %s; install it on a computer first", addonName)
+		return "", "", notFound("no computer has reported an add-on called %s; install it on a computer first", addonName)
 	case approved == 0:
-		return "", conflict("%s is on a computer but is not approved there as it is now, or its description was not reported; approve it on the computer, then grant again", addonName)
-	case len(hashes) == 0:
+		return "", "", conflict("%s is on a computer but is not approved there as it is now, or its description was not reported; approve it on the computer, then grant again", addonName)
+	case len(versions) == 0:
 		sort.Strings(tools)
-		return "", badRequest("the add-on %s has no tool called %s; its tools are: %s", addonName, tool, strings.Join(uniq(tools), ", "))
-	case len(hashes) > 1:
-		return "", conflict("computers have different versions of %s; name the computer whose version this grant is for", addonName)
+		return "", "", badRequest("the add-on %s has no tool called %s; its tools are: %s", addonName, tool, strings.Join(uniq(tools), ", "))
+	case len(versions) > 1:
+		return "", "", conflict("computers have different versions of %s; name the computer whose version this grant is for", addonName)
 	}
-	for h := range hashes {
-		return h, nil
+	for v := range versions {
+		return v.manifest, v.pkg, nil
 	}
-	return "", nil
+	return "", "", nil
 }
 
 func uniq(in []string) []string {
@@ -190,7 +191,7 @@ func (c *call) grantTool(name string, req api.AddonGrantReq) (api.AddonGrant, er
 	if req.LeavesMachine != nil {
 		leaves = *req.LeavesMachine
 	}
-	hash, err := c.grantTarget(req.Addon, req.Tool, req.Computer)
+	hash, pkg, err := c.grantTarget(req.Addon, req.Tool, req.Computer)
 	if err != nil {
 		return api.AddonGrant{}, err
 	}
@@ -198,15 +199,15 @@ func (c *call) grantTool(name string, req api.AddonGrantReq) (api.AddonGrant, er
 	if leaves {
 		l = 1
 	}
-	if _, err := c.tx.Exec(`INSERT INTO addon_grant(profile, addon, tool, manifest_hash, leaves_machine, max_calls, granted_by, granted_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT(profile, addon, tool) DO UPDATE SET manifest_hash = excluded.manifest_hash, leaves_machine = excluded.leaves_machine,
+	if _, err := c.tx.Exec(`INSERT INTO addon_grant(profile, addon, tool, manifest_hash, package_hash, leaves_machine, max_calls, granted_by, granted_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(profile, addon, tool) DO UPDATE SET manifest_hash = excluded.manifest_hash, package_hash = excluded.package_hash, leaves_machine = excluded.leaves_machine,
 			max_calls = excluded.max_calls, granted_by = excluded.granted_by, granted_at = excluded.granted_at`,
-		name, req.Addon, req.Tool, hash, l, req.MaxCalls, c.p.actor(), store.Millis(c.now)); err != nil {
+		name, req.Addon, req.Tool, hash, pkg, l, req.MaxCalls, c.p.actor(), store.Millis(c.now)); err != nil {
 		return api.AddonGrant{}, err
 	}
 	if err := c.audit("addon.grant", "profile:"+name, map[string]any{"addon": req.Addon, "tool": req.Tool,
-		"manifest": hash, "leaves_machine": leaves, "max_calls": req.MaxCalls}); err != nil {
+		"manifest": hash, "package": pkg, "leaves_machine": leaves, "max_calls": req.MaxCalls}); err != nil {
 		return api.AddonGrant{}, err
 	}
 	return grantFrom(c.tx.QueryRow(grantSelect+`WHERE profile = ? AND addon = ? AND tool = ?`, name, req.Addon, req.Tool))
@@ -258,24 +259,24 @@ const (
 )
 
 type reportedAddon struct {
-	hash, status string
-	manifest     *addon.Manifest
+	hash, pkg, status string
+	manifest          *addon.Manifest
 }
 
 // deviceAddons is what a computer last reported, with each manifest read once.
 func (c *call) deviceAddons(deviceID int64) (map[string]reportedAddon, error) {
-	rows, err := c.tx.Query(`SELECT name, manifest_hash, manifest, status FROM addon WHERE device_id = ?`, deviceID)
+	rows, err := c.tx.Query(`SELECT name, manifest_hash, package_hash, manifest, status FROM addon WHERE device_id = ?`, deviceID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	out := map[string]reportedAddon{}
 	for rows.Next() {
-		var name, hash, text, status string
-		if err := rows.Scan(&name, &hash, &text, &status); err != nil {
+		var name, hash, pkg, text, status string
+		if err := rows.Scan(&name, &hash, &pkg, &text, &status); err != nil {
 			return nil, err
 		}
-		r := reportedAddon{hash: hash, status: status}
+		r := reportedAddon{hash: hash, pkg: pkg, status: status}
 		if text != "" {
 			if m, err := addon.Parse([]byte(text)); err == nil {
 				r.manifest = m
@@ -320,7 +321,7 @@ func (c *call) toolSnapshot(profileName string, deviceID int64, confidential boo
 			// Reported with no manifest: the computer cannot read it (an add-on API it does not speak).
 			no(g, api.CausePluginDown, actionDown)
 			continue
-		case a.hash != g.ManifestHash || a.manifest == nil:
+		case a.hash != g.ManifestHash || a.pkg != g.PackageHash || a.manifest == nil:
 			no(g, api.CauseChanged, actionGrantAgain)
 			continue
 		}
@@ -337,7 +338,7 @@ func (c *call) toolSnapshot(profileName string, deviceID int64, confidential boo
 			no(g, api.CausePluginDown, actionDown)
 			continue
 		}
-		st := api.SpawnTool{Addon: g.Addon, Tool: g.Tool, Summary: t.Summary, LeavesMachine: g.LeavesMachine, ManifestHash: g.ManifestHash,
+		st := api.SpawnTool{Addon: g.Addon, Tool: g.Tool, Summary: t.Summary, LeavesMachine: g.LeavesMachine, ManifestHash: g.ManifestHash, PackageHash: g.PackageHash,
 			MaxCalls: g.MaxCalls, TimeoutSeconds: int(t.Timeout / time.Second), MaxOutput: t.MaxOutput}
 		names := make([]string, 0, len(t.Input))
 		for n := range t.Input {

@@ -673,12 +673,12 @@ func TestATokenEndsWithItsSpawn(t *testing.T) {
 		t.Fatalf("a token outlived its spawn: %v", err)
 	}
 	// a helper started again under the same name gets a new token and the old one stops
-	_, _, mh, err := addon.Load(echoAddon)
+	_, ph, mh, err := addon.Load(echoAddon)
 	if err != nil {
 		t.Fatal(err)
 	}
 	mint := func() *client.Client {
-		tok, err := e.link.gate.mint(api.Spawn{ID: 5, Name: "beta", Tools: []api.SpawnTool{{Addon: "echo", Tool: "say", MaxCalls: 9, ManifestHash: mh}}}, t.TempDir(), e.clock())
+		tok, err := e.link.gate.mint(api.Spawn{ID: 5, Name: "beta", Tools: []api.SpawnTool{{Addon: "echo", Tool: "say", MaxCalls: 9, ManifestHash: mh, PackageHash: ph}}}, t.TempDir(), e.clock())
 		if err != nil {
 			t.Fatal(err)
 		}

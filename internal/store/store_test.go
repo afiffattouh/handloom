@@ -192,7 +192,7 @@ func TestMachinesOfAnOlderDatabaseHaveNoOwner(t *testing.T) {
 	}
 }
 
-// The add-on table came with the second migration from the end (the grants are the last): a database from the
+// The add-on table came with the third migration from the end (the grants and their package hash follow): a database from the
 // release before has none, and gets it.
 func TestAddonTableArrivesWithItsMigration(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "handloom.db")
@@ -200,12 +200,12 @@ func TestAddonTableArrivesWithItsMigration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, m := range migrations[:len(migrations)-2] {
+	for _, m := range migrations[:len(migrations)-3] {
 		if _, err := old.Exec(m); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if _, err := old.Exec(`PRAGMA user_version = ` + strconv.Itoa(len(migrations)-2)); err != nil {
+	if _, err := old.Exec(`PRAGMA user_version = ` + strconv.Itoa(len(migrations)-3)); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := old.Exec(`INSERT INTO device(name, credential_hash, created_at) VALUES ('desk', 'x', 1)`); err != nil {
@@ -242,18 +242,18 @@ func TestAddonTableArrivesWithItsMigration(t *testing.T) {
 }
 
 // The grant and call-report tables are the newest migration: a database from the release before has neither.
-func TestAddonGrantTablesArriveWithTheLastMigration(t *testing.T) {
+func TestAddonGrantTablesArriveWithTheirMigration(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "handloom.db")
 	old, err := sql.Open("sqlite", "file:"+path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, m := range migrations[:len(migrations)-1] {
+	for _, m := range migrations[:len(migrations)-2] {
 		if _, err := old.Exec(m); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if _, err := old.Exec(`PRAGMA user_version = ` + strconv.Itoa(len(migrations)-1)); err != nil {
+	if _, err := old.Exec(`PRAGMA user_version = ` + strconv.Itoa(len(migrations)-2)); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := old.Exec(`INSERT INTO device(name, credential_hash, created_at) VALUES ('desk', 'x', 1)`); err != nil {
@@ -303,5 +303,35 @@ func TestAddonGrantTablesArriveWithTheLastMigration(t *testing.T) {
 	}
 	if err := seen(99); err == nil {
 		t.Error("a call report for a computer that does not exist was accepted")
+	}
+}
+
+// A grant made before grants held a package hash gets an empty one, so it stops working until it is made again.
+func TestGrantPackageHashArrivesWithItsMigration(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "handloom.db")
+	old, err := sql.Open("sqlite", "file:"+path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, m := range migrations[:len(migrations)-1] {
+		if _, err := old.Exec(m); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := old.Exec(`PRAGMA user_version = ` + strconv.Itoa(len(migrations)-1)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := old.Exec(`INSERT INTO addon_grant(profile, addon, tool, manifest_hash, granted_by, granted_at) VALUES ('reader', 'notes', 'search', 'h', 'olive', 1)`); err != nil {
+		t.Fatal(err)
+	}
+	old.Close()
+	db, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	var pkg string
+	if err := db.QueryRow(`SELECT package_hash FROM addon_grant`).Scan(&pkg); err != nil || pkg != "" {
+		t.Fatalf("package hash of an older grant: %q, %v", pkg, err)
 	}
 }

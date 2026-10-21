@@ -518,6 +518,9 @@ CREATE TABLE addon_call_seen (
   phase     TEXT NOT NULL,
   PRIMARY KEY (device_id, spawn_id, call_id, phase)
 );
+`, `
+-- A grant is also for one package: when any file of an add-on changes and is approved again, the grant stops until it is made again.
+ALTER TABLE addon_grant ADD COLUMN package_hash TEXT NOT NULL DEFAULT '';
 `}
 
 // Open opens (and migrates) the database at path. Use ":memory:" in tests.

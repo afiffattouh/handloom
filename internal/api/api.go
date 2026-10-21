@@ -1120,6 +1120,7 @@ type AddonGrant struct {
 	Addon         string    `json:"addon"`
 	Tool          string    `json:"tool"`
 	ManifestHash  string    `json:"manifest_hash"`
+	PackageHash   string    `json:"package_hash"`
 	LeavesMachine bool      `json:"leaves_machine"`
 	MaxCalls      int       `json:"max_calls"`
 	GrantedBy     string    `json:"granted_by"`
@@ -1153,6 +1154,7 @@ type SpawnTool struct {
 	Input          []ToolField `json:"input,omitempty"`
 	LeavesMachine  bool        `json:"leaves_machine"`
 	ManifestHash   string      `json:"manifest_hash,omitempty"` // the manifest the grant was made for; the link refuses the call when the installed one differs
+	PackageHash    string      `json:"package_hash,omitempty"`  // the same for the add-on's files as a whole
 	MaxCalls       int         `json:"max_calls"`
 	TimeoutSeconds int         `json:"timeout_seconds"`
 	MaxOutput      int64       `json:"max_output"`

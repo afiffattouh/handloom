@@ -77,8 +77,8 @@ func (q *webReq) addonCards() ([]addonCard, []grantView, error) {
 	}
 	var cards []addonCard
 	idx := map[string]int{}
-	hashes := map[string]map[string]bool{}
-	fromReady := map[string]bool{} // whether the tools shown come from a ready computer
+	hashes := map[string]map[string]bool{} // the versions (manifest and package hash) each add-on has on a computer
+	fromReady := map[string]bool{}         // whether the tools shown come from a ready computer
 	for _, r := range rows {
 		i, ok := idx[r.Name]
 		if !ok {
@@ -98,7 +98,7 @@ func (q *webReq) addonCards() ([]addonCard, []grantView, error) {
 			c.Version = ""
 		}
 		if r.ManifestHash != "" {
-			hashes[r.Name][r.ManifestHash] = true
+			hashes[r.Name][r.ManifestHash+"/"+r.PackageHash] = true
 		}
 		// The tools come from the first manifest that reads; a ready computer's is the one to show.
 		if r.Manifest != "" && (len(c.Tools) == 0 || r.Status == "ready" && !fromReady[r.Name]) {
@@ -124,7 +124,7 @@ func (q *webReq) addonCards() ([]addonCard, []grantView, error) {
 			continue
 		}
 		cards[i].Grants = append(cards[i].Grants, grantView{Profile: g.Profile, Addon: g.Addon, Tool: g.Tool, Leaves: g.LeavesMachine, MaxCalls: g.MaxCalls,
-			Stale: !hashes[g.Addon][g.ManifestHash]})
+			Stale: !hashes[g.Addon][g.ManifestHash+"/"+g.PackageHash]})
 	}
 	return cards, orphans, nil
 }

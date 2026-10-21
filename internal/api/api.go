@@ -1213,6 +1213,20 @@ type ToolCallResp struct {
 	Files []string `json:"files,omitempty"`
 }
 
+// ToolPromoteReq asks the link to copy one result file of the spawn into its project tree. File is a full path
+// inside the spawn's results folder or a path relative to it; To is a path relative to the project folder.
+type ToolPromoteReq struct {
+	File  string `json:"file"`
+	To    string `json:"to"`
+	Force bool   `json:"force,omitempty"`
+}
+
+// ToolPromoteResp says where the file went (To, relative to the project folder) and in words what happens next.
+type ToolPromoteResp struct {
+	To      string `json:"to"`
+	Message string `json:"message"`
+}
+
 // ToolList is what the gateway tells a spawn it may call, and what it was granted but cannot have.
 type ToolList struct {
 	Tools        []SpawnTool       `json:"tools"`

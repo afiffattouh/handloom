@@ -16,11 +16,12 @@ import (
 
 // fakeGateway stands in for the link's tool gateway on the socket where the link would be.
 type fakeGateway struct {
-	mu    sync.Mutex
-	calls []api.ToolCallReq
-	token string // the token the requests carried
-	reply api.ToolCallResp
-	list  api.ToolList
+	mu       sync.Mutex
+	calls    []api.ToolCallReq
+	token    string // the token the requests carried
+	reply    api.ToolCallResp
+	list     api.ToolList
+	promotes []api.ToolPromoteReq
 }
 
 func startGateway(t *testing.T) *fakeGateway {
@@ -47,6 +48,20 @@ func startGateway(t *testing.T) *fakeGateway {
 		reply := g.reply
 		g.mu.Unlock()
 		json.NewEncoder(w).Encode(reply)
+	})
+	mux.HandleFunc("POST /local/tools/promote", func(w http.ResponseWriter, r *http.Request) {
+		var req api.ToolPromoteReq
+		json.NewDecoder(r.Body).Decode(&req)
+		g.mu.Lock()
+		g.promotes = append(g.promotes, req)
+		g.token = r.Header.Get(api.ToolTokenHeader)
+		g.mu.Unlock()
+		if strings.HasPrefix(req.To, "..") {
+			w.WriteHeader(400)
+			json.NewEncoder(w).Encode(api.Error{Error: "the destination is not inside the project", Code: "bad_promote"})
+			return
+		}
+		json.NewEncoder(w).Encode(api.ToolPromoteResp{To: req.To, Message: "Copied into the project as " + req.To + "."})
 	})
 	ln, err := net.Listen("unix", client.SocketPath())
 	if err != nil {
@@ -153,9 +168,6 @@ func TestToolCommandsNeedAHelperTokenAndNeverGoToTheHub(t *testing.T) {
 	if code, _, errs := toolRun("call", "say"); code != 2 || !strings.Contains(errs, "ADDON.TOOL") {
 		t.Fatalf("a bare tool name: %d %q", code, errs)
 	}
-	if code, _, errs := toolRun("promote", "x", "--to", "y"); code == 0 || !strings.Contains(errs, "not available yet") {
-		t.Fatalf("promote: %d %q", code, errs)
-	}
 }
 
 func TestToolListInWords(t *testing.T) {
@@ -221,4 +233,22 @@ func TestHelperToolListReadsTheLinkAndSurvivesItsAbsence(t *testing.T) {
 		t.Fatalf("with no link: %+v", l)
 	}
 	_ = g
+}
+
+func TestToolPromoteAsksTheLinkToCopyTheFile(t *testing.T) {
+	g := startGateway(t)
+	t.Setenv("HANDLOOM_TOOL_TOKEN", "hlt_abc")
+	code, out, errs := toolRun("promote", "echo/c1/note.txt", "--to", "docs/note.txt", "--force")
+	if code != 0 || !strings.Contains(out, "Copied into the project as docs/note.txt") || errs != "" {
+		t.Fatalf("promote: %d %q %q", code, out, errs)
+	}
+	if len(g.promotes) != 1 || g.promotes[0] != (api.ToolPromoteReq{File: "echo/c1/note.txt", To: "docs/note.txt", Force: true}) || g.token != "hlt_abc" {
+		t.Fatalf("what the link got: %+v token %q", g.promotes, g.token)
+	}
+	if code, _, errs := toolRun("promote", "echo/c1/note.txt", "--to", "../x"); code == 0 || !strings.Contains(errs, "not inside the project") {
+		t.Fatalf("a refused destination: %d %q", code, errs)
+	}
+	if code, _, errs := toolRun("promote", "echo/c1/note.txt"); code == 0 || !strings.Contains(errs, "--to") {
+		t.Fatalf("no destination: %d %q", code, errs)
+	}
 }

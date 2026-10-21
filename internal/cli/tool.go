@@ -40,7 +40,7 @@ func (e *env) toolConn() (*client.Client, error) {
 
 func (e *env) toolCmd(args []string) error {
 	if len(args) == 0 {
-		return usageErr("usage: handloom tool list | call ADDON.TOOL [--arg name=value ...] [--args '{...}']")
+		return usageErr("usage: handloom tool list | call ADDON.TOOL [--arg name=value ...] [--args '{...}'] | promote FILE --to PATH")
 	}
 	switch args[0] {
 	case "list":
@@ -48,9 +48,9 @@ func (e *env) toolCmd(args []string) error {
 	case "call":
 		return e.toolCall(args[1:])
 	case "promote":
-		return fmt.Errorf("promote is not available yet: saving a result file into the project comes with the results folder")
+		return e.toolPromote(args[1:])
 	}
-	return usageErr("unknown tool command %q; the commands are list and call", args[0])
+	return usageErr("unknown tool command %q; the commands are list, call and promote", args[0])
 }
 
 func (e *env) toolList(args []string) error {
@@ -267,7 +267,7 @@ func toolsSection(list api.ToolList) string {
 	if len(list.Tools) > 0 {
 		b.WriteString("## Tools from add-ons\n\n")
 		b.WriteString("You may call these tools. Run `handloom tool call ADDON.TOOL --arg name=value` (add `--json` for output a program can read, or `handloom tool list` to see them again). ")
-		b.WriteString("The answer is printed; a file the tool saved is named after it. Each tool may be called a limited number of times in this job. ")
+		b.WriteString("The answer is printed; a file the tool saved is named after it, and it is not part of the project until you run `handloom tool promote FILE --to PATH`. Each tool may be called a limited number of times in this job. ")
 		b.WriteString("If a call is refused or fails, the tool is not available for this job: say so, and do not guess what it would have answered.\n\n")
 		tools := append([]api.SpawnTool(nil), list.Tools...)
 		sort.Slice(tools, func(i, j int) bool {
@@ -323,4 +323,28 @@ func (e *env) helperToolList() api.ToolList {
 		return api.ToolList{}
 	}
 	return list
+}
+
+// toolPromote copies a file a tool saved into the project, so it becomes a change like any other.
+func (e *env) toolPromote(args []string) error {
+	fs := e.flags("tool promote")
+	to := fs.String("to", "", "where to put the file in the project, relative to the project folder")
+	force := fs.Bool("force", false, "replace the file if it already exists")
+	pos, err := fs.need(args, 1, 1, "tool promote FILE --to PATH [--force]")
+	if err != nil {
+		return err
+	}
+	if *to == "" {
+		return usageErr("say where the file goes: handloom tool promote FILE --to PATH")
+	}
+	c, err := e.toolConn()
+	if err != nil {
+		return err
+	}
+	var resp api.ToolPromoteResp
+	if err := c.Do(context.Background(), "POST", "/local/tools/promote", api.ToolPromoteReq{File: pos[0], To: *to, Force: *force}, &resp); err != nil {
+		return err
+	}
+	e.print(resp, func() { fmt.Fprintln(e.out, resp.Message) })
+	return nil
 }

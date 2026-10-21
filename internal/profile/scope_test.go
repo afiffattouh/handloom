@@ -14,4 +14,13 @@ func TestGeneratedAndAdapterPathsAreNotWork(t *testing.T) {
 	if AdapterPath("opencode.json") || AdapterPath(".opencode/plugins/handloom.js") {
 		t.Error("OpenCode is retired: its files are ordinary files now")
 	}
+	// What add-ons save for a call lives under .handloom/results and is never a change of the task.
+	for _, p := range []string{".handloom/results/web-fetch/c1/page.md", ".handloom/results", ".handloom/knowledge/x.md"} {
+		if !AdapterPath(p) {
+			t.Errorf("AdapterPath(%q) = false, want true", p)
+		}
+	}
+	if AdapterPath("docs/.handloom/page.md") || AdapterPath(".handloomrc") {
+		t.Error("only the top .handloom folder is the link's")
+	}
 }

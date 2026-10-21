@@ -78,6 +78,7 @@ func (g *toolGateway) mint(s api.Spawn, dir string, now time.Time) (string, erro
 	for h, old := range g.byHash {
 		if old.agent == s.Name {
 			delete(g.byHash, h)
+			removeResults(old.dir) // the same helper started again: what its last run saved is stale
 		}
 	}
 	g.byHash[tokenHash(token)] = sess
@@ -106,6 +107,7 @@ func (g *toolGateway) reap(keep func(*toolSession) bool) {
 	for h, s := range g.byHash {
 		if !keep(s) {
 			delete(g.byHash, h)
+			removeResults(s.dir) // the spawn is over; its results go with its token, the worktree stays
 		}
 	}
 }
@@ -331,13 +333,21 @@ func (l *Link) toolCall(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		res = addon.Result{Code: addon.CodeError, Error: err.Error()}
 	}
+	// Whatever the call did, the results folder is checked: what is not allowed is removed, and a call that
+	// left such files is a plugin error.
+	room := def.MaxOutput - int64(len(res.Text))
+	if room < 0 {
+		room = 0
+	}
+	files, problem := checkResults(results, room, res.Files)
+	if problem != "" && res.Code == codeOK {
+		res = addon.Result{Code: addon.CodeError, Error: problem, Took: res.Took}
+	}
 	out := api.ToolCallResp{OK: res.Code == codeOK, Code: res.Code}
 	if res.Code == codeOK {
 		out.Text = res.Text
-		for _, f := range res.Files {
-			if filepath.IsLocal(f) { // phase 3 checks the files in full; a name that leaves the folder is not passed on
-				out.Files = append(out.Files, filepath.Join(results, f))
-			}
+		for _, f := range files {
+			out.Files = append(out.Files, filepath.Join(results, f))
 		}
 	} else {
 		out.Text = refusal(res.Code, res.Error)
@@ -347,4 +357,24 @@ func (l *Link) toolCall(w http.ResponseWriter, r *http.Request) {
 	}
 	l.Kick()
 	writeJSON(w, 200, out)
+}
+
+// toolPromote answers POST /local/tools/promote: it copies one result file of this spawn into the project tree of
+// its worktree. The write scope is not looked at here; it applies when the helper submits, like for any file.
+func (l *Link) toolPromote(w http.ResponseWriter, r *http.Request) {
+	s := l.toolSessionFor(w, r)
+	if s == nil {
+		return
+	}
+	var req api.ToolPromoteReq
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<16)).Decode(&req); err != nil || req.File == "" || req.To == "" {
+		writeJSON(w, 400, api.Error{Error: "say which result file to promote and where to put it (to)", Code: "bad_request"})
+		return
+	}
+	to, err := promote(s.dir, req.File, req.To, req.Force)
+	if err != nil {
+		writeJSON(w, 400, api.Error{Error: err.Error(), Code: "bad_promote"})
+		return
+	}
+	writeJSON(w, 200, api.ToolPromoteResp{To: to, Message: "Copied into the project as " + to + ". It is now a change like any other: the profile's write scope is checked when you submit, not now."})
 }

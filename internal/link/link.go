@@ -267,6 +267,7 @@ func (l *Link) handler() http.Handler {
 	// The tool gateway. The caller is known by its tool token alone.
 	mux.HandleFunc("GET /local/tools", l.toolList)
 	mux.HandleFunc("POST /local/tools/call", l.toolCall)
+	mux.HandleFunc("POST /local/tools/promote", l.toolPromote)
 	mux.HandleFunc("GET /local/status", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprintf(w, `{"device":%q,"hub":%q,"protocol":%q}`+"\n", l.opt.Device, l.opt.Hub, api.Version)

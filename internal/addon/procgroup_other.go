@@ -2,7 +2,10 @@
 
 package addon
 
-import "os/exec"
+import (
+	"os"
+	"os/exec"
+)
 
 // The link does not run outside Unix, so there is no process group to manage.
 func ownGroup(cmd *exec.Cmd) {}
@@ -13,4 +16,6 @@ func killTree(cmd *exec.Cmd) {
 	}
 }
 
-func alive(pid int) bool { return false }
+func lockPid(f *os.File) {}
+
+func pidHeld(path string) bool { return false }

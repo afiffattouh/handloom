@@ -42,7 +42,7 @@ func TestAddonHashAddListDoctorRemove(t *testing.T) {
 
 	// without --yes and without a terminal, it reads what the add-on does and stops
 	code, out, errs = addonRun(t, "add", echoAddon)
-	if code != 0 || !strings.Contains(out, "Nothing was installed") || !strings.Contains(errs, "--yes") {
+	if code == 0 || !strings.Contains(errs, "--yes") {
 		t.Fatalf("add without yes: %d %q %q", code, out, errs)
 	}
 	if code, out, _ := addonRun(t, "list"); code != 0 || !strings.Contains(out, "No add-ons") {

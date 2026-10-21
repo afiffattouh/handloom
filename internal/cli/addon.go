@@ -94,7 +94,11 @@ func (e *env) addonAdd(args []string) error {
 		}
 	}
 	if *pin == "" && !*yes {
-		if !confirmAddon(e, m.Name) {
+		ok, err := confirmAddon(e, m.Name)
+		if err != nil {
+			return err
+		}
+		if !ok {
 			fmt.Fprintln(e.out, "Nothing was installed.")
 			return nil
 		}
@@ -150,15 +154,14 @@ func (e *env) describeAddon(m *addon.Manifest, ph string) {
 	fmt.Fprintln(e.out, "Handloom will run exactly these files, and only these. If any of them changes, the add-on stops until you approve it again.")
 }
 
-func confirmAddon(e *env, name string) bool {
+func confirmAddon(e *env, name string) (bool, error) {
 	if addonIn == io.Reader(os.Stdin) && !isatty.IsTerminal(os.Stdin.Fd()) {
-		fmt.Fprintln(e.err, "handloom: not a terminal; read the above, then add --yes (or --sha256 with the hash the author published)")
-		return false
+		return false, fmt.Errorf("there is no one to ask here, so nothing was installed; read what the add-on does (without --json), then add --yes, or --sha256 with the hash the author published")
 	}
 	fmt.Fprintf(e.err, "Install %s on this computer? [y/N] ", name)
 	line, _ := bufio.NewReader(addonIn).ReadString('\n')
 	a := strings.ToLower(strings.TrimSpace(line))
-	return a == "y" || a == "yes"
+	return a == "y" || a == "yes", nil
 }
 
 func (e *env) addonList(args []string) error {

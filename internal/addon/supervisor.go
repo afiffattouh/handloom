@@ -146,10 +146,10 @@ func (s *Supervisor) Call(ctx context.Context, name string, c Call) (Result, err
 	if sv.idle != nil {
 		sv.idle.Stop()
 	}
+	defer s.armIdle(sv) // every way out that leaves a live process starts the idle clock again
 	start := s.now()
 	finish := func(r Result) (Result, error) {
 		r.Took = s.now().Sub(start)
-		s.armIdle(sv)
 		return r, nil
 	}
 
@@ -397,6 +397,7 @@ type proc struct {
 	// limit is the longest line the reader accepts now: the running call's cap, or the largest cap of any tool between calls.
 	limit   atomic.Int64
 	idleCap int64
+	pidFile *os.File // holds the lock that says this service is alive
 }
 
 func (s *Supervisor) launch(name string, m *Manifest) (*proc, error) {
@@ -433,7 +434,7 @@ func (s *Supervisor) launch(name string, m *Manifest) (*proc, error) {
 		close(p.done)
 	}()
 	go readLines(pr, &p.limit, p.lines, p.done)
-	writePid(s.Root, name, cmd.Process.Pid)
+	p.pidFile = writePid(s.Root, name, cmd.Process.Pid)
 	return p, nil
 }
 
@@ -502,7 +503,12 @@ func lastLine(s string) string {
 }
 
 // release forgets the process's id file.
-func (p *proc) release(root, name string) { os.Remove(pidPath(root, name)) }
+func (p *proc) release(root, name string) {
+	os.Remove(pidPath(root, name))
+	if p.pidFile != nil {
+		p.pidFile.Close() // closing lets go of the lock
+	}
+}
 
 func readLines(r *io.PipeReader, limit *atomic.Int64, out chan<- lineResult, done <-chan struct{}) {
 	defer close(out)
@@ -572,9 +578,17 @@ func (t *tailBuffer) String() string {
 // command line can tell that an add-on is in use without asking the link.
 func pidPath(root, name string) string { return filepath.Join(root, ".running", name) }
 
-func writePid(root, name string, pid int) {
+// writePid records the process id and holds a lock on the file for as long as the service lives, so a file
+// left behind by a link that died (and a process id since reused) is not taken for a running service.
+func writePid(root, name string, pid int) *os.File {
 	os.MkdirAll(filepath.Join(root, ".running"), 0o700)
-	os.WriteFile(pidPath(root, name), []byte(strconv.Itoa(pid)+"\n"), 0o600)
+	f, err := os.OpenFile(pidPath(root, name), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
+	if err != nil {
+		return nil
+	}
+	lockPid(f)
+	f.WriteString(strconv.Itoa(pid) + "\n")
+	return f
 }
 
 // RunningPID is the process id of the add-on's service if one is alive on this computer.
@@ -584,7 +598,7 @@ func RunningPID(root, name string) (int, bool) {
 		return 0, false
 	}
 	pid, err := strconv.Atoi(strings.TrimSpace(string(b)))
-	if err != nil || pid <= 0 || !alive(pid) {
+	if err != nil || pid <= 0 || !pidHeld(pidPath(root, name)) {
 		return 0, false
 	}
 	return pid, true

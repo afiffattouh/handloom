@@ -17,12 +17,18 @@ func killTree(cmd *exec.Cmd) {
 	}
 }
 
-// alive says whether a process with this id exists.
-func alive(pid int) bool {
-	p, err := os.FindProcess(pid)
+// lockPid takes a lock on the file that lasts until it is closed, or the process ends.
+func lockPid(f *os.File) { syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB) }
+
+// pidHeld says whether some process holds the lock on the file, that is, whether the service is really alive.
+func pidHeld(path string) bool {
+	f, err := os.Open(path)
 	if err != nil {
 		return false
 	}
-	err = p.Signal(syscall.Signal(0))
-	return err == nil || err == syscall.EPERM
+	defer f.Close()
+	if syscall.Flock(int(f.Fd()), syscall.LOCK_SH|syscall.LOCK_NB) == nil {
+		return false
+	}
+	return true
 }

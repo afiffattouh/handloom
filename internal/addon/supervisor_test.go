@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -455,5 +456,41 @@ func TestInstalledStates(t *testing.T) {
 	}
 	if len(states) != 3 {
 		t.Errorf("states = %v", states)
+	}
+}
+
+func TestIdleStopAfterRejectedCall(t *testing.T) {
+	r := newRig(t)
+	r.sup.IdleTimeout = 150 * time.Millisecond
+	r.install(echoDir, nil)
+	r.call("echo", Call{Tool: "_health"})
+	if _, err := r.sup.Call(context.Background(), "echo", Call{Tool: "nope"}); err == nil {
+		t.Fatal("an unknown tool was accepted")
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for r.sup.Running("echo") && time.Now().Before(deadline) {
+		time.Sleep(20 * time.Millisecond)
+	}
+	if r.sup.Running("echo") {
+		t.Fatal("not stopped after the idle time, following a rejected call")
+	}
+}
+
+func TestStalePidFileIsNotRunning(t *testing.T) {
+	r := newRig(t)
+	if err := os.MkdirAll(filepath.Dir(pidPath(r.root, "echo")), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	// a file left by a link that died, naming a process that is alive (this one) but is not the service
+	if err := os.WriteFile(pidPath(r.root, "echo"), []byte(strconv.Itoa(os.Getpid())+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := RunningPID(r.root, "echo"); ok {
+		t.Fatal("a stale file counted as a running service")
+	}
+	r.install(echoDir, nil) // and it does not block an install
+	r.call("echo", Call{Tool: "_health"})
+	if _, ok := RunningPID(r.root, "echo"); !ok {
+		t.Fatal("a live service was not seen as running")
 	}
 }

@@ -38,7 +38,16 @@ func (e *env) mcp(args []string) error {
 	if *operator {
 		return mcp.ServeOperator(os.Stdin, e.out, Version, run, *approvals)
 	}
-	return mcp.Serve(os.Stdin, e.out, Version, run)
+	// A helper the link started, with tools granted, finds them here too: each is a tool that calls the same gateway.
+	var extra []mcp.AddonTool
+	for _, t := range e.helperToolList().Tools {
+		at := mcp.AddonTool{Addon: t.Addon, Tool: t.Tool, Summary: t.Summary}
+		for _, f := range t.Input {
+			at.Input = append(at.Input, mcp.AddonField{Name: f.Name, Type: f.Type, Summary: f.Summary, Required: f.Required})
+		}
+		extra = append(extra, at)
+	}
+	return mcp.ServeWithAddons(os.Stdin, e.out, Version, run, extra)
 }
 
 const usage = `handloom: coordination for coding agents across machines
@@ -96,6 +105,9 @@ Device:
                                                   status (needs the hub) lists what every computer has installed;
                                                   grants, grant and revoke (the owner, at the hub) say which profile may use which tool:
                                                   addon grants [--profile P] | grant PROFILE ADDON.TOOL [--leaves yes|no] [--max-calls N] | revoke PROFILE ADDON.TOOL
+  handloom tool list | call ADDON.TOOL [--arg name=value ...] [--args '{...}'] [--json]
+                                                  the tools from add-ons this helper may use (inside a helper the link started);
+                                                  a refused or failed call prints its code word, and the tool is not available: do not guess its answer
   handloom run <name> -- <command...>                 start an agent CLI as a registered, wakeable agent
   handloom mcp [--operator [--allow-approvals]]       MCP server (stdio): the agent verbs as tools, or with --operator the tools of a person driving Handloom from their own AI app
 
@@ -275,6 +287,8 @@ func run(e *env, args []string) int {
 		err = e.adapter(rest)
 	case "addon":
 		err = e.addonCmd(rest)
+	case "tool":
+		err = e.toolCmd(rest)
 	case "mcp":
 		err = e.mcp(rest)
 	case "run":

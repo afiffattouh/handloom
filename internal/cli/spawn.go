@@ -222,6 +222,11 @@ func (e *env) spawnExec(args []string) error {
 			extra += "\n\n## Skills\n\nApply these when the situation they describe comes up.\n\n" + sk
 		}
 	}
+	// What the helper may call from add-ons, and what it was granted but cannot have, from the link's own
+	// record of the spawn (the hub's request no longer carries it once the link has started the helper).
+	if ts := toolsSection(e.helperToolList()); ts != "" {
+		extra += "\n\n" + ts
+	}
 	if err := e.installAdapter(s.Kind, spec, dir, s.Name, s.Project, true, extra); err != nil {
 		return fail(err)
 	}

@@ -16,9 +16,6 @@ import (
 // what it last told. It also tells the hub on start, which clears anything the hub still holds for this
 // computer that is gone. The hub only registers the report; nothing here starts an add-on.
 
-// maxManifestReport is the longest manifest text sent; the hub refuses more.
-const maxManifestReport = 64 << 10
-
 // maxManifestTotal is the most manifest text one report carries in all. Past it the rest are sent without
 // their text, so a few large manifests cannot keep the whole report from being accepted.
 const maxManifestTotal = 4 << 20
@@ -39,7 +36,7 @@ func (l *Link) addonItems() ([]api.AddonItem, error) {
 	for _, in := range list {
 		it := api.AddonItem{Name: in.Name, Version: in.Version, PackageHash: in.PackageHash, ManifestHash: in.ManifestHash, Status: in.State, Detail: in.Detail}
 		if in.Manifest != nil {
-			if text, err := os.ReadFile(filepath.Join(root, in.Name, addon.ManifestFile)); err == nil && len(text) <= maxManifestReport && total+len(text) <= maxManifestTotal {
+			if text, err := os.ReadFile(filepath.Join(root, in.Name, addon.ManifestFile)); err == nil && len(text) <= addon.MaxManifestBytes && total+len(text) <= maxManifestTotal {
 				it.Manifest = string(text)
 				total += len(text)
 			}

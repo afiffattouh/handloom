@@ -103,8 +103,14 @@ func (e *APIError) Error() string {
 	return fmt.Sprintf("addon.yaml: this add-on was written for add-on API %d; this program speaks API %d, so it is not started. Use a Handloom that speaks API %d, or a version of the add-on written for API %d", e.Want, APIVersion, e.Want, APIVersion)
 }
 
+// MaxManifestBytes is the longest manifest text. The hub takes no more, so an add-on past it could never be granted.
+const MaxManifestBytes = 64 << 10
+
 // Parse reads addon.yaml text and checks it. The error says in plain words what to change.
 func Parse(data []byte) (*Manifest, error) {
+	if len(data) > MaxManifestBytes {
+		return nil, fmt.Errorf("addon.yaml is %d KB; the most this program takes is %d KB, so the hub could never be told what the add-on can do", (len(data)+1023)/1024, MaxManifestBytes/1024)
+	}
 	var raw rawManifest
 	dec := yaml.NewDecoder(bytes.NewReader(data))
 	dec.KnownFields(true)

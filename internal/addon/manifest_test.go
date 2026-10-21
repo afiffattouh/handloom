@@ -147,3 +147,14 @@ func TestCheckArgs(t *testing.T) {
 		}
 	}
 }
+
+// A manifest the hub would not take is refused here, so an add-on that installs can always be granted.
+func TestParseRefusesAManifestTheHubWouldNotTake(t *testing.T) {
+	pad := "\n# " + strings.Repeat("x", MaxManifestBytes)
+	if _, err := Parse([]byte(goodManifest + pad)); err == nil || !strings.Contains(err.Error(), "64 KB") {
+		t.Fatalf("a long manifest: %v", err)
+	}
+	if _, err := Parse([]byte(goodManifest + "\n# " + strings.Repeat("x", 1000))); err != nil {
+		t.Fatalf("a manifest under the limit: %v", err)
+	}
+}

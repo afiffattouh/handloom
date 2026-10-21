@@ -168,3 +168,29 @@ func TestADamagedApprovalFileKeepsTheLastReport(t *testing.T) {
 	}
 }
 
+// The link cannot see the hub's rows, so a report it was told was accepted is still sent again now and then:
+// that is what puts the rows right after the hub lost or cleared them.
+func TestTheHubsRowsAreRepairedByAnOccasionalFullReport(t *testing.T) {
+	f, root := addonFixture(t)
+	if _, err := addon.Install(root, addon.NewStore(root), echoAddon, "", "tester", f.clock()); err != nil {
+		t.Fatal(err)
+	}
+	f.ladder()
+	if len(f.addons()) != 1 {
+		t.Fatal("the first report was not made")
+	}
+	// the hub's rows are cleared behind the link's back, as a restore from an older backup would
+	if err := f.link.hub.Do(t.Context(), "POST", "/v1/device/addons", api.AddonReport{Addons: []api.AddonItem{}}, nil); err != nil {
+		t.Fatal(err)
+	}
+	f.advance(addonsResendEvery - time.Minute)
+	f.ladder()
+	if len(f.addons()) != 0 {
+		t.Fatal("the full report was sent again too soon")
+	}
+	f.advance(2 * time.Minute)
+	f.ladder()
+	if got := f.addons(); len(got) != 1 || got[0].Name != "echo" {
+		t.Fatalf("the hub's rows were not put right: %+v", got)
+	}
+}

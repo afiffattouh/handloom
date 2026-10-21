@@ -74,7 +74,8 @@ type Link struct {
 	baseDone map[int64]bool       // jobs whose base this process has looked at (D105)
 	prSeen   map[int64]time.Time  // publishes and when their pull request was last looked at (D105)
 
-	addonsSent []byte // the last add-on report the hub accepted, as JSON; nil until one was
+	addonsSent []byte    // the last add-on report the hub accepted, as JSON; nil until one was
+	addonsAt   time.Time // when that report was accepted
 }
 
 func New(opt Options) *Link {

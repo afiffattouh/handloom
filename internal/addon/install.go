@@ -187,6 +187,9 @@ func copyTree(src, dst string) error {
 		if !d.Type().IsRegular() {
 			return fmt.Errorf("%s is not a plain file (links are not allowed in an add-on)", filepath.ToSlash(rel))
 		}
+		if err := checkFileName(rel); err != nil {
+			return err
+		}
 		info, err := d.Info()
 		if err != nil {
 			return err

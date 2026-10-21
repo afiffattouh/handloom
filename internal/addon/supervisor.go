@@ -395,9 +395,10 @@ type proc struct {
 	stderr *tailBuffer
 	seq    int
 	// limit is the longest line the reader accepts now: the running call's cap, or the largest cap of any tool between calls.
-	limit   atomic.Int64
-	idleCap int64
-	pidFile *os.File // holds the lock that says this service is alive
+	limit       atomic.Int64
+	idleCap     int64
+	releaseOnce sync.Once
+	pidFile     *os.File // holds the lock that says this service is alive
 }
 
 func (s *Supervisor) launch(name string, m *Manifest) (*proc, error) {
@@ -428,13 +429,14 @@ func (s *Supervisor) launch(name string, m *Manifest) (*proc, error) {
 	}
 	p := &proc{cmd: cmd, in: in, lines: make(chan lineResult), done: make(chan struct{}), stderr: tail, idleCap: max + replySlack}
 	p.limit.Store(p.idleCap)
+	p.pidFile = writePid(s.Root, name, cmd.Process.Pid)
 	go func() {
 		cmd.Wait()
 		pw.Close()
+		p.release(s.Root, name) // a service that ends on its own no longer counts as running
 		close(p.done)
 	}()
 	go readLines(pr, &p.limit, p.lines, p.done)
-	p.pidFile = writePid(s.Root, name, cmd.Process.Pid)
 	return p, nil
 }
 
@@ -504,10 +506,12 @@ func lastLine(s string) string {
 
 // release forgets the process's id file.
 func (p *proc) release(root, name string) {
-	os.Remove(pidPath(root, name))
-	if p.pidFile != nil {
-		p.pidFile.Close() // closing lets go of the lock
-	}
+	p.releaseOnce.Do(func() {
+		os.Remove(pidPath(root, name))
+		if p.pidFile != nil {
+			p.pidFile.Close() // closing lets go of the lock
+		}
+	})
 }
 
 func readLines(r *io.PipeReader, limit *atomic.Int64, out chan<- lineResult, done <-chan struct{}) {

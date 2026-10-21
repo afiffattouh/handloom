@@ -494,3 +494,29 @@ func TestStalePidFileIsNotRunning(t *testing.T) {
 		t.Fatal("a live service was not seen as running")
 	}
 }
+
+func TestServiceThatDiesBetweenCallsIsNotRunning(t *testing.T) {
+	r := newRig(t)
+	r.install(echoDir, nil)
+	r.call("echo", Call{Tool: "_health"})
+	pid, ok := RunningPID(r.root, "echo")
+	if !ok {
+		t.Fatal("a live service was not seen as running")
+	}
+	if proc, err := os.FindProcess(pid); err == nil {
+		proc.Kill()
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		if _, ok := RunningPID(r.root, "echo"); !ok {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("a dead service still counts as running")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if err := Remove(r.root, r.store, "echo"); err != nil {
+		t.Fatalf("remove after the service died: %v", err)
+	}
+}

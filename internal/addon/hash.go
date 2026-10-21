@@ -41,6 +41,9 @@ func PackageHash(dir string) (string, error) {
 		if !d.Type().IsRegular() {
 			return fmt.Errorf("%s is not a plain file (links are not allowed in an add-on)", filepath.ToSlash(rel))
 		}
+		if err := checkFileName(rel); err != nil {
+			return err
+		}
 		f, err := os.Open(p)
 		if err != nil {
 			return err
@@ -65,6 +68,17 @@ func PackageHash(dir string) (string, error) {
 		io.WriteString(all, f.path+" "+f.sum+"\n")
 	}
 	return hex.EncodeToString(all.Sum(nil)), nil
+}
+
+// checkFileName refuses a name with a newline or other control character, which could make one file
+// look like two lines of the hashed text.
+func checkFileName(rel string) error {
+	for _, r := range rel {
+		if r < 0x20 || r == 0x7f {
+			return fmt.Errorf("the file name %q has a character that is not allowed in an add-on", filepath.ToSlash(rel))
+		}
+	}
+	return nil
 }
 
 // Load reads and checks the add-on in dir and returns it with both hashes.

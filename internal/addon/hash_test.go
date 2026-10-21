@@ -1,8 +1,11 @@
 package addon
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -83,5 +86,21 @@ func TestManifestHash(t *testing.T) {
 	a, b := ManifestHash([]byte("x")), ManifestHash([]byte("x "))
 	if a == b || len(a) != 64 {
 		t.Fatal("manifest hash is not sensitive to the text")
+	}
+}
+
+func TestPackageHashRefusesNamesThatImitateTwoFiles(t *testing.T) {
+	sum := func(s string) string { h := sha256.Sum256([]byte(s)); return hex.EncodeToString(h[:]) }
+	// "a <sum of x>\nb" as one file name would read as the two lines for a and b
+	name := "a " + sum("x") + "\nb"
+	dir := writeTree(t, map[string]string{name: "evil"})
+	if _, err := PackageHash(dir); err == nil || !strings.Contains(err.Error(), "not allowed") {
+		t.Fatalf("a file name with a newline: %v", err)
+	}
+	if err := copyTree(dir, t.TempDir()); err == nil {
+		t.Fatal("copyTree took a file name with a newline")
+	}
+	if _, _, _, err := Load(dir); err == nil {
+		t.Fatal("Load took a file name with a newline")
 	}
 }

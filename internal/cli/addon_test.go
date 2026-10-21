@@ -106,6 +106,15 @@ func TestAddonHashAddListDoctorRemove(t *testing.T) {
 	if _, out, _ := addonRun(t, "list"); !strings.Contains(out, "Changed since approved") {
 		t.Fatalf("list after change: %q", out)
 	}
+	// the list says why, not only the state
+	_, jout, _ := addonRun(t, "list", "--json")
+	var changed []map[string]any
+	if json.Unmarshal([]byte(jout), &changed) != nil || len(changed) != 1 || changed[0]["detail"] == nil {
+		t.Fatalf("list --json after change has no detail: %q", jout)
+	}
+	if _, out, _ := addonRun(t, "list"); !strings.Contains(out, changed[0]["detail"].(string)) {
+		t.Fatalf("list after change does not say why: %q", out)
+	}
 
 	if code, out, _ := addonRun(t, "remove", "echo"); code != 0 || !strings.Contains(out, "Removed echo") {
 		t.Fatalf("remove: %d %q", code, out)

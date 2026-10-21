@@ -32,7 +32,7 @@ If you change any file of an installed add-on, or install a different version, i
 
 ## Let a profile use it
 
-Nothing can use a tool until an owner allows it. The profile must already exist (see **Add profiles** in the [README](../README.md#quick-start)). On the Add-ons page choose **Grant** next to the tool and pick a profile. On the command line, run it as the owner: set `HANDLOOM_HUB` to the hub address and `HANDLOOM_TOKEN` to your owner token first (a member's or the admin token is refused).
+Nothing can use a tool until an owner allows it. The profile must already exist (see **Add profiles** in the [README](../README.md#quick-start)). On the Add-ons page choose **Grant** next to the tool and pick a profile. On the command line, run it as the owner: set `HANDLOOM_HUB` to the hub address and `HANDLOOM_TOKEN` to the owner's personal token first. Get it from **Settings** on the hub, or run `handloom token new`; if the owner has lost it, run `handloom hub reset-human-token` on the hub's own computer. The admin token (the one the hub prints when it starts) and a member's token are refused with "use a human token"; that means the owner's personal token.
 
 ```
 handloom addon grant researcher web-fetch.fetch --leaves yes --max-calls 20
@@ -70,7 +70,7 @@ What Handloom does:
 
 - An add-on runs only if its folder is exactly what its owner approved on that computer.
 - A helper can call a tool only if its profile was granted that tool, and only up to the call limit. The link on the computer decides each call; the hub is not in the way.
-- Every call is recorded before it is made and again when it ends: which job, which helper, which tool, how long, and the result code. What was asked and what came back is not sent to the hub. It stays on the computer.
+- Every call is recorded before it is made and again when it ends: which job, which helper, which tool, how long, and the result code. The text of what was asked and what came back is not sent to the hub and is not in the audit or the hub's database. It does appear wherever the helper shows it: its terminal view (which the hub can show to someone watching, with secrets hidden), its own notes, and the model it works with, which may be a cloud model.
 - A **confidential job** is never given a tool that leaves the computer (by your answer at the grant). The job page says which ones it was refused.
 
 What it does not do. Please read this part.

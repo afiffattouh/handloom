@@ -215,6 +215,9 @@ func (e *env) addonList(args []string) error {
 		}
 		for _, r := range rows {
 			fmt.Fprintf(e.out, "%-16s %-8s %-28s %s\n", r.Name, r.Version, r.State, strings.Join(r.Tools, ", "))
+			if r.Detail != "" {
+				fmt.Fprintf(e.out, "  %s\n", r.Detail)
+			}
 		}
 	})
 	return nil

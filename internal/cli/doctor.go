@@ -97,6 +97,8 @@ func addonChecks() []doctorCheck {
 			out = append(out, doctorCheck{name, "ok", "ready", ""})
 		case "missing":
 			out = append(out, doctorCheck{name, "warn", "approved here, but its folder is gone: install it again or remove it", ""})
+		case "down":
+			out = append(out, doctorCheck{name, "warn", "cannot run on this computer: " + i.Detail, ""})
 		default:
 			out = append(out, doctorCheck{name, "warn", "changed since it was approved (" + i.Detail + "): approve it again with handloom addon add", ""})
 		}

@@ -282,6 +282,8 @@ func (e *env) addonDoctor(args []string) error {
 			}
 		case "missing":
 			l.Text = "approved here, but its folder is gone; install it again or remove it"
+		case "down":
+			l.Text = "cannot run on this computer: " + i.Detail
 		default:
 			l.Text = "changed since it was approved (" + i.Detail + "); it will not run until you approve it again with handloom addon add"
 		}

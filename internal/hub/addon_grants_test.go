@@ -319,6 +319,16 @@ func TestEveryReasonAToolIsUnavailable(t *testing.T) {
 			}
 		})
 	}
+	t.Run("written for another add-on API", func(t *testing.T) {
+		e := grantEnv(t)
+		e.grant(e.afif(), "reader", "notes", "search")
+		it := api.AddonItem{Name: "notes", PackageHash: hashA, Status: "down", Detail: "this add-on was written for add-on API 2; this program speaks API 1"}
+		e.ok(caller{e.d1, ""}, "POST", "/v1/device/addons", api.AddonReport{Addons: []api.AddonItem{it}}, nil)
+		s := e.pendingSpawn("a", "reader", 0)
+		if u := unavailable(s, "notes", "search"); len(s.Tools) != 0 || u == nil || u.Cause != "plugin-down" {
+			t.Fatalf("%+v", s)
+		}
+	})
 	t.Run("the add-on is gone", func(t *testing.T) {
 		e := grantEnv(t)
 		e.grant(e.afif(), "reader", "notes", "search")

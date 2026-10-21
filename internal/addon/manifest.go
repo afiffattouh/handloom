@@ -95,6 +95,14 @@ type rawManifest struct {
 	Tools   []rawTool `yaml:"tools"`
 }
 
+// APIError is the refusal of an add-on written for another add-on API than this program speaks. It is kept
+// apart from other manifest mistakes because the add-on may be fine: it is this program that is too old or too new.
+type APIError struct{ Want int }
+
+func (e *APIError) Error() string {
+	return fmt.Sprintf("addon.yaml: this add-on was written for add-on API %d; this program speaks API %d, so it is not started. Use a Handloom that speaks API %d, or a version of the add-on written for API %d", e.Want, APIVersion, e.Want, APIVersion)
+}
+
 // Parse reads addon.yaml text and checks it. The error says in plain words what to change.
 func Parse(data []byte) (*Manifest, error) {
 	var raw rawManifest
@@ -129,7 +137,7 @@ func Parse(data []byte) (*Manifest, error) {
 		return nil, fmt.Errorf("addon.yaml: version %q must look like 1.2.3", raw.Version)
 	}
 	if raw.API != APIVersion {
-		return nil, fmt.Errorf("addon.yaml: this add-on was written for add-on API %d; this program speaks API %d", raw.API, APIVersion)
+		return nil, &APIError{Want: raw.API}
 	}
 	if len(raw.Secrets) > 0 {
 		return nil, errors.New("addon.yaml: secrets must be empty in this version. An add-on that keeps a key cannot be kept apart from the agents on the same computer yet, so it is refused rather than made to look safe")

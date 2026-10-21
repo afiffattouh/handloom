@@ -1,6 +1,7 @@
 package addon
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -130,12 +131,17 @@ func Installed(root string, store *Store) ([]Info, error) {
 	var out []Info
 	for _, n := range order {
 		in := Info{Name: n}
+		var apiErr *APIError
 		ap, approved := have[n]
 		m, ph, mh, err := Load(filepath.Join(root, n))
 		switch {
 		case err != nil && !dirExists(filepath.Join(root, n)):
 			in.State, in.Detail = "missing", "approved here, but its folder is gone"
 			in.Version = ap.Version
+		case errors.As(err, &apiErr):
+			// Not changed: this program cannot run it. It is reported as not running, with the reason.
+			in.State, in.Detail = "down", err.Error()
+			in.PackageHash, _ = PackageHash(filepath.Join(root, n))
 		case err != nil:
 			in.State, in.Detail = "changed", err.Error()
 		case !approved:

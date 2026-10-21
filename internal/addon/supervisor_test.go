@@ -590,3 +590,34 @@ func TestStopStraysEndsAnOrphanedServiceAndNothingElse(t *testing.T) {
 		t.Fatal("the id file was left")
 	}
 }
+
+// An add-on written for another add-on API is not changed, it is one this program cannot run: it is listed as
+// not running with the reason, a call answers plugin-down in plain words, and nothing is started.
+func TestOtherAPIIsRefusedAsNotRunning(t *testing.T) {
+	r := newRig(t)
+	r.install(echoDir, nil)
+	mf := filepath.Join(r.root, "echo", ManifestFile)
+	b, _ := os.ReadFile(mf)
+	os.WriteFile(mf, []byte(strings.Replace(string(b), "api: 1", "api: 2", 1)), 0o644)
+
+	ins, _ := Installed(r.root, r.store)
+	if len(ins) != 1 || ins[0].State != "down" || !strings.Contains(ins[0].Detail, "add-on API 2") || !strings.Contains(ins[0].Detail, "speaks API 1") || ins[0].PackageHash == "" {
+		t.Fatalf("installed = %+v", ins)
+	}
+	res := r.call("echo", Call{Tool: "say", Args: map[string]any{"text": "a"}})
+	if res.Code != CodeDown || !strings.Contains(res.Error, "not started") || !strings.Contains(res.Error, "API 2") {
+		t.Fatalf("call = %+v", res)
+	}
+	if r.sup.Running("echo") {
+		t.Fatal("an add-on for another API was started")
+	}
+	// a folder that is not installed yet is refused when added, with the same words
+	dir := t.TempDir()
+	if err := copyTree(echoDir, dir); err != nil {
+		t.Fatal(err)
+	}
+	os.WriteFile(filepath.Join(dir, ManifestFile), []byte(strings.Replace(string(b), "api: 1", "api: 3", 1)), 0o644)
+	if _, err := Install(r.root, r.store, dir, "", "tester", r.now); err == nil || !strings.Contains(err.Error(), "API 3") {
+		t.Fatalf("install = %v", err)
+	}
+}

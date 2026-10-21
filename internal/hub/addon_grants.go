@@ -316,6 +316,10 @@ func (c *call) toolSnapshot(profileName string, deviceID int64, confidential boo
 		case a.status == "changed":
 			no(g, api.CauseChanged, actionApprove)
 			continue
+		case a.status == "down" && a.manifest == nil:
+			// Reported with no manifest: the computer cannot read it (an add-on API it does not speak).
+			no(g, api.CausePluginDown, actionDown)
+			continue
 		case a.hash != g.ManifestHash || a.manifest == nil:
 			no(g, api.CauseChanged, actionGrantAgain)
 			continue

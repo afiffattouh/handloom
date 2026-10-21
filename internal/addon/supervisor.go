@@ -140,6 +140,10 @@ func (s *Supervisor) CheckHash(name string) (*Manifest, string, Result, bool) {
 		return nil, "", Result{Code: CodeNotInstalled, Error: name + " is on this computer but was never approved here"}, false
 	}
 	m, ph, mh, err := Load(dir)
+	var apiErr *APIError
+	if errors.As(err, &apiErr) {
+		return nil, "", Result{Code: CodeDown, Error: name + " is not started: " + apiErr.Error()}, false
+	}
 	if err != nil {
 		return nil, "", Result{Code: CodeChanged, Error: name + " changed since it was approved and can no longer be read: " + err.Error()}, false
 	}

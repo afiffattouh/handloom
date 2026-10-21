@@ -20,6 +20,13 @@ const AgentHeader = "Handloom-Agent"
 // the link) next to the device credential the link adds.
 const RunTokenHeader = "Handloom-Run-Token"
 
+// ToolTokenHeader carries a spawn's tool token to the link's tool gateway. The gateway knows the caller by
+// this and by nothing else.
+const ToolTokenHeader = "Handloom-Tool-Token"
+
+// ToolTokenEnv is the environment variable a spawn finds its tool token in.
+const ToolTokenEnv = "HANDLOOM_TOOL_TOKEN"
+
 // AgentFrom returns the calling agent's name from a request.
 func AgentFrom(h interface{ Get(string) string }) string { return h.Get(AgentHeader) }
 
@@ -1187,4 +1194,27 @@ type AddonCall struct {
 // AddonCallReport is a batch of journal lines from one link.
 type AddonCallReport struct {
 	Calls []AddonCall `json:"calls"`
+}
+
+// ToolCallReq is an agent asking the link's gateway to run one tool. Tool is ADDON.TOOL.
+type ToolCallReq struct {
+	Tool string         `json:"tool"`
+	Args map[string]any `json:"args,omitempty"`
+}
+
+// ToolCallResp is how a call ended. Code is one of the fixed result codes; Text is the add-on's reply when
+// the call went well and a sentence in plain words when it did not. Files are the full paths of what the
+// add-on saved for this call.
+type ToolCallResp struct {
+	OK    bool     `json:"ok"`
+	Code  string   `json:"code"`
+	Text  string   `json:"text"`
+	Files []string `json:"files,omitempty"`
+}
+
+// ToolList is what the gateway tells a spawn it may call, and what it was granted but cannot have.
+type ToolList struct {
+	Tools        []SpawnTool       `json:"tools"`
+	Unavailable  []ToolUnavailable `json:"unavailable,omitempty"`
+	Confidential bool              `json:"confidential,omitempty"`
 }

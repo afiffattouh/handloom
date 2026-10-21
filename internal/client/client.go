@@ -24,11 +24,12 @@ import (
 )
 
 type Client struct {
-	HTTP     *http.Client
-	Base     string // hub URL, or http://link for the local socket
-	Token    string // bearer token; empty when talking to the link
-	Agent    string // sent as Handloom-Agent
-	RunToken string // the agent's run token, if it has one; sent as Handloom-Run-Token
+	HTTP      *http.Client
+	Base      string // hub URL, or http://link for the local socket
+	Token     string // bearer token; empty when talking to the link
+	Agent     string // sent as Handloom-Agent
+	RunToken  string // the agent's run token, if it has one; sent as Handloom-Run-Token
+	ToolToken string // the spawn's tool token, for the link's tool gateway; sent as Handloom-Tool-Token
 }
 
 // Error is an error answer from the hub.
@@ -82,6 +83,9 @@ func (c *Client) Do(ctx context.Context, method, path string, body, out any) err
 	}
 	if c.RunToken != "" {
 		req.Header.Set(api.RunTokenHeader, c.RunToken)
+	}
+	if c.ToolToken != "" {
+		req.Header.Set(api.ToolTokenHeader, c.ToolToken)
 	}
 	resp, err := c.HTTP.Do(req)
 	if err != nil {

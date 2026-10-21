@@ -79,6 +79,14 @@ type service struct {
 	restarts []time.Time // when it was restarted after a crash, within the window
 	down     string
 	idle     *time.Timer
+
+	live atomic.Pointer[proc] // the same process as p, readable without callMu, so Close can end a call that is running
+}
+
+// setProc is the only way p changes.
+func (sv *service) setProc(p *proc) {
+	sv.p = p
+	sv.live.Store(p)
 }
 
 // NewSupervisor runs add-ons from root, approved in store.
@@ -285,7 +293,8 @@ func (s *Supervisor) begin(sv *service, m *Manifest) (Result, bool) {
 		sv.crashed = true
 		return Result{Code: CodeDown, Error: "the add-on could not be started: " + err.Error()}, false
 	}
-	sv.p, sv.crashed = p, false
+	sv.setProc(p)
+	sv.crashed = false
 	return Result{}, true
 }
 
@@ -302,7 +311,7 @@ func (s *Supervisor) stop(sv *service, crashed bool) {
 	if sv.p != nil {
 		sv.p.kill()
 		sv.p.release(s.Root, sv.name)
-		sv.p = nil
+		sv.setProc(nil)
 	}
 	sv.crashed = crashed
 }
@@ -324,7 +333,7 @@ func (s *Supervisor) armIdle(sv *service) {
 		if sv.p != nil {
 			sv.p.stopGently()
 			sv.p.release(s.Root, sv.name)
-			sv.p = nil
+			sv.setProc(nil)
 		}
 	})
 }
@@ -348,14 +357,21 @@ func (s *Supervisor) Close() {
 	}
 	s.mu.Unlock()
 	for _, sv := range all {
-		sv.callMu.Lock()
+		if !sv.callMu.TryLock() {
+			// A call is running. Ending its process ends the call (it answers "the add-on stopped"), which
+			// frees the lock; waiting for the add-on to finish would hold the link back for up to five minutes.
+			if p := sv.live.Load(); p != nil {
+				p.kill()
+			}
+			sv.callMu.Lock()
+		}
 		if sv.idle != nil {
 			sv.idle.Stop()
 		}
 		if sv.p != nil {
 			sv.p.stopGently()
 			sv.p.release(s.Root, sv.name)
-			sv.p = nil
+			sv.setProc(nil)
 		}
 		sv.callMu.Unlock()
 	}

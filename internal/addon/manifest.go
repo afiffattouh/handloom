@@ -281,3 +281,9 @@ func (t Tool) CheckArgs(args map[string]any) error {
 	}
 	return nil
 }
+
+// ValidName says whether s can be the name of an add-on.
+func ValidName(s string) bool { return nameRe.MatchString(s) }
+
+// ValidToolName says whether s can be the name of a tool (a leading underscore is for the protocol only).
+func ValidToolName(s string) bool { return toolRe.MatchString(s) && !strings.HasPrefix(s, "_") }

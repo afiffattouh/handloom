@@ -165,6 +165,32 @@ func TestTimeoutKillsTheCall(t *testing.T) {
 	}
 }
 
+// Closing the supervisor ends a call that is running, instead of waiting for the add-on to finish it.
+func TestCloseEndsACallThatIsRunning(t *testing.T) {
+	r := newRig(t)
+	r.install(echoDir, nil)
+	done := make(chan Result, 1)
+	go func() { done <- r.call("echo", Call{Tool: "wait", Args: map[string]any{"seconds": 60}}) }()
+	deadline := time.Now().Add(10 * time.Second)
+	for !r.sup.Running("echo") && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	time.Sleep(200 * time.Millisecond) // the request is written to the service
+	start := time.Now()
+	r.sup.Close()
+	select {
+	case res := <-done:
+		if res.Code != CodeError {
+			t.Fatalf("the call ended with %+v", res)
+		}
+	case <-time.After(15 * time.Second):
+		t.Fatal("the call was not ended")
+	}
+	if time.Since(start) > 10*time.Second {
+		t.Fatal("Close waited for the add-on")
+	}
+}
+
 // A small add-on for the cases the echo add-on does not have: it can stop, flood and stay silent.
 const miscYAML = `schema: 1
 kind: tool

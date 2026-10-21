@@ -105,7 +105,7 @@ func newFixture(t *testing.T) *fixture {
 		t.Fatal(err)
 	}
 	f.dataDir = t.TempDir()
-	h := hub.New(db, hub.Options{Now: f.clock, MsgRate: 1000, AllowFileRemotes: true, DataDir: f.dataDir})
+	h := hub.New(db, hub.Options{Now: f.clock, MsgRate: 1000, AllowFileRemotes: true, AllowConfidential: true, DataDir: f.dataDir})
 	srv := httptest.NewServer(h.Handler())
 	t.Cleanup(srv.Close)
 
@@ -1592,9 +1592,9 @@ func TestIsolationIsASeamNotAFeatureYet(t *testing.T) {
 	}
 	// The one isolator that exists runs the spawn-exec line as it is.
 	f := newFixture(t)
-	p := f.link.plan(api.Spawn{ID: 7, Name: "w"}, "/work/w")
+	p := f.link.plan(api.Spawn{ID: 7, Name: "w"}, "/work/w", "hlt_tok")
 	cmd, err := f.link.isolator().Command(context.Background(), p)
-	if err != nil || cmd != p.ExecLine || !strings.Contains(cmd, "spawn-exec 7") || !strings.Contains(cmd, "HANDLOOM_SPAWN=7") {
+	if err != nil || cmd != p.ExecLine || !strings.Contains(cmd, "spawn-exec 7") || !strings.Contains(cmd, "HANDLOOM_SPAWN=7") || !strings.Contains(cmd, "HANDLOOM_TOOL_TOKEN='hlt_tok'") {
 		t.Fatalf("native command: %q %v", cmd, err)
 	}
 }

@@ -18,6 +18,7 @@ import (
 	"sync"
 	"time"
 
+	"handloom/internal/addon"
 	"handloom/internal/api"
 	"handloom/internal/client"
 	"handloom/internal/drivers"
@@ -30,6 +31,7 @@ type Options struct {
 	UserHome   string // where the agent CLIs keep their logs (default: the home of the user running the link)
 	Socket     string
 	AddonRoot  string // where this computer's add-ons are installed; default <home>/addons
+	Journal    string // the file of tool calls this link keeps; default <home>/addon-calls.jsonl
 
 	NudgeEvery    time.Duration // at most one nudge per agent in this time; default 60s
 	Renudge       time.Duration // nudge again when delivered mail stays unread this long; default 5m
@@ -76,6 +78,13 @@ type Link struct {
 
 	addonsSent []byte    // the last add-on report the hub accepted, as JSON; nil until one was
 	addonsAt   time.Time // when that report was accepted
+
+	gate toolGateway // the tool tokens of the spawns this link started, in memory only
+
+	jmu       sync.Mutex // guards the three below
+	journal   *callJournal
+	sup       *addon.Supervisor
+	shipLogAt time.Time // when the shipper last said it could not reach the hub
 }
 
 func New(opt Options) *Link {
@@ -158,6 +167,7 @@ func (l *Link) Run(ctx context.Context) error {
 	srv := &http.Server{Handler: l.handler()}
 	go srv.Serve(ln)
 	defer srv.Close()
+	defer l.closeAddons()
 
 	l.opt.Log.Printf("link up: device %s, hub %s, socket %s", l.opt.Device, l.opt.Hub, l.opt.Socket)
 	go l.pollLoop(ctx)
@@ -247,6 +257,9 @@ func (l *Link) handler() http.Handler {
 		go l.activity(api.AgentFrom(r.Header))
 		w.Write([]byte("{}\n"))
 	})
+	// The tool gateway. The caller is known by its tool token alone.
+	mux.HandleFunc("GET /local/tools", l.toolList)
+	mux.HandleFunc("POST /local/tools/call", l.toolCall)
 	mux.HandleFunc("GET /local/status", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprintf(w, `{"device":%q,"hub":%q,"protocol":%q}`+"\n", l.opt.Device, l.opt.Hub, api.Version)

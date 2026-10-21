@@ -191,3 +191,51 @@ func TestMachinesOfAnOlderDatabaseHaveNoOwner(t *testing.T) {
 		t.Fatalf("after the hand-over: %+v", got)
 	}
 }
+
+// The add-on table is the newest migration: a database from the release before has none, and gets it.
+func TestAddonTableArrivesWithTheLastMigration(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "handloom.db")
+	old, err := sql.Open("sqlite", "file:"+path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, m := range migrations[:len(migrations)-1] {
+		if _, err := old.Exec(m); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := old.Exec(`PRAGMA user_version = ` + strconv.Itoa(len(migrations)-1)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := old.Exec(`INSERT INTO device(name, credential_hash, created_at) VALUES ('desk', 'x', 1)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := old.Exec(`SELECT 1 FROM addon`); err == nil {
+		t.Fatal("the older schema already has an addon table")
+	}
+	old.Close()
+
+	db, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	ins := func(device int, name, status string) error {
+		_, err := db.Exec(`INSERT INTO addon(device_id, name, status, reported_at) VALUES (?, ?, ?, 1)`, device, name, status)
+		return err
+	}
+	for _, s := range []string{"ready", "changed", "down", "missing"} {
+		if err := ins(1, "echo-"+s, s); err != nil {
+			t.Errorf("status %s refused: %v", s, err)
+		}
+	}
+	if err := ins(1, "x", "running"); err == nil {
+		t.Error("a status outside the four was accepted")
+	}
+	if err := ins(1, "echo-ready", "ready"); err == nil {
+		t.Error("two rows for one computer and name were accepted")
+	}
+	if err := ins(99, "echo", "ready"); err == nil {
+		t.Error("a row for a computer that does not exist was accepted")
+	}
+}

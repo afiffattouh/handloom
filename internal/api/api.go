@@ -1071,3 +1071,28 @@ type CodebaseReport struct {
 	Remote string `json:"remote,omitempty"` // for a create: the address of the repository that was made
 	Base   string `json:"base,omitempty"`   // the repository's default branch
 }
+
+// AddonItem is one add-on a computer has installed, as its link reports it. Status is ready, changed, down or
+// missing. The manifest is the text of addon.yaml, sent so the hub can show what an add-on does without
+// holding the program.
+type AddonItem struct {
+	Name         string `json:"name"`
+	Version      string `json:"version"`
+	PackageHash  string `json:"package_hash"`
+	ManifestHash string `json:"manifest_hash"`
+	Manifest     string `json:"manifest,omitempty"`
+	Status       string `json:"status"`
+	Detail       string `json:"detail,omitempty"`
+}
+
+// AddonReport is a link saying everything it has installed. It replaces the computer's earlier report.
+type AddonReport struct {
+	Addons []AddonItem `json:"addons"`
+}
+
+// Addon is one add-on on one computer, as the hub holds it.
+type Addon struct {
+	Computer string `json:"computer"`
+	AddonItem
+	ReportedAt time.Time `json:"reported_at"`
+}

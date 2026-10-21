@@ -481,6 +481,21 @@ CREATE TABLE task_result (
 `, `
 -- A task handed to a helper that is still starting: it is assigned when that helper registers.
 ALTER TABLE task ADD COLUMN assign_name TEXT NOT NULL DEFAULT '';
+`, `
+-- Add-ons: what each computer says it has installed. One row per computer and name, replaced whole by
+-- the link's report. The hub only registers them; it never holds program bytes.
+CREATE TABLE addon (
+  device_id     INTEGER NOT NULL REFERENCES device(id),
+  name          TEXT NOT NULL,
+  version       TEXT NOT NULL DEFAULT '',
+  package_hash  TEXT NOT NULL DEFAULT '',
+  manifest_hash TEXT NOT NULL DEFAULT '',
+  manifest      TEXT NOT NULL DEFAULT '',
+  status        TEXT NOT NULL CHECK (status IN ('ready', 'changed', 'down', 'missing')),
+  detail        TEXT NOT NULL DEFAULT '',
+  reported_at   INTEGER NOT NULL,
+  PRIMARY KEY (device_id, name)
+);
 `}
 
 // Open opens (and migrates) the database at path. Use ":memory:" in tests.

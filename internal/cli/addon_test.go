@@ -7,6 +7,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"handloom/internal/api"
+	"handloom/internal/client"
 )
 
 var echoAddon = filepath.Join("..", "..", "examples", "addons", "echo")
@@ -153,5 +156,39 @@ func TestAddonHelpListsIt(t *testing.T) {
 	Main([]string{"help"}, &out, &out)
 	if !strings.Contains(out.String(), "handloom addon hash DIR | add DIR") || !strings.Contains(out.String(), "handloom adapter install") {
 		t.Fatal("help lacks the add-on commands or lost the adapter ones")
+	}
+}
+
+func TestAddonStatusListsWhatTheHubHolds(t *testing.T) {
+	r := newRig(t)
+	if out := r.as(r.admin, "addon", "status"); !strings.Contains(out, "No computer has reported an add-on yet") {
+		t.Fatalf("empty status: %s", out)
+	}
+	if code, _, errs := r.exec("addon", "status"); code == 0 || errs == "" {
+		t.Fatal("status without a token should be refused")
+	}
+
+	cfg, err := client.LoadLinkConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	item := api.AddonItem{Name: "echo", Version: "0.1.0", PackageHash: strings.Repeat("a", 64), ManifestHash: strings.Repeat("b", 64), Manifest: "name: echo\n", Status: "changed", Detail: "differs from what was approved"}
+	if err := client.Direct(cfg.Hub, cfg.Credential).Post("/v1/device/addons", api.AddonReport{Addons: []api.AddonItem{item}}, nil); err != nil {
+		t.Fatal(err)
+	}
+	out := r.as(r.admin, "addon", "status")
+	for _, want := range []string{"echo", "0.1.0", "on dev", "Changed since approved", "differs from what was approved"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("status lacks %q:\n%s", want, out)
+		}
+	}
+	var rows []map[string]any
+	if err := json.Unmarshal([]byte(r.as(r.admin, "addon", "status", "echo", "--json")), &rows); err != nil || len(rows) != 1 || rows[0]["computer"] != "dev" || rows[0]["manifest"] != "name: echo\n" {
+		t.Fatalf("status echo --json: %v %v", rows, err)
+	}
+	t.Setenv("HANDLOOM_HUB", r.hubURL)
+	t.Setenv("HANDLOOM_TOKEN", r.admin)
+	if code, _, errs := r.exec("addon", "status", "nothing"); code == 0 || !strings.Contains(errs, "nothing") {
+		t.Fatalf("an unknown add-on: %d %q", code, errs)
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -14,6 +15,7 @@ import (
 	"github.com/mattn/go-isatty"
 
 	"handloom/internal/addon"
+	"handloom/internal/api"
 	"handloom/internal/client"
 )
 
@@ -23,17 +25,22 @@ var addonIn io.Reader = os.Stdin
 // addonRoot is where this computer keeps its add-ons: inside the link's folder.
 func addonRoot() string { return filepath.Join(client.Home(), "addons") }
 
-// addonCmd works on the add-ons of this computer. It never talks to a hub: installing is a local act.
+// addonCmd works on the add-ons of this computer. Installing is a local act, so those verbs never talk to a
+// hub. The one exception is status, which reads what every computer has reported to the hub.
 //
 //	handloom addon hash DIR | add DIR [--sha256 H] [--yes] | list | remove NAME | doctor
+//	handloom addon status [NAME]
 func (e *env) addonCmd(args []string) error {
+	if len(args) == 0 {
+		return usageErr("usage: handloom addon hash|add|list|remove|doctor|status")
+	}
+	rest := args[1:]
+	if args[0] == "status" {
+		return e.addonStatus(rest)
+	}
 	if e.dial != nil {
 		return fmt.Errorf("add-ons are installed on the computer that will run them, not through a hub")
 	}
-	if len(args) == 0 {
-		return usageErr("usage: handloom addon hash|add|list|remove|doctor")
-	}
-	rest := args[1:]
 	switch args[0] {
 	case "hash":
 		return e.addonHash(rest)
@@ -46,7 +53,7 @@ func (e *env) addonCmd(args []string) error {
 	case "doctor":
 		return e.addonDoctor(rest)
 	}
-	return usageErr("unknown add-on command %q; the commands are hash, add, list, remove and doctor", args[0])
+	return usageErr("unknown add-on command %q; the commands are hash, add, list, remove, doctor and status", args[0])
 }
 
 func (e *env) addonHash(args []string) error {
@@ -211,6 +218,8 @@ func addonStateWords(state string) string {
 		return "Ready"
 	case "changed":
 		return "Changed since approved"
+	case "down":
+		return "Not running"
 	case "missing":
 		return "Missing on this computer"
 	}
@@ -292,5 +301,41 @@ func (e *env) addonDoctor(args []string) error {
 	if bad > 0 {
 		return fmt.Errorf("%d add-on(s) need attention", bad)
 	}
+	return nil
+}
+
+// addonStatus lists the add-ons every computer has reported to the hub, or one add-on with the manifest each
+// computer holds.
+func (e *env) addonStatus(args []string) error {
+	fs := e.flags("addon status")
+	pos, err := fs.need(args, 0, 1, "addon status [NAME]")
+	if err != nil {
+		return err
+	}
+	c, err := e.conn()
+	if err != nil {
+		return err
+	}
+	path := "/v1/addons"
+	if len(pos) == 1 {
+		path += "/" + url.PathEscape(pos[0])
+	}
+	var rows []api.Addon
+	if err := c.Get(path, &rows); err != nil {
+		return err
+	}
+	e.print(rows, func() {
+		if len(rows) == 0 {
+			fmt.Fprintln(e.out, "No computer has reported an add-on yet. Install one on a computer with: handloom addon add DIR")
+			return
+		}
+		for _, r := range rows {
+			detail := ""
+			if r.Detail != "" {
+				detail = " (" + r.Detail + ")"
+			}
+			fmt.Fprintf(e.out, "%-16s %-8s on %-16s %s%s\n", r.Name, r.Version, r.Computer, addonStateWords(r.Status), detail)
+		}
+	})
 	return nil
 }

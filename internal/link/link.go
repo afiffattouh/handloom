@@ -29,6 +29,7 @@ type Options struct {
 	Credential string
 	UserHome   string // where the agent CLIs keep their logs (default: the home of the user running the link)
 	Socket     string
+	AddonRoot  string // where this computer's add-ons are installed; default <home>/addons
 
 	NudgeEvery    time.Duration // at most one nudge per agent in this time; default 60s
 	Renudge       time.Duration // nudge again when delivered mail stays unread this long; default 5m
@@ -72,6 +73,8 @@ type Link struct {
 	fresh    map[string]time.Time // spawned agents and when their window opened
 	baseDone map[int64]bool       // jobs whose base this process has looked at (D105)
 	prSeen   map[int64]time.Time  // publishes and when their pull request was last looked at (D105)
+
+	addonsSent []byte // the last add-on report the hub accepted, as JSON; nil until one was
 }
 
 func New(opt Options) *Link {
@@ -112,6 +115,9 @@ func New(opt Options) *Link {
 	}
 	if opt.WorkRoot == "" {
 		opt.WorkRoot = filepath.Join(client.Home(), "work")
+	}
+	if opt.AddonRoot == "" {
+		opt.AddonRoot = filepath.Join(client.Home(), "addons")
 	}
 	if opt.ProjectsRoot == "" {
 		opt.ProjectsRoot = filepath.Join(client.Home(), "projects")
@@ -231,6 +237,7 @@ func (l *Link) handler() http.Handler {
 	mux.HandleFunc("POST /v1/jobs/{id}/base", linkOnly("how a job's base went"))
 	mux.HandleFunc("/v1/device/tails", linkOnly("the screens wanted"))
 	mux.HandleFunc("POST /v1/device/usage", linkOnly("usage"))
+	mux.HandleFunc("POST /v1/device/addons", linkOnly("the add-ons installed"))
 	mux.HandleFunc("POST /v1/device/tails/{name}", linkOnly("screens"))
 	mux.HandleFunc("POST /v1/kcollects/{id}/report", linkOnly("note collections"))
 	mux.HandleFunc("POST /v1/merges/{id}/report", linkOnly("merge results"))

@@ -56,6 +56,7 @@ type knownTool struct{ Value, Label string }
 
 type addonsView struct {
 	Cards     []addonCard
+	Orphans   []grantView // granted, but the add-on is on no computer now
 	Profiles  []string
 	CanManage bool
 	Form      map[string]string
@@ -63,15 +64,15 @@ type addonsView struct {
 
 // addonCards reads the add-ons on the computers the caller may see, one card each, with the grants when
 // the caller is the owner.
-func (q *webReq) addonCards() ([]addonCard, error) {
+func (q *webReq) addonCards() ([]addonCard, []grantView, error) {
 	rows, err := q.c.addonRows("", true)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	var grants []api.AddonGrant
 	if q.isOwner() {
 		if grants, err = q.c.grants(""); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
 	var cards []addonCard
@@ -114,15 +115,18 @@ func (q *webReq) addonCards() ([]addonCard, error) {
 	for i := range cards {
 		cards[i].Hashes = len(hashes[cards[i].Name])
 	}
+	var orphans []grantView
 	for _, g := range grants {
 		i, ok := idx[g.Addon]
 		if !ok {
+			// The add-on is on no computer now, but the grant is still there and must be seen to be revoked.
+			orphans = append(orphans, grantView{Profile: g.Profile, Addon: g.Addon, Tool: g.Tool, Leaves: g.LeavesMachine, MaxCalls: g.MaxCalls, Stale: true})
 			continue
 		}
 		cards[i].Grants = append(cards[i].Grants, grantView{Profile: g.Profile, Addon: g.Addon, Tool: g.Tool, Leaves: g.LeavesMachine, MaxCalls: g.MaxCalls,
 			Stale: !hashes[g.Addon][g.ManifestHash]})
 	}
-	return cards, nil
+	return cards, orphans, nil
 }
 
 func (q *webReq) profileNames() []string {
@@ -136,11 +140,11 @@ func (q *webReq) profileNames() []string {
 }
 
 func (q *webReq) addonsPage(status int, errMsg string, form map[string]string) error {
-	cards, err := q.addonCards()
+	cards, orphans, err := q.addonCards()
 	if err != nil {
 		return err
 	}
-	v := &addonsView{Cards: cards, Profiles: q.profileNames(), CanManage: q.c.allow(ActAddonManage) == nil, Form: form}
+	v := &addonsView{Cards: cards, Orphans: orphans, Profiles: q.profileNames(), CanManage: q.c.allow(ActAddonManage) == nil, Form: form}
 	if v.Form == nil {
 		v.Form = map[string]string{}
 	}

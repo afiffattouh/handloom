@@ -48,6 +48,7 @@ type profileView struct {
 	// Tools from add-ons, for the owner on a saved profile.
 	Grants     []grantView
 	KnownTools []knownTool
+	Computers  []string // computers whose add-on versions differ, for the grant form
 	GrantForm  map[string]string // what was typed in the grant form that was refused
 }
 
@@ -130,7 +131,7 @@ func (q *webReq) profileForm(status int, errMsg string, v *profileView) error {
 		}
 	}
 	if v.CanEdit && !v.IsNew {
-		cards, err := q.addonCards()
+		cards, orphans, err := q.addonCards()
 		if err != nil {
 			return err
 		}
@@ -141,7 +142,17 @@ func (q *webReq) profileForm(status int, errMsg string, v *profileView) error {
 				}
 			}
 		}
+		for _, g := range orphans {
+			if g.Profile == v.Name {
+				v.Grants = append(v.Grants, g)
+			}
+		}
 		v.KnownTools = knownTools(cards)
+		for _, c := range cards {
+			if c.Hashes > 1 {
+				v.Computers = append(v.Computers, c.Names...)
+			}
+		}
 		if v.GrantForm == nil {
 			v.GrantForm = map[string]string{}
 		}

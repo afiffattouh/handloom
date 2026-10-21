@@ -408,3 +408,56 @@ func TestTheHelpPageHasAnAddonsSection(t *testing.T) {
 		t.Error("Get started mentions add-ons")
 	}
 }
+
+func TestAGrantWhoseAddonIsOnNoComputerCanStillBeRevoked(t *testing.T) {
+	e, dev := newAddonWeb(t)
+	c, tok := e.owner()
+	e.reportWeb(dev, notesManifest(""), "ready", "")
+	f := url.Values{"csrf": {tok}, "profile": {"boss"}, "tool": {"notes.search"}}
+	if r := e.req("POST", "/addons/grant", f, c, nil); r.status != 303 {
+		t.Fatalf("grant: %d", r.status)
+	}
+	// the computer stops reporting the add-on
+	e.apiOK(dev, "", "POST", "/v1/device/addons", api.AddonReport{}, nil)
+	page := e.req("GET", "/addons", nil, c, nil).body
+	if !strings.Contains(page, "Granted but not installed anywhere") || !strings.Contains(page, `value="notes.search"`) || !strings.Contains(page, "Revoke") {
+		t.Fatalf("the orphan grant is not on the Add-ons page: %s", page)
+	}
+	prof := e.req("GET", "/profiles/boss", nil, c, nil).body
+	if !strings.Contains(prof, "notes.search</span>") || !strings.Contains(prof, "Revoke") || strings.Contains(prof, "None yet.") {
+		t.Fatalf("the orphan grant is not on the profile page: %s", prof)
+	}
+	rev := url.Values{"csrf": {tok}, "profile": {"boss"}, "tool": {"notes.search"}}
+	if r := e.req("POST", "/addons/revoke", rev, c, nil); r.status != 303 {
+		t.Fatalf("revoke: %d", r.status)
+	}
+	if page := e.req("GET", "/addons", nil, c, nil).body; strings.Contains(page, "Granted but not installed anywhere") {
+		t.Fatal("still listed after the revoke")
+	}
+}
+
+func TestTheProfilePageNamesTheComputerWhenVersionsDiffer(t *testing.T) {
+	e, dev := newAddonWeb(t)
+	var tok2 api.TokenResp
+	e.apiOK(e.admin, "", "POST", "/v1/admin/devices", api.NameReq{Name: "d2"}, &tok2)
+	var join api.JoinResp
+	e.apiOK("", "", "POST", "/v1/devices/join", api.JoinReq{JoinToken: tok2.Token}, &join)
+	e.reportWeb(dev, notesManifest(""), "ready", "")
+	c, tok := e.owner()
+	if body := e.req("GET", "/profiles/boss", nil, c, nil).body; strings.Contains(body, `<select name="computer">`) {
+		t.Fatal("a computer is asked for with one version")
+	}
+	e.reportWeb(join.Credential, notesManifest(" two"), "ready", "")
+	body := e.req("GET", "/profiles/boss", nil, c, nil).body
+	if !strings.Contains(body, `<select name="computer">`) {
+		t.Fatalf("no choice of computer on the profile page: %s", body)
+	}
+	f := url.Values{"csrf": {tok}, "from": {"profile:boss"}, "profile": {"boss"}, "tool": {"notes.search"}}
+	if r := e.req("POST", "/addons/grant", f, c, nil); r.status != 409 || !strings.Contains(r.body, `<select name="computer">`) {
+		t.Fatalf("refusal without a computer: %d", r.status)
+	}
+	f.Set("computer", "d2")
+	if r := e.req("POST", "/addons/grant", f, c, nil); r.status != 303 {
+		t.Fatalf("with a computer: %d", r.status)
+	}
+}

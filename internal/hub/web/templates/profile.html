@@ -23,7 +23,7 @@
 <section class="card" aria-labelledby="tfa">
   <div class="ch"><div><h2 id="tfa">Tools from add-ons</h2><p class="desc">What a helper started from this profile may use besides its own tools. A change reaches helpers started afterwards; one already running keeps what it started with. <a href="/addons">All add-ons</a></p></div></div>
   {{if .Grants}}
-  <div class="cc flush tw"><table>
+  <div class="cc flush tw"><table class="grants">
     <thead><tr><th>Tool</th><th>Leaves it</th><th>Calls</th><th></th></tr></thead><tbody>
     {{range .Grants}}<tr><td class="nw"><span class="mono">{{.Addon}}.{{.Tool}}</span></td><td class="nw">{{if .Leaves}}yes{{else}}no{{end}}</td><td class="nw">{{.MaxCalls}}</td>
       <td class="nw"><div class="acts">{{if .Stale}}<span class="badge warning">Granted for an earlier version</span>{{end}}
@@ -39,6 +39,8 @@
       <label>Leaves this computer <select name="leaves"><option value="yes"{{if ne (index .GrantForm "leaves") "no"}} selected{{end}}>yes</option><option value="no"{{if eq (index .GrantForm "leaves") "no"}} selected{{end}}>no</option></select></label>
       <label>Calls per job <input name="max_calls" type="number" min="1" max="10000" placeholder="50" value="{{index .GrantForm "max_calls"}}"></label>
     </div>
+    {{if .Computers}}<label><span>Computer <span class="desc">(some computers hold different versions of an add-on: name one when the tool is on several)</span></span>
+      <select name="computer"><option value="">Any</option>{{range .Computers}}<option value="{{.}}"{{if eq . (index $.Extra.GrantForm "computer")}} selected{{end}}>{{.}}</option>{{end}}</select></label>{{end}}
     <div class="acts"><button type="submit">Grant</button></div>
   </form>
   {{else}}<div class="cc"><p class="desc">No computer has an add-on installed yet, so there is nothing to grant. <a href="/addons">See how to install one</a>.</p></div>{{end}}

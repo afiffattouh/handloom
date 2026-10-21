@@ -129,6 +129,14 @@ tbody tr:last-child td { border-bottom: 0; }
 tbody tr.link:hover { background: color-mix(in srgb, var(--muted) 60%, transparent); }
 tbody tr.link td a.rowlink { color: inherit; text-decoration: none; display: block; }
 .tw { overflow-x: auto; }
+@media (max-width: 520px) {
+  table.grants, table.grants tbody, table.grants tr, table.grants td { display: block; }
+  table.grants thead { display: none; }
+  table.grants tr { padding: 8px 16px; border-bottom: 1px solid var(--border); }
+  table.grants td, table.grants td.nw { padding: 2px 0; border: 0; white-space: normal; }
+  table.grants td.nw:nth-child(2)::before { content: "Leaves it: "; color: var(--muted-foreground); }
+  table.grants td.nw:nth-child(3)::before { content: "Calls: "; color: var(--muted-foreground); }
+}
 .tabs { display: inline-flex; background: var(--muted); border-radius: 9px; padding: 3px; gap: 2px; max-width: 100%; overflow-x: auto; }
 .tabs a, .tabs button { all: unset; box-sizing: border-box; cursor: pointer; white-space: nowrap; padding: 3px 12px; border-radius: 7px; font-size: 13px; font-weight: 500; color: var(--muted-foreground); }
 .tabs a:focus-visible, .tabs button:focus-visible { box-shadow: 0 0 0 3px var(--ring); }

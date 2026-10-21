@@ -28,6 +28,13 @@
 </article>
 {{end}}
 
+{{if .ToolsOut}}
+<article class="card attention">
+  <div class="ch"><div class="lead"><svg class="icon sev-warn"><use href="#i-triangle-alert"/></svg><div><h3>A helper started without {{if gt (len .ToolsOut) 1}}some tools{{else}}a tool{{end}} it was granted</h3><p class="desc">The helper was told these are not available, so it does not guess their answers.</p></div></div></div>
+  <div class="cc"><ul class="plain">{{range .ToolsOut}}<li><span class="mono">{{.Addon}}.{{.Tool}}</span>: {{.Why}} <strong>{{.Action}}</strong></li>{{end}}</ul></div>
+</article>
+{{end}}
+
 <div class="grid2">
   <div class="stream-col">
     <h2 id="tasks" class="sect">Tasks</h2>

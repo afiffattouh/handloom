@@ -165,19 +165,23 @@ func addonGrantNew(c *call) (any, error) {
 	if err := c.decode(&req); err != nil {
 		return nil, err
 	}
-	name := c.r.PathValue("name")
+	return c.grantTool(c.r.PathValue("name"), req)
+}
+
+// grantTool is the grant itself, for the API and the web page alike. The caller has checked the role.
+func (c *call) grantTool(name string, req api.AddonGrantReq) (api.AddonGrant, error) {
 	if _, err := c.profileVersion(name, 0); err != nil {
-		return nil, err
+		return api.AddonGrant{}, err
 	}
 	req.Addon = strings.ToLower(req.Addon)
 	if !addonNameRe.MatchString(req.Addon) {
-		return nil, badRequest("%q is not an add-on name", req.Addon)
+		return api.AddonGrant{}, badRequest("%q is not an add-on name", req.Addon)
 	}
 	if !toolNameRe.MatchString(req.Tool) {
-		return nil, badRequest("%q is not a tool name", req.Tool)
+		return api.AddonGrant{}, badRequest("%q is not a tool name", req.Tool)
 	}
 	if req.MaxCalls < 0 || req.MaxCalls > maxMaxCalls {
-		return nil, badRequest("the call limit is between 1 and %d (leave it out for %d)", maxMaxCalls, defaultMaxCalls)
+		return api.AddonGrant{}, badRequest("the call limit is between 1 and %d (leave it out for %d)", maxMaxCalls, defaultMaxCalls)
 	}
 	if req.MaxCalls == 0 {
 		req.MaxCalls = defaultMaxCalls
@@ -188,7 +192,7 @@ func addonGrantNew(c *call) (any, error) {
 	}
 	hash, err := c.grantTarget(req.Addon, req.Tool, req.Computer)
 	if err != nil {
-		return nil, err
+		return api.AddonGrant{}, err
 	}
 	l := 0
 	if leaves {
@@ -199,11 +203,11 @@ func addonGrantNew(c *call) (any, error) {
 		ON CONFLICT(profile, addon, tool) DO UPDATE SET manifest_hash = excluded.manifest_hash, leaves_machine = excluded.leaves_machine,
 			max_calls = excluded.max_calls, granted_by = excluded.granted_by, granted_at = excluded.granted_at`,
 		name, req.Addon, req.Tool, hash, l, req.MaxCalls, c.p.actor(), store.Millis(c.now)); err != nil {
-		return nil, err
+		return api.AddonGrant{}, err
 	}
 	if err := c.audit("addon.grant", "profile:"+name, map[string]any{"addon": req.Addon, "tool": req.Tool,
 		"manifest": hash, "leaves_machine": leaves, "max_calls": req.MaxCalls}); err != nil {
-		return nil, err
+		return api.AddonGrant{}, err
 	}
 	return grantFrom(c.tx.QueryRow(grantSelect+`WHERE profile = ? AND addon = ? AND tool = ?`, name, req.Addon, req.Tool))
 }
@@ -212,18 +216,19 @@ func addonGrantRevoke(c *call) (any, error) {
 	if err := c.allow(ActAddonManage); err != nil {
 		return nil, err
 	}
-	name, addonName, tool := c.r.PathValue("name"), strings.ToLower(c.r.PathValue("addon")), c.r.PathValue("tool")
+	return nil, c.revokeTool(c.r.PathValue("name"), strings.ToLower(c.r.PathValue("addon")), c.r.PathValue("tool"))
+}
+
+// revokeTool takes a tool away from a profile. The caller has checked the role.
+func (c *call) revokeTool(name, addonName, tool string) error {
 	res, err := c.tx.Exec(`DELETE FROM addon_grant WHERE profile = ? AND addon = ? AND tool = ?`, name, addonName, tool)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
-		return nil, notFound("the profile %s has no grant for %s.%s", name, addonName, tool)
+		return notFound("the profile %s has no grant for %s.%s", name, addonName, tool)
 	}
-	if err := c.audit("addon.revoke", "profile:"+name, map[string]any{"addon": addonName, "tool": tool}); err != nil {
-		return nil, err
-	}
-	return nil, nil
+	return c.audit("addon.revoke", "profile:"+name, map[string]any{"addon": addonName, "tool": tool})
 }
 
 // addonGrantList is every grant, or one profile's with ?profile=.

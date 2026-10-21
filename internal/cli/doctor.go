@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"handloom/internal/addon"
 	"handloom/internal/client"
 )
 
@@ -62,6 +63,7 @@ func (e *env) runChecks() []doctorCheck {
 		err := client.Socket(client.SocketPath(), "").Get("/local/status", &st)
 		return st, err
 	}, os.UserHomeDir, os.Stat)
+	checks = append(checks, addonChecks()...)
 	for i := range checks {
 		if checks[i].Name == "link" && checks[i].Status == "fail" {
 			if _, err := client.LoadLinkConfig(); err == nil {
@@ -70,6 +72,36 @@ func (e *env) runChecks() []doctorCheck {
 		}
 	}
 	return checks
+}
+
+// addonPrefix starts the name of every add-on line, so the answer can show them apart from the rest.
+const addonPrefix = "add-on "
+
+// addonChecks is one line for each add-on installed here: ready, or what is wrong with it. A problem is a
+// warning, not a failure: the computer can still run helpers without the add-on. Nothing is started to
+// ask it; `handloom addon doctor` does that.
+func addonChecks() []doctorCheck {
+	root := addonRoot()
+	list, err := addon.Installed(root, addon.NewStore(root))
+	if err != nil {
+		return []doctorCheck{{addonPrefix + "list", "warn", "the add-ons on this computer could not be read: " + err.Error(), ""}}
+	}
+	var out []doctorCheck
+	for _, i := range list {
+		name := addonPrefix + i.Name
+		if i.Version != "" {
+			name += " " + i.Version
+		}
+		switch i.State {
+		case "ready":
+			out = append(out, doctorCheck{name, "ok", "ready", ""})
+		case "missing":
+			out = append(out, doctorCheck{name, "warn", "approved here, but its folder is gone: install it again or remove it", ""})
+		default:
+			out = append(out, doctorCheck{name, "warn", "changed since it was approved (" + i.Detail + "): approve it again with handloom addon add", ""})
+		}
+	}
+	return out
 }
 
 // fixChecks installs git and tmux when they are missing and the person says yes (or prints the
@@ -142,12 +174,21 @@ func renderDoctor(checks []doctorCheck, hint func(tool string) string) string {
 	}
 	var notes []string
 	for _, c := range checks {
-		if c.Status == "warn" && c.Fix != "" {
+		if c.Status == "warn" && c.Fix != "" && !strings.HasPrefix(c.Name, addonPrefix) {
 			notes = append(notes, fmt.Sprintf("   %s is installed but not signed in. Do this: %s", c.Name, c.Fix))
 		}
 	}
 	if len(notes) > 0 {
 		b.WriteString("\nAlso:\n" + strings.Join(notes, "\n") + "\n")
+	}
+	var addons []string
+	for _, c := range checks {
+		if strings.HasPrefix(c.Name, addonPrefix) {
+			addons = append(addons, "   "+strings.TrimPrefix(c.Name, addonPrefix)+": "+c.Detail)
+		}
+	}
+	if len(addons) > 0 {
+		b.WriteString("\nAdd-ons:\n" + strings.Join(addons, "\n") + "\n")
 	}
 	if agentMissing {
 		b.WriteString("\n" + agentHelpText())

@@ -339,6 +339,7 @@ type jobView2 struct {
 	CanMerge   bool   // a person who may merge, a hosted project, a finished publish not merged yet
 	MergedInto string // the branch the job's work was merged into
 	Confid     bool
+	ToolsOut   []api.ToolUnavailable // tools a helper's profile has been granted but could not be given (open jobs only)
 }
 
 type publishView struct {
@@ -370,6 +371,11 @@ func (q *webReq) jobPage(status int, errMsg string, id int64) error {
 	if pl, err := profileList(q.c); err == nil {
 		for _, p := range pl.([]api.ProfileInfo) {
 			v.Profiles = append(v.Profiles, p.Name)
+		}
+	}
+	if v.Open { // the answer is today's: for a finished job it would say something the helpers never saw
+		if v.ToolsOut, err = q.c.jobToolsUnavailable(id); err != nil {
+			return err
 		}
 	}
 	v.Ready = v.Open && jv.Tasks.Done > 0 && jv.Tasks.Open+jv.Tasks.Claimed+jv.Tasks.Submitted == 0

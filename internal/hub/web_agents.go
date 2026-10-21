@@ -45,6 +45,10 @@ type profileView struct {
 	NeedConfirm bool
 	Change      string
 	Copied      string // "name vN" when the form starts from an earlier version
+	// Tools from add-ons, for the owner on a saved profile.
+	Grants     []grantView
+	KnownTools []knownTool
+	GrantForm  map[string]string // what was typed in the grant form that was refused
 }
 
 // profileReview is what the form shows before anything is saved.
@@ -125,12 +129,29 @@ func (q *webReq) profileForm(status int, errMsg string, v *profileView) error {
 			v.Starters = in
 		}
 	}
+	if v.CanEdit && !v.IsNew {
+		cards, err := q.addonCards()
+		if err != nil {
+			return err
+		}
+		for _, c := range cards {
+			for _, g := range c.Grants {
+				if g.Profile == v.Name {
+					v.Grants = append(v.Grants, g)
+				}
+			}
+		}
+		v.KnownTools = knownTools(cards)
+		if v.GrantForm == nil {
+			v.GrantForm = map[string]string{}
+		}
+	}
 	title := "New profile"
 	if !v.IsNew {
 		title = v.Name
 	}
 	q.page(status, "profile", pageData{Title: title, Error: errMsg, Extra: v,
-		Notice: map[string]string{"saved": "Saved. New agents started from this profile use this version; running ones keep theirs.", "adapted": "Saved. Some settings were fitted to this agent CLI: see \"What this profile enforces\" below. New agents use this version; running ones keep theirs.", "added": "Added from the starter library. It is yours now: change anything you like."}[q.r.URL.Query().Get("done")]})
+		Notice: map[string]string{"saved": "Saved. New agents started from this profile use this version; running ones keep theirs.", "adapted": "Saved. Some settings were fitted to this agent CLI: see \"What this profile enforces\" below. New agents use this version; running ones keep theirs.", "added": "Added from the starter library. It is yours now: change anything you like.", "granted": grantNotice["granted"], "revoked": grantNotice["revoked"]}[q.r.URL.Query().Get("done")]})
 	return nil
 }
 

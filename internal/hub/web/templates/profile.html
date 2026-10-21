@@ -19,6 +19,32 @@
 </section>
 {{end}}
 
+{{if and .CanEdit (not .IsNew)}}
+<section class="card" aria-labelledby="tfa">
+  <div class="ch"><div><h2 id="tfa">Tools from add-ons</h2><p class="desc">What a helper started from this profile may use besides its own tools. A change reaches helpers started afterwards; one already running keeps what it started with. <a href="/addons">All add-ons</a></p></div></div>
+  {{if .Grants}}
+  <div class="cc flush tw"><table>
+    <thead><tr><th>Tool</th><th>Leaves it</th><th>Calls</th><th></th></tr></thead><tbody>
+    {{range .Grants}}<tr><td class="nw"><span class="mono">{{.Addon}}.{{.Tool}}</span></td><td class="nw">{{if .Leaves}}yes{{else}}no{{end}}</td><td class="nw">{{.MaxCalls}}</td>
+      <td class="nw"><div class="acts">{{if .Stale}}<span class="badge warning">Granted for an earlier version</span>{{end}}
+        <form method="post" action="/addons/revoke" class="inline"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="from" value="profile:{{$.Extra.Name}}"><input type="hidden" name="profile" value="{{$.Extra.Name}}"><input type="hidden" name="tool" value="{{.Addon}}.{{.Tool}}"><button type="submit" class="link">Revoke</button></form></div></td></tr>
+    {{end}}
+    </tbody></table></div>
+  {{else}}<div class="cc"><p class="desc">None yet.</p></div>{{end}}
+  {{if .KnownTools}}
+  <form method="post" action="/addons/grant" class="cc stack">
+    <input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="from" value="profile:{{.Name}}"><input type="hidden" name="profile" value="{{.Name}}">
+    <label>Tool <select name="tool">{{range .KnownTools}}<option value="{{.Value}}"{{if eq .Value (index $.Extra.GrantForm "tool")}} selected{{end}}>{{.Label}}</option>{{end}}</select></label>
+    <div class="grid2 even">
+      <label>Leaves this computer <select name="leaves"><option value="yes"{{if ne (index .GrantForm "leaves") "no"}} selected{{end}}>yes</option><option value="no"{{if eq (index .GrantForm "leaves") "no"}} selected{{end}}>no</option></select></label>
+      <label>Calls per job <input name="max_calls" type="number" min="1" max="10000" placeholder="50" value="{{index .GrantForm "max_calls"}}"></label>
+    </div>
+    <div class="acts"><button type="submit">Grant</button></div>
+  </form>
+  {{else}}<div class="cc"><p class="desc">No computer has an add-on installed yet, so there is nothing to grant. <a href="/addons">See how to install one</a>.</p></div>{{end}}
+</section>
+{{end}}
+
 {{if .CanEdit}}
 <section class="card"><div class="ch"><div><h2>{{if .IsNew}}The profile{{else}}Change it{{end}}</h2></div></div><div class="cc">
 <form method="post" action="{{if .IsNew}}/profiles{{else}}/profiles/{{.Name}}{{end}}" class="stack">

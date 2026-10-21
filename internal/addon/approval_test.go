@@ -16,7 +16,7 @@ func TestApprovalStore(t *testing.T) {
 		t.Fatalf("empty store: %v %v", ok, err)
 	}
 	at := time.Date(2026, 10, 21, 9, 0, 0, 0, time.UTC)
-	a := Approval{Name: "echo", Version: "0.1.0", PackageHash: "p1", ManifestHash: "m1", By: "afif", At: at}
+	a := Approval{Name: "echo", Version: "0.1.0", PackageHash: "p1", ManifestHash: "m1", By: "owner", At: at}
 	if err := s.Put(a); err != nil {
 		t.Fatal(err)
 	}

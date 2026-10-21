@@ -90,6 +90,9 @@ Device:
   handloom doctor [--fix]                             is this machine ready? checks the link, git, tmux and the agent CLIs; --fix installs git and tmux (asks first)
   handloom adapter install <kind> --name N [--dir D]  install an agent adapter in a project
                                                   (kinds: claude, codex, pi, omp)
+  handloom addon hash DIR | add DIR [--sha256 H] [--yes] | list | remove NAME | doctor
+                                                  add-ons on this computer: tools an agent can call. add shows what it does and asks first;
+                                                  the exact files are approved, and a changed file stops it until you approve again
   handloom run <name> -- <command...>                 start an agent CLI as a registered, wakeable agent
   handloom mcp [--operator [--allow-approvals]]       MCP server (stdio): the agent verbs as tools, or with --operator the tools of a person driving Handloom from their own AI app
 
@@ -267,6 +270,8 @@ func run(e *env, args []string) int {
 		return e.kitCmd(rest)
 	case "adapter":
 		err = e.adapter(rest)
+	case "addon":
+		err = e.addonCmd(rest)
 	case "mcp":
 		err = e.mcp(rest)
 	case "run":

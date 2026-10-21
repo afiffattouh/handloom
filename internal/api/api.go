@@ -527,25 +527,31 @@ type JobResumeReq struct {
 
 // Spawn is a request to start an agent on a device.
 type Spawn struct {
-	ID        int64     `json:"id"`
-	Name      string    `json:"name"`
-	Kind      string    `json:"kind"`
-	Model     string    `json:"model,omitempty"`
-	Device    string    `json:"device"`
-	Project   string    `json:"project"`
-	Job       *int64    `json:"job,omitempty"`
-	Role      string    `json:"role,omitempty"` // worker, or lead for the job's own lead
-	Repo      string    `json:"repo,omitempty"` // the repository its work directory is a worktree of
-	Knowledge string    `json:"knowledge,omitempty"`
-	Base      string    `json:"base,omitempty"`
-	Verify    string    `json:"verify,omitempty"`     // the job's verify command, which the device runs after this agent submits
-	Profile   string    `json:"profile,omitempty"`    // name@version it is pinned to
-	FreshBase bool      `json:"fresh_base,omitempty"` // the job belongs to a project and its start has not been recorded: get the latest base first (D105)
-	Status    string    `json:"status"`               // pending | launching | started | failed
-	Pane      string    `json:"pane,omitempty"`
-	Error     string    `json:"error,omitempty"`
-	CreatedBy string    `json:"created_by"`
-	CreatedAt time.Time `json:"created_at"`
+	ID        int64  `json:"id"`
+	Name      string `json:"name"`
+	Kind      string `json:"kind"`
+	Model     string `json:"model,omitempty"`
+	Device    string `json:"device"`
+	Project   string `json:"project"`
+	Job       *int64 `json:"job,omitempty"`
+	Role      string `json:"role,omitempty"` // worker, or lead for the job's own lead
+	Repo      string `json:"repo,omitempty"` // the repository its work directory is a worktree of
+	Knowledge string `json:"knowledge,omitempty"`
+	Base      string `json:"base,omitempty"`
+	Verify    string `json:"verify,omitempty"`     // the job's verify command, which the device runs after this agent submits
+	Profile   string `json:"profile,omitempty"`    // name@version it is pinned to
+	FreshBase bool   `json:"fresh_base,omitempty"` // the job belongs to a project and its start has not been recorded: get the latest base first (D105)
+	// Confidential is the job's flag. Tools is the snapshot of what this spawn may call on this computer
+	// and ToolsUnavailable what its profile is granted but this spawn cannot have; both are filled for a
+	// request a link is about to start. The link enforces the snapshot and the hub is off the per-call path.
+	Confidential     bool              `json:"confidential,omitempty"`
+	Tools            []SpawnTool       `json:"tools,omitempty"`
+	ToolsUnavailable []ToolUnavailable `json:"tools_unavailable,omitempty"`
+	Status           string            `json:"status"` // pending | launching | started | failed
+	Pane             string            `json:"pane,omitempty"`
+	Error            string            `json:"error,omitempty"`
+	CreatedBy        string            `json:"created_by"`
+	CreatedAt        time.Time         `json:"created_at"`
 }
 
 type SpawnReq struct {
@@ -1095,4 +1101,90 @@ type Addon struct {
 	Computer string `json:"computer"`
 	AddonItem
 	ReportedAt time.Time `json:"reported_at"`
+}
+
+// Add-on grants, calls and the tool snapshot (docs/direction/addons.md).
+
+// AddonGrant is the owner letting a profile use one tool of an add-on. ManifestHash is the manifest the
+// grant was made for: it works only where the installed manifest is that one. LeavesMachine is the owner's
+// value for "this tool sends something off the computer".
+type AddonGrant struct {
+	Profile       string    `json:"profile"`
+	Addon         string    `json:"addon"`
+	Tool          string    `json:"tool"`
+	ManifestHash  string    `json:"manifest_hash"`
+	LeavesMachine bool      `json:"leaves_machine"`
+	MaxCalls      int       `json:"max_calls"`
+	GrantedBy     string    `json:"granted_by"`
+	GrantedAt     time.Time `json:"granted_at"`
+}
+
+// AddonGrantReq grants a tool to a profile. LeavesMachine left out means it leaves the computer, the
+// cautious value; MaxCalls left out is 50 per job. When computers hold different versions of the add-on,
+// Computer says which one's manifest the grant is for.
+type AddonGrantReq struct {
+	Addon         string `json:"addon"`
+	Tool          string `json:"tool"`
+	LeavesMachine *bool  `json:"leaves_machine,omitempty"`
+	MaxCalls      int    `json:"max_calls,omitempty"`
+	Computer      string `json:"computer,omitempty"`
+}
+
+// ToolField is one argument of a tool in a snapshot.
+type ToolField struct {
+	Name     string `json:"name"`
+	Type     string `json:"type"`
+	Required bool   `json:"required,omitempty"`
+	Summary  string `json:"summary,omitempty"`
+}
+
+// SpawnTool is one tool a spawn may call on its computer.
+type SpawnTool struct {
+	Addon          string      `json:"addon"`
+	Tool           string      `json:"tool"`
+	Summary        string      `json:"summary"`
+	Input          []ToolField `json:"input,omitempty"`
+	LeavesMachine  bool        `json:"leaves_machine"`
+	MaxCalls       int         `json:"max_calls"`
+	TimeoutSeconds int         `json:"timeout_seconds"`
+	MaxOutput      int64       `json:"max_output"`
+}
+
+// Why a granted tool is not in a spawn's snapshot.
+const (
+	CauseNotInstalled       = "not-installed"
+	CauseChanged            = "changed"
+	CausePluginDown         = "plugin-down"
+	CauseDeniedConfidential = "denied-confidential"
+)
+
+// ToolUnavailable is a tool a profile is granted but a spawn cannot have: the fixed cause, what it means in
+// plain words, and the one thing a person can do.
+type ToolUnavailable struct {
+	Addon  string `json:"addon"`
+	Tool   string `json:"tool"`
+	Cause  string `json:"cause"`
+	Why    string `json:"why"`
+	Action string `json:"action"`
+}
+
+// AddonCall is one line of a link's journal of tool calls. Phase is call (before the add-on is asked),
+// result (after) or denied. Nothing a person typed and nothing an add-on answered is in it.
+type AddonCall struct {
+	CallID string    `json:"call_id"`
+	Spawn  int64     `json:"spawn"`
+	Agent  string    `json:"agent"`
+	Job    int64     `json:"job,omitempty"`
+	Addon  string    `json:"addon"`
+	Tool   string    `json:"tool"`
+	Phase  string    `json:"phase"`
+	Code   string    `json:"code,omitempty"`
+	Size   int64     `json:"size,omitempty"`
+	Millis int64     `json:"millis,omitempty"`
+	Time   time.Time `json:"time"`
+}
+
+// AddonCallReport is a batch of journal lines from one link.
+type AddonCallReport struct {
+	Calls []AddonCall `json:"calls"`
 }

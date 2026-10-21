@@ -38,11 +38,12 @@ type spawnRow struct {
 	profileHash             string
 	role, repo              string
 	knowledge, base         string
+	confidential            bool
 }
 
 func (s *spawnRow) api() api.Spawn {
 	return api.Spawn{ID: s.id, Name: s.name, Kind: s.kind, Model: s.model, Device: s.device, Job: nullInt(s.job),
-		Project: s.project, Role: s.role, Repo: s.repo, Knowledge: s.knowledge, Base: s.base, Verify: s.verify, Profile: profileRef(s.profileName, s.profileVersion), Status: s.status, Pane: s.pane, Error: s.errText, CreatedBy: s.createdBy, CreatedAt: store.Time(s.created)}
+		Project: s.project, Role: s.role, Repo: s.repo, Knowledge: s.knowledge, Base: s.base, Verify: s.verify, Confidential: s.confidential, Profile: profileRef(s.profileName, s.profileVersion), Status: s.status, Pane: s.pane, Error: s.errText, CreatedBy: s.createdBy, CreatedAt: store.Time(s.created)}
 }
 
 func profileRef(name string, version int) string {
@@ -54,13 +55,14 @@ func profileRef(name string, version int) string {
 
 const spawnSelect = `SELECT s.id, s.project_id, s.device_id, s.job_id, s.name, s.kind, s.model, s.status, s.pane, s.error,
 	s.created_by, s.created_at, s.updated_at, d.name, p.name, s.profile_name, s.profile_version, s.profile_hash, s.role, s.repo,
-	COALESCE((SELECT t.verify FROM task t WHERE t.id = s.job_id), ''), s.knowledge, s.base FROM spawn s JOIN device d ON d.id = s.device_id
+	COALESCE((SELECT t.verify FROM task t WHERE t.id = s.job_id), ''), s.knowledge, s.base,
+	COALESCE((SELECT t.confidential FROM task t WHERE t.id = s.job_id), 0) FROM spawn s JOIN device d ON d.id = s.device_id
 	JOIN project p ON p.id = s.project_id `
 
 func scanSpawn(s scanner) (*spawnRow, error) {
 	r := &spawnRow{}
 	err := s.Scan(&r.id, &r.projectID, &r.deviceID, &r.job, &r.name, &r.kind, &r.model, &r.status, &r.pane, &r.errText,
-		&r.createdBy, &r.created, &r.updated, &r.device, &r.project, &r.profileName, &r.profileVersion, &r.profileHash, &r.role, &r.repo, &r.verify, &r.knowledge, &r.base)
+		&r.createdBy, &r.created, &r.updated, &r.device, &r.project, &r.profileName, &r.profileVersion, &r.profileHash, &r.role, &r.repo, &r.verify, &r.knowledge, &r.base, &r.confidential)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -419,6 +421,12 @@ func deviceSpawns(c *call) (any, error) {
 			var n int
 			c.tx.QueryRow(`SELECT count(*) FROM task WHERE id = ? AND codebase_id IS NOT NULL AND base_state = ''`, r.job.Int64).Scan(&n)
 			a.FreshBase = n > 0
+		}
+		if r.status == api.SpawnPending {
+			// The tools this spawn may call on this computer, decided now and enforced by the link.
+			if a.Tools, a.ToolsUnavailable, err = c.toolSnapshot(r.profileName, r.deviceID, r.confidential); err != nil {
+				return nil, err
+			}
 		}
 		out = append(out, a)
 	}

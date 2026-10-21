@@ -192,19 +192,20 @@ func TestMachinesOfAnOlderDatabaseHaveNoOwner(t *testing.T) {
 	}
 }
 
-// The add-on table is the newest migration: a database from the release before has none, and gets it.
-func TestAddonTableArrivesWithTheLastMigration(t *testing.T) {
+// The add-on table came with the second migration from the end (the grants are the last): a database from the
+// release before has none, and gets it.
+func TestAddonTableArrivesWithItsMigration(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "handloom.db")
 	old, err := sql.Open("sqlite", "file:"+path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, m := range migrations[:len(migrations)-1] {
+	for _, m := range migrations[:len(migrations)-2] {
 		if _, err := old.Exec(m); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if _, err := old.Exec(`PRAGMA user_version = ` + strconv.Itoa(len(migrations)-1)); err != nil {
+	if _, err := old.Exec(`PRAGMA user_version = ` + strconv.Itoa(len(migrations)-2)); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := old.Exec(`INSERT INTO device(name, credential_hash, created_at) VALUES ('desk', 'x', 1)`); err != nil {
@@ -237,5 +238,67 @@ func TestAddonTableArrivesWithTheLastMigration(t *testing.T) {
 	}
 	if err := ins(99, "echo", "ready"); err == nil {
 		t.Error("a row for a computer that does not exist was accepted")
+	}
+}
+
+// The grant and call-report tables are the newest migration: a database from the release before has neither.
+func TestAddonGrantTablesArriveWithTheLastMigration(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "handloom.db")
+	old, err := sql.Open("sqlite", "file:"+path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, m := range migrations[:len(migrations)-1] {
+		if _, err := old.Exec(m); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := old.Exec(`PRAGMA user_version = ` + strconv.Itoa(len(migrations)-1)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := old.Exec(`INSERT INTO device(name, credential_hash, created_at) VALUES ('desk', 'x', 1)`); err != nil {
+		t.Fatal(err)
+	}
+	for _, q := range []string{`SELECT 1 FROM addon_grant`, `SELECT 1 FROM addon_call_seen`} {
+		if _, err := old.Exec(q); err == nil {
+			t.Fatalf("the older schema already has it: %s", q)
+		}
+	}
+	old.Close()
+
+	db, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	grant := func(profile, addon, tool string) error {
+		_, err := db.Exec(`INSERT INTO addon_grant(profile, addon, tool, manifest_hash, granted_by, granted_at) VALUES (?, ?, ?, 'h', 'olive', 1)`, profile, addon, tool)
+		return err
+	}
+	if err := grant("reader", "notes", "search"); err != nil {
+		t.Fatal(err)
+	}
+	var leaves, max int
+	if err := db.QueryRow(`SELECT leaves_machine, max_calls FROM addon_grant`).Scan(&leaves, &max); err != nil || leaves != 1 || max != 50 {
+		t.Fatalf("defaults: leaves %d, limit %d, %v", leaves, max, err)
+	}
+	if err := grant("reader", "notes", "search"); err == nil {
+		t.Error("two grants of one tool to one profile were accepted")
+	}
+	if err := grant("reader", "notes", "fetch"); err != nil {
+		t.Error(err)
+	}
+	seen := func(device int) error {
+		_, err := db.Exec(`INSERT INTO addon_call_seen(device_id, call_id, phase) VALUES (?, 'c1', 'call')`, device)
+		return err
+	}
+	if err := seen(1); err != nil {
+		t.Fatal(err)
+	}
+	if err := seen(1); err == nil {
+		t.Error("a call report was stored twice")
+	}
+	if err := seen(99); err == nil {
+		t.Error("a call report for a computer that does not exist was accepted")
 	}
 }

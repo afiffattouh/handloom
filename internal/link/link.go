@@ -239,6 +239,7 @@ func (l *Link) handler() http.Handler {
 	mux.HandleFunc("/v1/device/tails", linkOnly("the screens wanted"))
 	mux.HandleFunc("POST /v1/device/usage", linkOnly("usage"))
 	mux.HandleFunc("POST /v1/device/addons", linkOnly("the add-ons installed"))
+	mux.HandleFunc("POST /v1/device/addon-calls", linkOnly("the tool calls"))
 	mux.HandleFunc("POST /v1/device/tails/{name}", linkOnly("screens"))
 	mux.HandleFunc("POST /v1/kcollects/{id}/report", linkOnly("note collections"))
 	mux.HandleFunc("POST /v1/merges/{id}/report", linkOnly("merge results"))

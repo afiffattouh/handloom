@@ -93,7 +93,9 @@ Device:
   handloom addon hash DIR | add DIR [--sha256 H] [--yes] | list | remove NAME | doctor | status [NAME]
                                                   add-ons on this computer: tools an agent can call. add shows what it does and asks first;
                                                   the exact files are approved, and a changed file stops it until you approve again;
-                                                  status (needs the hub) lists what every computer has installed
+                                                  status (needs the hub) lists what every computer has installed;
+                                                  grants, grant and revoke (the owner, at the hub) say which profile may use which tool:
+                                                  addon grants [--profile P] | grant PROFILE ADDON.TOOL [--leaves yes|no] [--max-calls N] | revoke PROFILE ADDON.TOOL
   handloom run <name> -- <command...>                 start an agent CLI as a registered, wakeable agent
   handloom mcp [--operator [--allow-approvals]]       MCP server (stdio): the agent verbs as tools, or with --operator the tools of a person driving Handloom from their own AI app
 

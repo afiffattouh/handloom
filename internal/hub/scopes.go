@@ -23,11 +23,13 @@ const (
 	ActProjectManage    Action = "project.manage"    // attach, create or clone a project: a shared git remote (D104)
 	ActProjectMerge     Action = "project.merge"     // merge a published job into the main branch of a hosted project (D106)
 	ActDeviceAdd        Action = "device.add"        // add a machine that belongs to the person adding it (D108)
+	ActAddonManage      Action = "addon.manage"      // grant and revoke an add-on's tools on a profile: the owner only
 )
 
 const (
 	subjectHuman  = "human"        // owner and member
 	subjectViewer = "human:viewer" // reads only
+	subjectOwner  = "human:owner"  // the owner, for the few actions a member may not do
 )
 
 // scopeTable is DESIGN.md section 6, cell for cell. A missing entry means "no".
@@ -45,6 +47,7 @@ var scopeTable = map[Action]map[string]bool{
 	ActProjectManage:    {subjectHuman: true},
 	ActProjectMerge:     {subjectHuman: true},
 	ActDeviceAdd:        {subjectHuman: true},
+	ActAddonManage:      {subjectOwner: true},
 }
 
 // Allowed reports whether subject (a role, or "human") may perform action.
@@ -63,11 +66,19 @@ func (c *call) allow(action Action) error {
 		return forbidden("the admin token may not %s; use a human token", action)
 	case kindHuman:
 		subject := subjectHuman
-		if c.p.role == store.RoleViewer {
+		switch c.p.role {
+		case store.RoleViewer:
 			subject = subjectViewer
+		case store.RoleOwner:
+			if Allowed(action, subjectOwner) {
+				return nil
+			}
 		}
 		if Allowed(action, subject) {
 			return nil
+		}
+		if Allowed(action, subjectOwner) {
+			return forbidden("a %s may not %s: that is for the owner", c.p.role, action)
 		}
 		return forbidden("a %s may not %s", c.p.role, action)
 	case kindDevice:

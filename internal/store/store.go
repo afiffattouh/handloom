@@ -496,6 +496,27 @@ CREATE TABLE addon (
   reported_at   INTEGER NOT NULL,
   PRIMARY KEY (device_id, name)
 );
+`, `
+-- Add-on grants: the owner lets a profile use one tool of an add-on. A grant works only where the installed
+-- manifest hash is the one it was granted for. leaves_machine is the owner's value, never the add-on's.
+CREATE TABLE addon_grant (
+  profile        TEXT NOT NULL,
+  addon          TEXT NOT NULL,
+  tool           TEXT NOT NULL,
+  manifest_hash  TEXT NOT NULL,
+  leaves_machine INTEGER NOT NULL DEFAULT 1,
+  max_calls      INTEGER NOT NULL DEFAULT 50,
+  granted_by     TEXT NOT NULL,
+  granted_at     INTEGER NOT NULL,
+  PRIMARY KEY (profile, addon, tool)
+);
+-- Which call reports a computer's link has already sent, so a batch sent twice is stored once.
+CREATE TABLE addon_call_seen (
+  device_id INTEGER NOT NULL REFERENCES device(id),
+  call_id   TEXT NOT NULL,
+  phase     TEXT NOT NULL,
+  PRIMARY KEY (device_id, call_id, phase)
+);
 `}
 
 // Open opens (and migrates) the database at path. Use ":memory:" in tests.

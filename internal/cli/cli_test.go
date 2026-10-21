@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"io"
 	"log"
@@ -30,6 +31,7 @@ type rig struct {
 	hubURL string
 	admin  string
 	human  string
+	db     *sql.DB
 }
 
 func newRig(t *testing.T) *rig {
@@ -45,7 +47,7 @@ func newRig(t *testing.T) *rig {
 	}
 	srv := httptest.NewServer(hub.New(db, hub.Options{AllowFileRemotes: true, DataDir: t.TempDir()}).Handler())
 	t.Cleanup(srv.Close)
-	r := &rig{t: t, hubURL: srv.URL, admin: admin}
+	r := &rig{t: t, hubURL: srv.URL, admin: admin, db: db}
 
 	home := t.TempDir()
 	t.Setenv("HANDLOOM_HOME", home)

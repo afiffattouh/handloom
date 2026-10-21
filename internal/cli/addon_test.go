@@ -8,8 +8,10 @@ import (
 	"strings"
 	"testing"
 
+	"handloom/internal/addon"
 	"handloom/internal/api"
 	"handloom/internal/client"
+	"handloom/internal/profile"
 )
 
 var echoAddon = filepath.Join("..", "..", "examples", "addons", "echo")
@@ -190,5 +192,67 @@ func TestAddonStatusListsWhatTheHubHolds(t *testing.T) {
 	t.Setenv("HANDLOOM_TOKEN", r.admin)
 	if code, _, errs := r.exec("addon", "status", "nothing"); code == 0 || !strings.Contains(errs, "nothing") {
 		t.Fatalf("an unknown add-on: %d %q", code, errs)
+	}
+}
+
+func TestAddonGrantVerbs(t *testing.T) {
+	r := newRig(t)
+	// A computer reports the echo add-on, as the link does after an install.
+	m, _, mh, err := addon.Load(echoAddon)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text, err := os.ReadFile(filepath.Join(echoAddon, "addon.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := client.LoadLinkConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	item := api.AddonItem{Name: m.Name, Version: m.Version, PackageHash: strings.Repeat("a", 64), ManifestHash: mh, Manifest: string(text), Status: "ready"}
+	if err := client.Direct(cfg.Hub, cfg.Credential).Post("/v1/device/addons", api.AddonReport{Addons: []api.AddonItem{item}}, nil); err != nil {
+		t.Fatal(err)
+	}
+	spec := profile.Spec{Kind: "claude", Tools: profile.Tools{Allow: []string{"read"}}}
+	if err := client.Direct(r.hubURL, r.admin).Post("/v1/profiles", api.ProfileReq{Name: "reader", Spec: spec}, nil); err != nil {
+		t.Fatal(err)
+	}
+
+	// afif is a member: refused. As the owner the verbs work.
+	t.Setenv("HANDLOOM_HUB", r.hubURL)
+	t.Setenv("HANDLOOM_TOKEN", r.human)
+	if code, _, errs := r.exec("addon", "grant", "reader", "echo.say"); code == 0 || !strings.Contains(errs, "owner") {
+		t.Fatalf("a member granted: %d %q", code, errs)
+	}
+	if _, err := r.db.Exec(`UPDATE human SET role = 'owner' WHERE name = 'afif'`); err != nil {
+		t.Fatal(err)
+	}
+	if out := r.as(r.human, "addon", "grants"); !strings.Contains(out, "No tool is granted") {
+		t.Fatalf("no grants yet: %s", out)
+	}
+	out := r.as(r.human, "addon", "grant", "reader", "echo.say", "--leaves", "no", "--max-calls", "5")
+	if !strings.Contains(out, "Granted echo.say to reader") || !strings.Contains(out, "stays on this computer") || !strings.Contains(out, "up to 5 calls") {
+		t.Fatalf("grant: %s", out)
+	}
+	out = r.as(r.human, "addon", "grants", "--profile", "reader")
+	if !strings.Contains(out, "echo.say") || !strings.Contains(out, "stays on this computer") || !strings.Contains(out, "up to 5 calls a job") {
+		t.Fatalf("grants: %s", out)
+	}
+	var rows []api.AddonGrant
+	if err := json.Unmarshal([]byte(r.as(r.human, "addon", "grants", "--json")), &rows); err != nil || len(rows) != 1 || rows[0].ManifestHash != mh || rows[0].LeavesMachine {
+		t.Fatalf("grants --json: %+v %v", rows, err)
+	}
+	r.as(r.human, "addon", "grant", "reader", "echo.wait")
+	if out = r.as(r.human, "addon", "grants"); !strings.Contains(out, "leaves this computer") {
+		t.Fatalf("the cautious default: %s", out)
+	}
+	if out = r.as(r.human, "addon", "revoke", "reader", "echo.wait"); !strings.Contains(out, "Revoked echo.wait from reader") {
+		t.Fatalf("revoke: %s", out)
+	}
+	for _, bad := range [][]string{{"grant", "reader", "echo"}, {"grant", "reader", "echo.nothing"}, {"grant", "reader", "echo.say", "--leaves", "maybe"}, {"revoke", "reader", "echo.wait"}, {"grant", "nobody", "echo.say"}} {
+		if code, _, errs := r.exec(append([]string{"addon"}, bad...)...); code == 0 || errs == "" {
+			t.Errorf("%v was accepted", bad)
+		}
 	}
 }

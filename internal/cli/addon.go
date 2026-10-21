@@ -30,13 +30,21 @@ func addonRoot() string { return filepath.Join(client.Home(), "addons") }
 //
 //	handloom addon hash DIR | add DIR [--sha256 H] [--yes] | list | remove NAME | doctor
 //	handloom addon status [NAME]
+//	handloom addon grants [--profile P] | grant PROFILE ADDON.TOOL [--leaves yes|no] [--max-calls N] | revoke PROFILE ADDON.TOOL
 func (e *env) addonCmd(args []string) error {
 	if len(args) == 0 {
-		return usageErr("usage: handloom addon hash|add|list|remove|doctor|status")
+		return usageErr("usage: handloom addon hash|add|list|remove|doctor|status|grants|grant|revoke")
 	}
 	rest := args[1:]
-	if args[0] == "status" {
+	switch args[0] {
+	case "status":
 		return e.addonStatus(rest)
+	case "grants":
+		return e.addonGrants(rest)
+	case "grant":
+		return e.addonGrant(rest)
+	case "revoke":
+		return e.addonRevoke(rest)
 	}
 	if e.dial != nil {
 		return fmt.Errorf("add-ons are installed on the computer that will run them, not through a hub")
@@ -53,7 +61,7 @@ func (e *env) addonCmd(args []string) error {
 	case "doctor":
 		return e.addonDoctor(rest)
 	}
-	return usageErr("unknown add-on command %q; the commands are hash, add, list, remove, doctor and status", args[0])
+	return usageErr("unknown add-on command %q; the commands are hash, add, list, remove, doctor, status, grants, grant and revoke", args[0])
 }
 
 func (e *env) addonHash(args []string) error {
@@ -336,6 +344,116 @@ func (e *env) addonStatus(args []string) error {
 			}
 			fmt.Fprintf(e.out, "%-16s %-8s on %-16s %s%s\n", r.Name, r.Version, r.Computer, addonStateWords(r.Status), detail)
 		}
+	})
+	return nil
+}
+
+// splitTool reads ADDON.TOOL.
+func splitTool(s string) (string, string, error) {
+	a, t, ok := strings.Cut(s, ".")
+	if !ok || a == "" || t == "" || strings.Contains(t, ".") {
+		return "", "", usageErr("name the tool as ADDON.TOOL, for example notes.search")
+	}
+	return a, t, nil
+}
+
+func yesNo(v string) (bool, error) {
+	switch strings.ToLower(v) {
+	case "yes", "y", "true":
+		return true, nil
+	case "no", "n", "false":
+		return false, nil
+	}
+	return false, usageErr("--leaves is yes or no")
+}
+
+func leavesWords(leaves bool) string {
+	if leaves {
+		return "leaves this computer"
+	}
+	return "stays on this computer"
+}
+
+func (e *env) addonGrants(args []string) error {
+	fs := e.flags("addon grants")
+	prof := fs.String("profile", "", "only this profile's grants")
+	if _, err := fs.need(args, 0, 0, "addon grants [--profile P]"); err != nil {
+		return err
+	}
+	c, err := e.conn()
+	if err != nil {
+		return err
+	}
+	path := "/v1/addon-grants"
+	if *prof != "" {
+		path += "?profile=" + url.QueryEscape(*prof)
+	}
+	var rows []api.AddonGrant
+	if err := c.Get(path, &rows); err != nil {
+		return err
+	}
+	e.print(rows, func() {
+		if len(rows) == 0 {
+			fmt.Fprintln(e.out, "No tool is granted to a profile yet. Grant one with: handloom addon grant PROFILE ADDON.TOOL")
+			return
+		}
+		for _, g := range rows {
+			fmt.Fprintf(e.out, "%-16s %-24s %s, up to %d calls a job (granted by %s)\n", g.Profile, g.Addon+"."+g.Tool, leavesWords(g.LeavesMachine), g.MaxCalls, g.GrantedBy)
+		}
+	})
+	return nil
+}
+
+func (e *env) addonGrant(args []string) error {
+	fs := e.flags("addon grant")
+	leaves := fs.String("leaves", "yes", "does the tool send something off the computer: yes or no (yes unless you know it stays)")
+	max := fs.Int("max-calls", 0, "calls allowed per job (default 50)")
+	computer := fs.String("computer", "", "the computer whose version of the add-on this is for, when computers differ")
+	pos, err := fs.need(args, 2, 2, "addon grant PROFILE ADDON.TOOL [--leaves yes|no] [--max-calls N]")
+	if err != nil {
+		return err
+	}
+	a, t, err := splitTool(pos[1])
+	if err != nil {
+		return err
+	}
+	l, err := yesNo(*leaves)
+	if err != nil {
+		return err
+	}
+	c, err := e.conn()
+	if err != nil {
+		return err
+	}
+	var g api.AddonGrant
+	if err := c.Post("/v1/profiles/"+url.PathEscape(pos[0])+"/addon-grants", api.AddonGrantReq{Addon: a, Tool: t, LeavesMachine: &l, MaxCalls: *max, Computer: *computer}, &g); err != nil {
+		return err
+	}
+	e.print(g, func() {
+		fmt.Fprintf(e.out, "Granted %s.%s to %s: it %s, up to %d calls a job.\n", g.Addon, g.Tool, g.Profile, leavesWords(g.LeavesMachine), g.MaxCalls)
+	})
+	return nil
+}
+
+func (e *env) addonRevoke(args []string) error {
+	fs := e.flags("addon revoke")
+	pos, err := fs.need(args, 2, 2, "addon revoke PROFILE ADDON.TOOL")
+	if err != nil {
+		return err
+	}
+	a, t, err := splitTool(pos[1])
+	if err != nil {
+		return err
+	}
+	c, err := e.conn()
+	if err != nil {
+		return err
+	}
+	if err := c.Do(context.Background(), "DELETE", "/v1/profiles/"+url.PathEscape(pos[0])+"/addon-grants/"+url.PathEscape(a)+"/"+url.PathEscape(t), nil, nil); err != nil {
+		return err
+	}
+	e.print(map[string]string{"profile": pos[0], "addon": a, "tool": t}, func() {
+		fmt.Fprintf(e.out, "Revoked %s.%s from %s.\n", a, t, pos[0])
 	})
 	return nil
 }

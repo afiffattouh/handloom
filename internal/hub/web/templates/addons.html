@@ -50,7 +50,7 @@
     </div>
     <div class="grid2 even">
       <label>Leaves this computer <select name="leaves"><option value="yes"{{if ne (index $.Extra.Form "leaves") "no"}} selected{{end}}>yes</option><option value="no"{{if eq (index $.Extra.Form "leaves") "no"}} selected{{end}}>no</option></select></label>
-      <label>Calls per job <input name="max_calls" type="number" min="1" max="10000" placeholder="50" value="{{index $.Extra.Form "max_calls"}}"></label>
+      <label>Calls per helper <input name="max_calls" type="number" min="1" max="10000" placeholder="50" value="{{index $.Extra.Form "max_calls"}}"></label>
     </div>
     {{if gt .Hashes 1}}<label><span>Computer <span class="desc">(they hold different versions: say which one this grant is for)</span></span>
       <select name="computer">{{range .Names}}<option value="{{.}}"{{if eq . (index $.Extra.Form "computer")}} selected{{end}}>{{.}}</option>{{end}}</select></label>{{end}}

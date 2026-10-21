@@ -17,6 +17,7 @@ import (
 	"handloom/internal/addon"
 	"handloom/internal/api"
 	"handloom/internal/client"
+	"handloom/internal/setting"
 )
 
 // addonIn is where an install asks "go ahead?"; tests replace it.
@@ -376,13 +377,22 @@ func leavesWords(leaves bool) string {
 	return "stays on this computer"
 }
 
+// ownerConn is conn for the commands that need a person's sign-in. Without
+// one the plain error would be about an agent identity, which is not the point.
+func (e *env) ownerConn() (*client.Client, error) {
+	if e.dial == nil && setting.Get("TOKEN") == "" {
+		return nil, fmt.Errorf("this needs the owner's sign-in: set HANDLOOM_HUB to the hub address and HANDLOOM_TOKEN to your owner token (or use the Add-ons page)")
+	}
+	return e.conn()
+}
+
 func (e *env) addonGrants(args []string) error {
 	fs := e.flags("addon grants")
 	prof := fs.String("profile", "", "only this profile's grants")
 	if _, err := fs.need(args, 0, 0, "addon grants [--profile P]"); err != nil {
 		return err
 	}
-	c, err := e.conn()
+	c, err := e.ownerConn()
 	if err != nil {
 		return err
 	}
@@ -400,7 +410,7 @@ func (e *env) addonGrants(args []string) error {
 			return
 		}
 		for _, g := range rows {
-			fmt.Fprintf(e.out, "%-16s %-24s %s, up to %d calls a job (granted by %s)\n", g.Profile, g.Addon+"."+g.Tool, leavesWords(g.LeavesMachine), g.MaxCalls, g.GrantedBy)
+			fmt.Fprintf(e.out, "%-16s %-24s %s, up to %d calls per helper (granted by %s)\n", g.Profile, g.Addon+"."+g.Tool, leavesWords(g.LeavesMachine), g.MaxCalls, g.GrantedBy)
 		}
 	})
 	return nil
@@ -409,7 +419,7 @@ func (e *env) addonGrants(args []string) error {
 func (e *env) addonGrant(args []string) error {
 	fs := e.flags("addon grant")
 	leaves := fs.String("leaves", "yes", "does the tool send something off the computer: yes or no (yes unless you know it stays)")
-	max := fs.Int("max-calls", 0, "calls allowed per job (default 50)")
+	max := fs.Int("max-calls", 0, "calls allowed per helper (default 50)")
 	computer := fs.String("computer", "", "the computer whose version of the add-on this is for, when computers differ")
 	pos, err := fs.need(args, 2, 2, "addon grant PROFILE ADDON.TOOL [--leaves yes|no] [--max-calls N]")
 	if err != nil {
@@ -423,7 +433,7 @@ func (e *env) addonGrant(args []string) error {
 	if err != nil {
 		return err
 	}
-	c, err := e.conn()
+	c, err := e.ownerConn()
 	if err != nil {
 		return err
 	}
@@ -432,7 +442,7 @@ func (e *env) addonGrant(args []string) error {
 		return err
 	}
 	e.print(g, func() {
-		fmt.Fprintf(e.out, "Granted %s.%s to %s: it %s, up to %d calls a job.\nHelpers already running keep the tools they started with; the change reaches helpers started from now on.\n", g.Addon, g.Tool, g.Profile, leavesWords(g.LeavesMachine), g.MaxCalls)
+		fmt.Fprintf(e.out, "Granted %s.%s to %s: it %s, up to %d calls per helper.\nHelpers already running keep the tools they started with; the change reaches helpers started from now on.\n", g.Addon, g.Tool, g.Profile, leavesWords(g.LeavesMachine), g.MaxCalls)
 	})
 	return nil
 }
@@ -447,7 +457,7 @@ func (e *env) addonRevoke(args []string) error {
 	if err != nil {
 		return err
 	}
-	c, err := e.conn()
+	c, err := e.ownerConn()
 	if err != nil {
 		return err
 	}

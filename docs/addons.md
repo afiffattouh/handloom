@@ -28,11 +28,11 @@ You need the add-on's folder (it holds a file called `addon.yaml`) and Python 3.
 
 3. See it: `handloom addon list` on the computer, or the **Add-ons** page (Admin menu) on the hub. It says **Ready** within a few seconds.
 
-If you change any file of an installed add-on, or install a different version, it shows **Changed since approved** and does not run until you approve it again with `handloom addon add`. `handloom addon remove NAME` removes it.
+If you change any file of an installed add-on, or install a different version, it shows **Changed since approved** and does not run until you approve it again with `handloom addon add`. `handloom addon remove NAME` removes it. If the add-on is running (it keeps running for ten idle minutes after a helper uses it), both refuse and change nothing: wait up to ten idle minutes, or stop the link, then run the command again.
 
 ## Let a profile use it
 
-Nothing can use a tool until an owner allows it. On the Add-ons page choose **Grant** next to the tool and pick a profile, or use the command line:
+Nothing can use a tool until an owner allows it. The profile must already exist (see **Add profiles** in the [README](../README.md#quick-start)). On the Add-ons page choose **Grant** next to the tool and pick a profile. On the command line, run it as the owner: set `HANDLOOM_HUB` to the hub address and `HANDLOOM_TOKEN` to your owner token first (a member's or the admin token is refused).
 
 ```
 handloom addon grant researcher web-fetch.fetch --leaves yes --max-calls 20
@@ -93,7 +93,7 @@ A helper that cannot use a tool gets a code word. Here is what each one means an
 | `denied-grant` | The helper's profile may not use that tool | Grant the tool on the profile |
 | `denied-confidential` | A confidential job may not use a tool that leaves the computer | Use a tool that stays, or a different job; or grant it with `--leaves no` if it really does stay |
 | `denied-budget` | The call limit was reached | Raise the limit on the grant |
-| `changed` | The add-on is not the version that was approved or granted | Approve it again with `handloom addon add`, then grant again if its tools changed |
+| `changed` | The add-on is not the version that was approved or granted | Approve it again with `handloom addon add` (if the add-on is running, wait up to ten idle minutes or stop the link first), then grant again if its tools changed |
 | `plugin-down` | The add-on is not running and could not be started | Run `handloom addon doctor` on the computer; the reason is printed |
 | `plugin-error` | The add-on reported an error | Read the message; it comes from the add-on |
 | `timeout` | The call took longer than its limit | Try again, or use a tool with a longer limit |

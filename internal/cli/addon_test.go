@@ -225,6 +225,11 @@ func TestAddonGrantVerbs(t *testing.T) {
 	if code, _, errs := r.exec("addon", "grant", "reader", "echo.say"); code == 0 || !strings.Contains(errs, "owner") {
 		t.Fatalf("a member granted: %d %q", code, errs)
 	}
+	t.Setenv("HANDLOOM_TOKEN", "")
+	if code, _, errs := r.exec("addon", "grant", "reader", "echo.say"); code == 0 || !strings.Contains(errs, "owner's sign-in") || !strings.Contains(errs, "HANDLOOM_TOKEN") {
+		t.Fatalf("no sign-in: %d %q", code, errs)
+	}
+	t.Setenv("HANDLOOM_TOKEN", r.human)
 	if _, err := r.db.Exec(`UPDATE human SET role = 'owner' WHERE name = 'afif'`); err != nil {
 		t.Fatal(err)
 	}
@@ -232,11 +237,11 @@ func TestAddonGrantVerbs(t *testing.T) {
 		t.Fatalf("no grants yet: %s", out)
 	}
 	out := r.as(r.human, "addon", "grant", "reader", "echo.say", "--leaves", "no", "--max-calls", "5")
-	if !strings.Contains(out, "Granted echo.say to reader") || !strings.Contains(out, "stays on this computer") || !strings.Contains(out, "up to 5 calls") {
+	if !strings.Contains(out, "Granted echo.say to reader") || !strings.Contains(out, "stays on this computer") || !strings.Contains(out, "up to 5 calls per helper") {
 		t.Fatalf("grant: %s", out)
 	}
 	out = r.as(r.human, "addon", "grants", "--profile", "reader")
-	if !strings.Contains(out, "echo.say") || !strings.Contains(out, "stays on this computer") || !strings.Contains(out, "up to 5 calls a job") {
+	if !strings.Contains(out, "echo.say") || !strings.Contains(out, "stays on this computer") || !strings.Contains(out, "up to 5 calls per helper") {
 		t.Fatalf("grants: %s", out)
 	}
 	var rows []api.AddonGrant

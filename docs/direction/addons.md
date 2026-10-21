@@ -93,7 +93,7 @@ The **package hash** is the sha256 over the folder's files (each file's relative
 | `not-installed` | This computer does not have the add-on | Install it on this computer |
 | `denied-grant` | This helper's profile may not use that tool | Grant it on the profile |
 | `denied-confidential` | A confidential job may not use a tool that leaves the computer | Use a tool that stays, or a different job |
-| `denied-budget` | The call limit for this job was reached | Raise the limit on the grant |
+| `denied-budget` | The call limit for this helper was reached | Raise the limit on the grant |
 | `changed` | The add-on changed since it was approved | Approve it again |
 | `plugin-down` | The add-on is not running and could not be started | See `handloom addon doctor` |
 | `plugin-error` | The add-on reported an error | Read the message |
@@ -127,7 +127,7 @@ The link starts the add-on's `run` command in its folder, with a minimal environ
 Two tables, and no other change to the core model.
 
 - `addon`: one row per computer and name — version, package hash, manifest hash, the manifest text, status (`ready`, `changed`, `down`, `missing`), a status detail, when it was reported. Reported by the link; removed when the link reports it gone.
-- `addon_grant`: one row per profile, add-on and tool — the manifest hash it was granted for, the owner's `leaves_machine` value (default: leaves), the call limit (default 50 per job), who and when. A grant works only where the installed manifest hash equals the granted one.
+- `addon_grant`: one row per profile, add-on and tool — the manifest hash it was granted for, the owner's `leaves_machine` value (default: leaves), the call limit (default 50 per helper), who and when. A grant works only where the installed manifest hash equals the granted one.
 
 One new action in the scope table, `addon.manage` (grant, revoke, view all add-ons), for people with the owner role only. Calls need no hub action: the link enforces the snapshot.
 

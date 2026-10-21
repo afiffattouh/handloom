@@ -74,7 +74,7 @@ var codeWords = map[string]struct{ Plain, Action string }{
 	codeNotInstalled:       {"This computer does not have the add-on.", "Install the add-on on this computer."},
 	codeDeniedGrant:        {"This helper's profile may not use that tool.", "Grant the tool on the profile."},
 	codeDeniedConfidential: {"A confidential job may not use a tool that leaves the computer.", "Use a tool that stays on the computer, or a different job."},
-	codeDeniedBudget:       {"The call limit for this job was reached.", "Raise the limit on the grant."},
+	codeDeniedBudget:       {"The call limit for this helper was reached.", "Raise the limit on the grant."},
 	codeChanged:            {"The add-on changed since it was approved.", "Approve it again on this computer."},
 	codeDown:               {"The add-on is not running and could not be started.", "Run handloom addon doctor on this computer."},
 	codeError:              {"The add-on reported an error.", ""},

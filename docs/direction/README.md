@@ -8,7 +8,7 @@ Handloom is a self-hosted gate for coding-agent work. It sits across several age
 
 ## Principles
 
-1. Narrow and durable beats broad. Keep the invariants that no one else states: the hub never runs git, a shell or a model; the device's check beats the agent's claim; only a person accepts; confidential jobs stay on local models.
+1. Narrow and durable beats broad. Keep the invariants that no one else states: the hub never runs a shell, a model, an agent or a project's check, and uses git only on the repositories it holds itself; the device's check beats the agent's claim; only a person accepts; confidential jobs stay on local models.
 2. The unit of durability is the task graph, the git branch and device-run evidence. Do not build journaled replay or a workflow engine. Document how an external Temporal or n8n flow can start jobs through the operator API.
 3. Enforce, do not instruct. Every control is either enforced in the hub or link and covered by a test, or it is labelled 'instructed' or 'not built'. The honest 'not built' status beats a weak implementation.
 4. Claim only what Handloom's own fault-injection tests show. Do not use 'durable', 'secure', 'compliant' or 'exfiltration prevention' without a test and a stated limit. The wording is 'supports controls for', never 'compliant'.

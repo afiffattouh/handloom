@@ -74,7 +74,7 @@ func TestOperatorToolsRunTheMatchingCommands(t *testing.T) {
 	call("handloom_digest", `{}`)
 	call("handloom_job", `{"id":3}`)
 	call("handloom_tasks", `{"job":3,"status":"submitted"}`)
-	call("handloom_job_new", `{"title":"Fix it","lead_profile":"lead","brief":"do it","device":"GB10","repo":"/r","verify":"./check.sh"}`)
+	call("handloom_job_new", `{"title":"Fix it","lead_profile":"lead","brief":"do it","device":"desk","repo":"/r","verify":"./check.sh"}`)
 	call("handloom_screen", `{"agent":"coder-1"}`)
 	call("handloom_machines", `{}`)
 	call("handloom_task_accept", `{"id":"#7"}`)
@@ -82,7 +82,7 @@ func TestOperatorToolsRunTheMatchingCommands(t *testing.T) {
 	call("handloom_job_close", `{"id":3,"cancel":true}`)
 	want := []string{
 		"digest", "job show 3", "task list --job 3 --status submitted",
-		"job new Fix it --lead-profile lead --body do it --device GB10 --repo /r --verify ./check.sh",
+		"job new Fix it --lead-profile lead --body do it --device desk --repo /r --verify ./check.sh",
 		"screen coder-1", "device list", "task accept 7", "answer 2 yes", "job close 3 --cancel",
 	}
 	if len(got) != len(want) {

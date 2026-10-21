@@ -39,7 +39,7 @@
     <select name="runtime"><option value="cloud"{{if eq .Spec.Runtime "cloud"}} selected{{end}}>cloud</option><option value="local"{{if eq .Spec.Runtime "local"}} selected{{end}}>local (confidential jobs need this)</option></select>
   </label>
   </div>
-  <label><span>Model <span class="desc">(optional for cloud CLIs; <strong>name it for a local model</strong>, such as gb10/qwen3.8-27b, or the CLI may use a cloud model)</span></span><input name="model" value="{{.Spec.Model}}" placeholder="sonnet" class="mono-input"></label>
+  <label><span>Model <span class="desc">(optional for cloud CLIs; <strong>name it for a local model</strong>, such as local-server/model-name, or the CLI may use a cloud model)</span></span><input name="model" value="{{.Spec.Model}}" placeholder="sonnet" class="mono-input"></label>
   <div class="card-inset" id="live-summary" data-summary="1"><strong>In plain words:</strong> <span id="summary-text">{{.Summary}}</span></div>
   <details class="limits"{{if or .Deny .WriteText (eq .Intent "custom")}} open{{end}}>
     <summary>Fine tune <span class="desc">(optional: the exact tools, and limits)</span></summary>

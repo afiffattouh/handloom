@@ -510,12 +510,13 @@ CREATE TABLE addon_grant (
   granted_at     INTEGER NOT NULL,
   PRIMARY KEY (profile, addon, tool)
 );
--- Which call reports a computer's link has already sent, so a batch sent twice is stored once.
+-- Which call reports a computer's link has already sent, so (call ids are only unique within one spawn) a batch sent twice is stored once.
 CREATE TABLE addon_call_seen (
   device_id INTEGER NOT NULL REFERENCES device(id),
+  spawn_id  INTEGER NOT NULL,
   call_id   TEXT NOT NULL,
   phase     TEXT NOT NULL,
-  PRIMARY KEY (device_id, call_id, phase)
+  PRIMARY KEY (device_id, spawn_id, call_id, phase)
 );
 `}
 

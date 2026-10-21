@@ -474,6 +474,12 @@ func TestACallBatchIsStoredOnceUnderTheAddonsOwnName(t *testing.T) {
 	if rows = e.addonAudit(); len(rows) != 5 {
 		t.Fatalf("a line twice in a batch: %d rows", len(rows))
 	}
+	// Two spawns on one computer may use the same call id; both are kept.
+	s2 := e.pendingSpawn("b", "reader", job.ID)
+	e.ok(d1, "POST", "/v1/device/addon-calls", api.AddonCallReport{Calls: []api.AddonCall{callLine("c1", "call", s2)}}, nil)
+	if rows = e.addonAudit(); len(rows) != 6 {
+		t.Fatalf("a call id reused by another spawn was dropped: %d rows", len(rows))
+	}
 	e.ok(d1, "POST", "/v1/device/addon-calls", api.AddonCallReport{}, nil)
 }
 

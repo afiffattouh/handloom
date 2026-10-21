@@ -289,7 +289,7 @@ func TestAddonGrantTablesArriveWithTheLastMigration(t *testing.T) {
 		t.Error(err)
 	}
 	seen := func(device int) error {
-		_, err := db.Exec(`INSERT INTO addon_call_seen(device_id, call_id, phase) VALUES (?, 'c1', 'call')`, device)
+		_, err := db.Exec(`INSERT INTO addon_call_seen(device_id, spawn_id, call_id, phase) VALUES (?, 1, 'c1', 'call')`, device)
 		return err
 	}
 	if err := seen(1); err != nil {
@@ -297,6 +297,9 @@ func TestAddonGrantTablesArriveWithTheLastMigration(t *testing.T) {
 	}
 	if err := seen(1); err == nil {
 		t.Error("a call report was stored twice")
+	}
+	if _, err := db.Exec(`INSERT INTO addon_call_seen(device_id, spawn_id, call_id, phase) VALUES (1, 2, 'c1', 'call')`); err != nil {
+		t.Errorf("the same call id in another spawn was refused: %v", err)
 	}
 	if err := seen(99); err == nil {
 		t.Error("a call report for a computer that does not exist was accepted")

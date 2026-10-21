@@ -405,7 +405,7 @@ func addonCallsReport(c *call) (any, error) {
 		}
 	}
 	for _, e := range req.Calls {
-		res, err := c.tx.Exec(`INSERT OR IGNORE INTO addon_call_seen(device_id, call_id, phase) VALUES (?, ?, ?)`, c.p.deviceID, e.CallID, e.Phase)
+		res, err := c.tx.Exec(`INSERT OR IGNORE INTO addon_call_seen(device_id, spawn_id, call_id, phase) VALUES (?, ?, ?, ?)`, c.p.deviceID, e.Spawn, e.CallID, e.Phase)
 		if err != nil {
 			return nil, err
 		}

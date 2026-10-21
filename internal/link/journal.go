@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -137,30 +138,65 @@ func (j *callJournal) unsent(max int) (calls []api.AddonCall, next int64, bad in
 	}
 	next = j.offset(st.Size())
 	buf := make([]byte, maxShipBytes)
-	n, err := f.ReadAt(buf, next)
-	if err != nil && n == 0 {
-		return nil, next, 0, nil // nothing past the offset
+	for {
+		n, err := f.ReadAt(buf, next)
+		if err != nil && n == 0 {
+			return calls, next, bad, nil // nothing past the offset
+		}
+		win := buf[:n]
+		for len(calls) < max {
+			i := bytes.IndexByte(win, '\n')
+			if i < 0 {
+				break // the rest is a line still being written, or longer than we read
+			}
+			line := bytes.TrimSpace(win[:i])
+			win = win[i+1:]
+			next += int64(i) + 1
+			if len(line) == 0 {
+				continue
+			}
+			var e api.AddonCall
+			if json.Unmarshal(line, &e) != nil {
+				bad++
+				continue
+			}
+			calls = append(calls, e)
+		}
+		if len(calls) >= max || len(win) < maxShipBytes {
+			return calls, next, bad, nil
+		}
+		// The whole window is one line with no end: a real line is far shorter, so it is damaged. Pass over
+		// it up to its end, so it cannot hold back every line after it. A line still being written is
+		// left where it is.
+		skipped, found, err := skipLine(f, next)
+		if err != nil {
+			return calls, next, bad, err
+		}
+		if !found {
+			return calls, next, bad, nil
+		}
+		bad++
+		next += skipped
 	}
-	buf = buf[:n]
-	for len(calls) < max {
-		i := bytes.IndexByte(buf, '\n')
-		if i < 0 {
-			break // the rest is a line still being written, or longer than we read
+}
+
+// skipLine says how many bytes from off take it past the next newline, and whether there is one.
+func skipLine(f *os.File, off int64) (int64, bool, error) {
+	chunk := make([]byte, 64<<10)
+	var n int64
+	for {
+		r, err := f.ReadAt(chunk, off+n)
+		if i := bytes.IndexByte(chunk[:r], '\n'); i >= 0 {
+			return n + int64(i) + 1, true, nil
 		}
-		line := bytes.TrimSpace(buf[:i])
-		buf = buf[i+1:]
-		next += int64(i) + 1
-		if len(line) == 0 {
-			continue
+		n += int64(r)
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return 0, false, nil
+			}
+			return 0, false, err
 		}
-		var e api.AddonCall
-		if json.Unmarshal(line, &e) != nil {
-			bad++
-			continue
-		}
-		calls = append(calls, e)
 	}
-	return calls, next, bad, nil
 }
 
 // settle moves a journal that is fully shipped and large out of the way, so it does not grow for ever.

@@ -734,3 +734,39 @@ func TestTheGatewayTokenIsInTheSpawnsEnvironmentOnly(t *testing.T) {
 		}
 	}
 }
+
+// One line far longer than a real one (a damaged file) is passed over; the lines after it still go.
+func TestAJournalLineThatIsTooLongDoesNotHoldBackTheRest(t *testing.T) {
+	j := &callJournal{path: filepath.Join(t.TempDir(), "addon-calls.jsonl")}
+	now := time.Date(2026, 10, 21, 9, 0, 0, 0, time.UTC)
+	add := func(id string) {
+		if err := j.append(api.AddonCall{CallID: id, Spawn: 3, Agent: "alpha", Addon: "echo", Tool: "say", Phase: "denied", Code: codeDeniedGrant, Time: now}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	add("c1")
+	f, err := os.OpenFile(j.path, os.O_APPEND|os.O_WRONLY, 0o600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.WriteString(strings.Repeat("x", 2*maxShipBytes))
+	// Still being written: no end yet, so it is left where it is.
+	calls, next, bad, err := j.unsent(100)
+	if err != nil || len(calls) != 1 || bad != 0 {
+		t.Fatalf("a long line with no end: %d calls, %d bad, %v", len(calls), bad, err)
+	}
+	j.markSent(next)
+	if calls, _, bad, err = j.unsent(100); err != nil || len(calls) != 0 || bad != 0 {
+		t.Fatalf("the long line with no end, alone: %d calls, %d bad, %v", len(calls), bad, err)
+	}
+	f.WriteString("\n")
+	f.Close()
+	add("c2")
+	calls, next, bad, err = j.unsent(100)
+	if err != nil || len(calls) != 1 || calls[0].CallID != "c2" || bad != 1 {
+		t.Fatalf("after the long line: %+v bad %d %v", calls, bad, err)
+	}
+	if st, _ := os.Stat(j.path); next != st.Size() {
+		t.Fatalf("next %d, file %d", next, st.Size())
+	}
+}

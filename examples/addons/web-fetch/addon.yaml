@@ -1,0 +1,18 @@
+schema: 1
+kind: tool
+name: web-fetch
+version: 0.1.0
+api: 1
+title: Fetch a web page
+summary: Downloads one web page and saves its text as a file. It holds no keys.
+run: ["python3", "service.py"]
+hosts: ["*"]
+secrets: []
+tools:
+  - name: fetch
+    summary: Fetch one web page (http or https) and save its text as a markdown file with the address, the time and a hash of what was downloaded.
+    input:
+      url: {type: string, required: true, summary: "The address to fetch, starting with http:// or https://"}
+    leaves_machine: true
+    timeout: 30s
+    max_output: 1MB

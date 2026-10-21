@@ -3,6 +3,7 @@ package link
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -128,7 +129,7 @@ func TestPromoteCopiesAResultIntoTheProject(t *testing.T) {
 	wt := t.TempDir()
 	writeFile(t, filepath.Join(resultsRoot(wt), "web-fetch", "c1", "page.md"), "# page")
 	src := filepath.Join(resultsRoot(wt), "web-fetch", "c1", "page.md")
-	to, err := promote(wt, src, "docs/page.md", false)
+	to, err := promote(wt, src, "docs/page.md", false, acceptedIn(wt))
 	if err != nil || to != "docs/page.md" {
 		t.Fatalf("%q %v", to, err)
 	}
@@ -136,18 +137,18 @@ func TestPromoteCopiesAResultIntoTheProject(t *testing.T) {
 		t.Fatalf("the copy: %q", b)
 	}
 	// A path relative to the results folder names the same file.
-	if _, err := promote(wt, "web-fetch/c1/page.md", "docs/two.md", false); err != nil {
+	if _, err := promote(wt, "web-fetch/c1/page.md", "docs/two.md", false, acceptedIn(wt)); err != nil {
 		t.Fatal(err)
 	}
 	// An existing file is kept unless --force.
 	writeFile(t, src, "# newer")
-	if _, err := promote(wt, src, "docs/page.md", false); err == nil || !strings.Contains(err.Error(), "--force") {
+	if _, err := promote(wt, src, "docs/page.md", false, acceptedIn(wt)); err == nil || !strings.Contains(err.Error(), "--force") {
 		t.Fatalf("overwrite without force: %v", err)
 	}
 	if b, _ := os.ReadFile(filepath.Join(wt, "docs", "page.md")); string(b) != "# page" {
 		t.Fatalf("the file was replaced without --force: %q", b)
 	}
-	if _, err := promote(wt, src, "docs/page.md", true); err != nil {
+	if _, err := promote(wt, src, "docs/page.md", true, acceptedIn(wt)); err != nil {
 		t.Fatal(err)
 	}
 	if b, _ := os.ReadFile(filepath.Join(wt, "docs", "page.md")); string(b) != "# newer" {
@@ -169,7 +170,7 @@ func TestPromoteRefusesWhatLeavesTheWorktreeOrIsNotAResult(t *testing.T) {
 	os.Symlink(filepath.Join(wt, "keep.txt"), filepath.Join(resultsRoot(wt), "a", "c1", "l.txt"))
 
 	for _, to := range []string{"../out.txt", "a/../../out.txt", filepath.Join(outside, "out.txt"), "escape/out.txt", ".handloom/out.txt", ".git", ".GIT", ".git/info/exclude", "", "."} {
-		if _, err := promote(wt, src, to, true); err == nil {
+		if _, err := promote(wt, src, to, true, acceptedIn(wt)); err == nil {
 			t.Errorf("destination %q was allowed", to)
 		}
 	}
@@ -180,7 +181,7 @@ func TestPromoteRefusesWhatLeavesTheWorktreeOrIsNotAResult(t *testing.T) {
 		t.Fatal("a file was written outside the worktree")
 	}
 	for _, from := range []string{"keep.txt", filepath.Join(wt, "keep.txt"), "../../scope.json", "a/c1/l.txt", "a/c1/nothere.txt", "a/c1"} {
-		if _, err := promote(wt, from, "copy.txt", true); err == nil {
+		if _, err := promote(wt, from, "copy.txt", true, acceptedIn(wt)); err == nil {
 			t.Errorf("source %q was allowed", from)
 		}
 	}
@@ -204,7 +205,7 @@ func TestAPromotedResultIsAChangeAndAnUnpromotedOneIsNot(t *testing.T) {
 	if err != nil || len(got) != 0 {
 		t.Fatalf("results counted as changes: %v %v", got, err)
 	}
-	if _, err := promote(dir, filepath.Join("web-fetch", "c1", "page.md"), "docs/page.md", false); err != nil {
+	if _, err := promote(dir, filepath.Join("web-fetch", "c1", "page.md"), "docs/page.md", false, acceptedIn(dir)); err != nil {
 		t.Fatal(err)
 	}
 	if got, err := f.link.changedFiles(context.Background(), rec); err != nil || strings.Join(got, ",") != "docs/page.md" {
@@ -339,5 +340,57 @@ func TestTheLinkChecksResultFilesAfterACall(t *testing.T) {
 	}
 	if !exists(filepath.Join(dir, "notes", "a.txt")) {
 		t.Fatal("a promoted file was removed with the results")
+	}
+}
+
+// acceptedIn is what the link would have recorded had every file now in the results folder been passed on.
+func acceptedIn(worktree string) map[string]int64 {
+	root := resultsRoot(worktree)
+	out := map[string]int64{}
+	filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
+		if err == nil && !d.IsDir() {
+			if fi, err := d.Info(); err == nil && fi.Mode().IsRegular() {
+				rel, _ := filepath.Rel(root, p)
+				out[rel] = fi.Size()
+			}
+		}
+		return nil
+	})
+	return out
+}
+
+// A file that appears after the call returned, or grows after it was accepted, is not promoted, and a link put
+// in the place of an accepted file is not followed.
+func TestPromoteOnlyTakesWhatTheCallPassedOn(t *testing.T) {
+	wt := t.TempDir()
+	dir := filepath.Join(resultsRoot(wt), "filer", "c1")
+	writeFile(t, filepath.Join(dir, "a.txt"), "first")
+	accepted := acceptedIn(wt)
+	writeFile(t, filepath.Join(dir, "late.txt"), strings.Repeat("x", 5000))
+	if _, err := promote(wt, "filer/c1/late.txt", "late.txt", false, accepted); err == nil || !strings.Contains(err.Error(), "not passed on") {
+		t.Fatalf("a late file: %v", err)
+	}
+	writeFile(t, filepath.Join(dir, "a.txt"), "first and much more")
+	if _, err := promote(wt, "filer/c1/a.txt", "a.txt", false, accepted); err == nil || !strings.Contains(err.Error(), "changed") {
+		t.Fatalf("a grown file: %v", err)
+	}
+	if exists(filepath.Join(wt, "late.txt")) || exists(filepath.Join(wt, "a.txt")) {
+		t.Fatal("something that was not accepted was copied")
+	}
+	os.Remove(filepath.Join(dir, "a.txt"))
+	if err := os.Symlink(filepath.Join(wt, "late.txt"), filepath.Join(dir, "a.txt")); err == nil {
+		if _, err := promote(wt, "filer/c1/a.txt", "a.txt", false, accepted); err == nil {
+			t.Fatal("a link in place of an accepted file was promoted")
+		}
+	}
+}
+
+func TestCheckResultsRemovesEmptyFolders(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "c1")
+	os.MkdirAll(filepath.Join(dir, "a", "b", "c", "d"), 0o755)
+	writeFile(t, filepath.Join(dir, "keep", "x.txt"), "x")
+	files, problem := checkResults(dir, 100, nil)
+	if problem != "" || len(files) != 1 || exists(filepath.Join(dir, "a")) || !exists(filepath.Join(dir, "keep", "x.txt")) {
+		t.Fatalf("%v %q", files, problem)
 	}
 }

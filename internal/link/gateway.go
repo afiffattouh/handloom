@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -36,6 +37,30 @@ type toolSession struct {
 
 	mu   sync.Mutex
 	used map[string]int // calls let through, by ADDON.TOOL: the counter is per spawn and per tool
+	// accepted is the result files that calls passed on, by path under the results folder, with their size.
+	// Only these may be promoted into the project.
+	accepted map[string]int64
+}
+
+// accept records a result file that a call passed on, so that it may be promoted later.
+func (s *toolSession) accept(rel string, size int64) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.accepted == nil {
+		s.accepted = map[string]int64{}
+	}
+	s.accepted[filepath.Clean(rel)] = size
+}
+
+// acceptedFiles is a copy of what accept recorded.
+func (s *toolSession) acceptedFiles() map[string]int64 {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make(map[string]int64, len(s.accepted))
+	for k, v := range s.accepted {
+		out[k] = v
+	}
+	return out
 }
 
 func toolKey(addonName, tool string) string { return addonName + "." + tool }
@@ -348,6 +373,9 @@ func (l *Link) toolCall(w http.ResponseWriter, r *http.Request) {
 		out.Text = res.Text
 		for _, f := range files {
 			out.Files = append(out.Files, filepath.Join(results, f))
+			if fi, err := os.Lstat(filepath.Join(results, f)); err == nil && fi.Mode().IsRegular() {
+				s.accept(filepath.Join(addonName, id, f), fi.Size())
+			}
 		}
 	} else {
 		out.Text = refusal(res.Code, res.Error)
@@ -371,7 +399,7 @@ func (l *Link) toolPromote(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 400, api.Error{Error: "say which result file to promote and where to put it (to)", Code: "bad_request"})
 		return
 	}
-	to, err := promote(s.dir, req.File, req.To, req.Force)
+	to, err := promote(s.dir, req.File, req.To, req.Force, s.acceptedFiles())
 	if err != nil {
 		writeJSON(w, 400, api.Error{Error: err.Error(), Code: "bad_promote"})
 		return

@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"syscall"
 )
 
 // Result files. An add-on saves files only into the results folder the link made for the call:
@@ -89,6 +90,7 @@ func checkResults(dir string, room int64, reported []string) (files []string, pr
 	for _, p := range remove {
 		os.Remove(p) // a link is removed itself, never what it points to
 	}
+	pruneEmptyFolders(dir)
 	if len(bad) > 0 {
 		return nil, "the add-on saved files that are not allowed and they were removed: " + strings.Join(bad, "; ")
 	}
@@ -96,6 +98,20 @@ func checkResults(dir string, room int64, reported []string) (files []string, pr
 		return nil, p
 	}
 	return passed, ""
+}
+
+// pruneEmptyFolders removes the folders under dir that hold nothing, deepest first. dir itself stays.
+func pruneEmptyFolders(dir string) {
+	var dirs []string
+	filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
+		if err == nil && d.IsDir() && p != dir {
+			dirs = append(dirs, p)
+		}
+		return nil
+	})
+	for i := len(dirs) - 1; i >= 0; i-- {
+		os.Remove(dirs[i]) // fails, and is left, when the folder is not empty
+	}
 }
 
 // checkReported checks the file names an add-on said it saved against the files that were found.
@@ -126,7 +142,10 @@ func removeResults(worktree string) {
 // results folder or a path relative to it; to is a path inside the worktree. An existing file is replaced only
 // with force. It does not look at the profile's write scope: that is checked when the helper submits, as for any
 // file it changes.
-func promote(worktree, file, to string, force bool) (string, error) {
+//
+// Only a file the link accepted after a call may be promoted: accepted holds those, by path relative to the
+// results folder, with the size they had then. A file that was written later, or has grown since, is refused.
+func promote(worktree, file, to string, force bool, accepted map[string]int64) (string, error) {
 	root := resultsRoot(worktree)
 	src := file
 	if !filepath.IsAbs(src) {
@@ -146,6 +165,10 @@ func promote(worktree, file, to string, force bool) (string, error) {
 	}
 	if !fi.Mode().IsRegular() {
 		return "", fmt.Errorf("%s is not a plain file, so it cannot be promoted", rel)
+	}
+	size, ok := accepted[rel]
+	if !ok {
+		return "", fmt.Errorf("%s was not passed on by a tool call of this helper, so it cannot be promoted", rel)
 	}
 
 	if to == "" || filepath.IsAbs(to) || !filepath.IsLocal(to) {
@@ -177,11 +200,15 @@ func promote(worktree, file, to string, force bool) (string, error) {
 	if err := noLinksBelow(worktree, filepath.Dir(to)); err != nil {
 		return "", fmt.Errorf("the destination %q is not allowed: %w", to, err)
 	}
-	in, err := os.Open(src)
+	// Opened without following a link, and looked at again once open: what is copied is the file that was accepted.
+	in, err := os.OpenFile(src, os.O_RDONLY|syscall.O_NOFOLLOW, 0)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("%s could not be opened as a plain file: %w", rel, err)
 	}
 	defer in.Close()
+	if fi, err := in.Stat(); err != nil || !fi.Mode().IsRegular() || fi.Size() != size {
+		return "", fmt.Errorf("%s has changed since the tool call passed it on, so it cannot be promoted", rel)
+	}
 	flags := os.O_WRONLY | os.O_CREATE | os.O_EXCL
 	if force {
 		flags = os.O_WRONLY | os.O_CREATE | os.O_TRUNC
@@ -193,7 +220,7 @@ func promote(worktree, file, to string, force bool) (string, error) {
 		}
 		return "", err
 	}
-	if _, err := io.Copy(out, in); err != nil {
+	if _, err := io.Copy(out, io.LimitReader(in, size)); err != nil {
 		out.Close()
 		return "", err
 	}

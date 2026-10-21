@@ -48,7 +48,7 @@ type profileView struct {
 	// Tools from add-ons, for the owner on a saved profile.
 	Grants     []grantView
 	KnownTools []knownTool
-	Computers  []string // computers whose add-on versions differ, for the grant form
+	Computers  []string          // computers whose add-on versions differ, for the grant form
 	GrantForm  map[string]string // what was typed in the grant form that was refused
 }
 

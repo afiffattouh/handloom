@@ -37,26 +37,32 @@ type toolSession struct {
 
 	mu   sync.Mutex
 	used map[string]int // calls let through, by ADDON.TOOL: the counter is per spawn and per tool
-	// accepted is the result files that calls passed on, by path under the results folder, with their size.
+	// accepted is the result files that calls passed on, by path under the results folder, with their size and content hash.
 	// Only these may be promoted into the project.
-	accepted map[string]int64
+	accepted map[string]acceptedFile
+}
+
+// acceptedFile is what the link saw of a result file when the call passed it on.
+type acceptedFile struct {
+	Size int64
+	Sum  string // sha256 of the content, hex
 }
 
 // accept records a result file that a call passed on, so that it may be promoted later.
-func (s *toolSession) accept(rel string, size int64) {
+func (s *toolSession) accept(rel string, f acceptedFile) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.accepted == nil {
-		s.accepted = map[string]int64{}
+		s.accepted = map[string]acceptedFile{}
 	}
-	s.accepted[filepath.Clean(rel)] = size
+	s.accepted[filepath.Clean(rel)] = f
 }
 
 // acceptedFiles is a copy of what accept recorded.
-func (s *toolSession) acceptedFiles() map[string]int64 {
+func (s *toolSession) acceptedFiles() map[string]acceptedFile {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	out := make(map[string]int64, len(s.accepted))
+	out := make(map[string]acceptedFile, len(s.accepted))
 	for k, v := range s.accepted {
 		out[k] = v
 	}
@@ -374,7 +380,9 @@ func (l *Link) toolCall(w http.ResponseWriter, r *http.Request) {
 		for _, f := range files {
 			out.Files = append(out.Files, filepath.Join(results, f))
 			if fi, err := os.Lstat(filepath.Join(results, f)); err == nil && fi.Mode().IsRegular() {
-				s.accept(filepath.Join(addonName, id, f), fi.Size())
+				if sum, err := fileSum(filepath.Join(results, f)); err == nil {
+					s.accept(filepath.Join(addonName, id, f), acceptedFile{Size: fi.Size(), Sum: sum})
+				}
 			}
 		}
 	} else {

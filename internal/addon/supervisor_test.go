@@ -289,6 +289,11 @@ func TestCrashRestartLimit(t *testing.T) {
 	if res := r.call("misc", Call{Tool: "ok"}); res.Code != CodeDown {
 		t.Fatalf("later = %+v", res)
 	}
+	// but not for ever: once the window has passed it is tried again
+	r.advance(11 * time.Minute)
+	if res := r.call("misc", Call{Tool: "ok"}); res.Code != CodeOK {
+		t.Fatalf("after the window = %+v", res)
+	}
 }
 
 func TestCrashesOutsideTheWindowDoNotCount(t *testing.T) {

@@ -78,6 +78,9 @@ type service struct {
 	crashed  bool        // the last process stopped without being asked to
 	restarts []time.Time // when it was restarted after a crash, within the window
 	down     string
+	downAt   time.Time // when it was marked down
+	downPkg  string    // the package that was marked down: another one starts afresh
+	lastPkg  string    // the package the last call checked
 	idle     *time.Timer
 
 	live atomic.Pointer[proc] // the same process as p, readable without callMu, so Close can end a call that is running
@@ -172,10 +175,15 @@ func (s *Supervisor) Call(ctx context.Context, name string, c Call) (Result, err
 		return r, nil
 	}
 
-	m, bad, ok := s.Check(name)
+	m, _, ph, bad, ok := s.CheckHash(name)
 	if !ok {
 		s.stop(sv, false)
 		return finish(bad)
+	}
+	sv.lastPkg = ph
+	// Down lasts for the window, or until the owner approves another copy of the add-on.
+	if sv.down != "" && (ph != sv.downPkg || s.now().Sub(sv.downAt) >= restartWindow) {
+		sv.down, sv.crashed, sv.restarts = "", false, nil
 	}
 	var tool Tool
 	if c.Tool == "_health" {
@@ -295,6 +303,7 @@ func (s *Supervisor) begin(sv *service, m *Manifest) (Result, bool) {
 		sv.restarts = kept
 		if len(sv.restarts) >= maxRestarts {
 			sv.down = fmt.Sprintf("the add-on stopped on its own %d times in ten minutes and is marked down; see handloom addon doctor", maxRestarts+1)
+			sv.downAt, sv.downPkg = now, sv.lastPkg
 			return Result{Code: CodeDown, Error: sv.down}, false
 		}
 		sv.restarts = append(sv.restarts, now)

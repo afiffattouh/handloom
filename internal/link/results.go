@@ -1,6 +1,8 @@
 package link
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"io/fs"
@@ -59,7 +61,7 @@ func checkResults(dir string, room int64, reported []string) (files []string, pr
 		if err != nil {
 			return err
 		}
-		if !fi.Mode().IsRegular() {
+		if !fi.Mode().IsRegular() || hasOtherNames(fi) {
 			bad = append(bad, rel+" (not a plain file: links and other kinds are not allowed)")
 			remove = append(remove, p)
 			return nil
@@ -145,7 +147,7 @@ func removeResults(worktree string) {
 //
 // Only a file the link accepted after a call may be promoted: accepted holds those, by path relative to the
 // results folder, with the size they had then. A file that was written later, or has grown since, is refused.
-func promote(worktree, file, to string, force bool, accepted map[string]int64) (string, error) {
+func promote(worktree, file, to string, force bool, accepted map[string]acceptedFile) (string, error) {
 	root := resultsRoot(worktree)
 	src := file
 	if !filepath.IsAbs(src) {
@@ -166,7 +168,7 @@ func promote(worktree, file, to string, force bool, accepted map[string]int64) (
 	if !fi.Mode().IsRegular() {
 		return "", fmt.Errorf("%s is not a plain file, so it cannot be promoted", rel)
 	}
-	size, ok := accepted[rel]
+	want, ok := accepted[rel]
 	if !ok {
 		return "", fmt.Errorf("%s was not passed on by a tool call of this helper, so it cannot be promoted", rel)
 	}
@@ -206,8 +208,14 @@ func promote(worktree, file, to string, force bool, accepted map[string]int64) (
 		return "", fmt.Errorf("%s could not be opened as a plain file: %w", rel, err)
 	}
 	defer in.Close()
-	if fi, err := in.Stat(); err != nil || !fi.Mode().IsRegular() || fi.Size() != size {
+	if fi, err := in.Stat(); err != nil || !fi.Mode().IsRegular() || hasOtherNames(fi) || fi.Size() != want.Size {
 		return "", fmt.Errorf("%s has changed since the tool call passed it on, so it cannot be promoted", rel)
+	}
+	// Same size is not the same file: the add-on may still be running and can rewrite what it saved.
+	if sum, err := sumOf(in); err != nil || sum != want.Sum {
+		return "", fmt.Errorf("%s has changed since the tool call passed it on, so it cannot be promoted", rel)
+	} else if _, err := in.Seek(0, io.SeekStart); err != nil {
+		return "", err
 	}
 	flags := os.O_WRONLY | os.O_CREATE | os.O_EXCL
 	if force {
@@ -220,7 +228,7 @@ func promote(worktree, file, to string, force bool, accepted map[string]int64) (
 		}
 		return "", err
 	}
-	if _, err := io.Copy(out, io.LimitReader(in, size)); err != nil {
+	if _, err := io.Copy(out, io.LimitReader(in, want.Size)); err != nil {
 		out.Close()
 		return "", err
 	}
@@ -250,4 +258,28 @@ func noLinksBelow(base, rel string) error {
 		}
 	}
 	return nil
+}
+
+// hasOtherNames says whether a regular file has more than one name: a hard link to a file elsewhere would
+// show that file's content as a result.
+func hasOtherNames(fi os.FileInfo) bool {
+	st, ok := fi.Sys().(*syscall.Stat_t)
+	return ok && st.Nlink > 1
+}
+
+func sumOf(r io.Reader) (string, error) {
+	h := sha256.New()
+	if _, err := io.Copy(h, r); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+func fileSum(path string) (string, error) {
+	f, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NOFOLLOW, 0)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	return sumOf(f)
 }

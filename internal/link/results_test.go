@@ -344,14 +344,15 @@ func TestTheLinkChecksResultFilesAfterACall(t *testing.T) {
 }
 
 // acceptedIn is what the link would have recorded had every file now in the results folder been passed on.
-func acceptedIn(worktree string) map[string]int64 {
+func acceptedIn(worktree string) map[string]acceptedFile {
 	root := resultsRoot(worktree)
-	out := map[string]int64{}
+	out := map[string]acceptedFile{}
 	filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
 		if err == nil && !d.IsDir() {
 			if fi, err := d.Info(); err == nil && fi.Mode().IsRegular() {
 				rel, _ := filepath.Rel(root, p)
-				out[rel] = fi.Size()
+				sum, _ := fileSum(p)
+				out[rel] = acceptedFile{Size: fi.Size(), Sum: sum}
 			}
 		}
 		return nil
@@ -392,5 +393,31 @@ func TestCheckResultsRemovesEmptyFolders(t *testing.T) {
 	files, problem := checkResults(dir, 100, nil)
 	if problem != "" || len(files) != 1 || exists(filepath.Join(dir, "a")) || !exists(filepath.Join(dir, "keep", "x.txt")) {
 		t.Fatalf("%v %q", files, problem)
+	}
+}
+
+// A hard link to a file outside the results folder is not a plain result file, and a file rewritten to other
+// content of the same size after it was accepted is not promoted.
+func TestResultsRefuseHardLinksAndSameSizeSwaps(t *testing.T) {
+	outside := filepath.Join(t.TempDir(), "secret.txt")
+	writeFile(t, outside, "secret")
+	dir := t.TempDir()
+	if err := os.Link(outside, filepath.Join(dir, "linked.txt")); err != nil {
+		t.Skipf("hard links are not available here: %v", err)
+	}
+	if files, problem := checkResults(dir, 100, nil); problem == "" || len(files) != 0 {
+		t.Fatalf("a hard link was passed on: files %v problem %q", files, problem)
+	}
+	if _, err := os.Stat(outside); err != nil {
+		t.Fatalf("the file the link pointed to was removed: %v", err)
+	}
+
+	wt := t.TempDir()
+	res := filepath.Join(resultsRoot(wt), "filer", "c1")
+	writeFile(t, filepath.Join(res, "a.txt"), "first")
+	accepted := acceptedIn(wt)
+	writeFile(t, filepath.Join(res, "a.txt"), "other") // the same size, other content
+	if _, err := promote(wt, "filer/c1/a.txt", "a.txt", false, accepted); err == nil || !strings.Contains(err.Error(), "changed") {
+		t.Fatalf("a rewritten file was promoted: %v", err)
 	}
 }

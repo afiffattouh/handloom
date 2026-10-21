@@ -3,10 +3,12 @@ package addon
 import (
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -544,5 +546,47 @@ func TestServiceThatDiesBetweenCallsIsNotRunning(t *testing.T) {
 	}
 	if err := Remove(r.root, r.store, "echo"); err != nil {
 		t.Fatalf("remove after the service died: %v", err)
+	}
+}
+
+// A link that was killed leaves its service running and an id file whose lock is gone. The next link ends the
+// service, but only a process that is in the add-on's folder: a number that now belongs to something else is
+// left alone.
+func TestStopStraysEndsAnOrphanedServiceAndNothingElse(t *testing.T) {
+	needPython(t)
+	r := newRig(t)
+	r.install(echoDir, nil)
+	dir := filepath.Join(r.root, "echo")
+	stray := exec.Command("sleep", "60")
+	stray.Dir = dir
+	ownGroup(stray)
+	if err := stray.Start(); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan struct{})
+	go func() { stray.Wait(); close(done) }()
+	defer killTree(stray)
+	other := exec.Command("sleep", "60") // not in the add-on's folder
+	other.Dir = t.TempDir()
+	ownGroup(other)
+	if err := other.Start(); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { killTree(other); other.Wait() }()
+	os.MkdirAll(filepath.Join(r.root, ".running"), 0o700)
+	os.WriteFile(pidPath(r.root, "echo"), []byte(strconv.Itoa(stray.Process.Pid)+"\n"), 0o600)
+	os.WriteFile(pidPath(r.root, "other"), []byte(strconv.Itoa(other.Process.Pid)+"\n"), 0o600)
+
+	r.sup.StopStrays()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the orphaned service is still running")
+	}
+	if syscall.Kill(other.Process.Pid, 0) != nil {
+		t.Fatal("a process outside the add-on's folder was ended")
+	}
+	if _, err := os.Stat(pidPath(r.root, "echo")); err == nil {
+		t.Fatal("the id file was left")
 	}
 }

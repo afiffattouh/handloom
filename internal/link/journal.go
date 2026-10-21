@@ -256,3 +256,46 @@ func (l *Link) shipLog(format string, args ...any) {
 		l.opt.Log.Print(fmt.Sprintf(format, args...))
 	}
 }
+
+// closeDangling gives every call line that has no result line (and was not denied) a result line of
+// plugin-error. It runs when the link starts: a call still open then was cut short by the link stopping,
+// and nothing else will ever close it. It returns how many it closed.
+func (j *callJournal) closeDangling(now time.Time) (int, error) {
+	b, err := os.ReadFile(j.path)
+	if errors.Is(err, os.ErrNotExist) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, err
+	}
+	open := map[string]api.AddonCall{}
+	var order []string
+	for _, ln := range bytes.Split(b, []byte{'\n'}) {
+		var c api.AddonCall
+		if len(bytes.TrimSpace(ln)) == 0 || json.Unmarshal(ln, &c) != nil || c.CallID == "" {
+			continue
+		}
+		switch c.Phase {
+		case "call":
+			if _, seen := open[c.CallID]; !seen {
+				order = append(order, c.CallID)
+			}
+			open[c.CallID] = c
+		case "result", "denied":
+			delete(open, c.CallID)
+		}
+	}
+	n := 0
+	for _, id := range order {
+		c, ok := open[id]
+		if !ok {
+			continue
+		}
+		c.Phase, c.Code, c.Size, c.Millis, c.Time = "result", "plugin-error", 0, 0, now.UTC()
+		if err := j.append(c); err != nil {
+			return n, err
+		}
+		n++
+	}
+	return n, nil
+}

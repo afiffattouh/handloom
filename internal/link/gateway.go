@@ -234,7 +234,7 @@ func (l *Link) toolList(w http.ResponseWriter, r *http.Request) {
 // localFacts asks the computer about an add-on and a tool: the manifest when it is the approved one, and
 // what is wrong when it is not.
 func (l *Link) localFacts(addonName, tool string) (addon.Tool, localState) {
-	m, res, ok := l.supervisor().Check(addonName)
+	m, mh, res, ok := l.supervisor().CheckHash(addonName)
 	if !ok {
 		switch res.Code {
 		case addon.CodeNotInstalled:
@@ -248,7 +248,7 @@ func (l *Link) localFacts(addonName, tool string) (addon.Tool, localState) {
 	if !found {
 		return addon.Tool{}, localState{Missing: true}
 	}
-	return t, localState{}
+	return t, localState{ManifestHash: mh}
 }
 
 // newCallID is a random id for one call, unique within the spawn that makes it.

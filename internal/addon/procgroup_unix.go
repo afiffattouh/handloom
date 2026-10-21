@@ -17,6 +17,9 @@ func killTree(cmd *exec.Cmd) {
 	}
 }
 
+// killGroup ends the process group that starts with pid, the way launch made it.
+func killGroup(pid int) { syscall.Kill(-pid, syscall.SIGKILL) }
+
 // lockPid takes a lock on the file that lasts until it is closed, or the process ends.
 func lockPid(f *os.File) { syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB) }
 

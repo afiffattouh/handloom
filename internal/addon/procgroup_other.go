@@ -16,6 +16,8 @@ func killTree(cmd *exec.Cmd) {
 	}
 }
 
+func killGroup(pid int) {}
+
 func lockPid(f *os.File) {}
 
 func pidHeld(path string) bool { return false }

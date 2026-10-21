@@ -328,7 +328,7 @@ func (c *call) toolSnapshot(profileName string, deviceID int64, confidential boo
 			no(g, api.CausePluginDown, actionDown)
 			continue
 		}
-		st := api.SpawnTool{Addon: g.Addon, Tool: g.Tool, Summary: t.Summary, LeavesMachine: g.LeavesMachine,
+		st := api.SpawnTool{Addon: g.Addon, Tool: g.Tool, Summary: t.Summary, LeavesMachine: g.LeavesMachine, ManifestHash: g.ManifestHash,
 			MaxCalls: g.MaxCalls, TimeoutSeconds: int(t.Timeout / time.Second), MaxOutput: t.MaxOutput}
 		names := make([]string, 0, len(t.Input))
 		for n := range t.Input {

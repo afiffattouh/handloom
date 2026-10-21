@@ -118,28 +118,35 @@ func (s *Supervisor) service(name string) *service {
 // Check says whether the add-on on disk is the one the owner approved. When it is not, the Result says
 // why and the add-on must not run; ok is false.
 func (s *Supervisor) Check(name string) (*Manifest, Result, bool) {
+	m, _, res, ok := s.CheckHash(name)
+	return m, res, ok
+}
+
+// CheckHash is Check that also gives the hash of the manifest it checked, for a caller that must know the
+// manifest is the one a grant was made for.
+func (s *Supervisor) CheckHash(name string) (*Manifest, string, Result, bool) {
 	if !nameRe.MatchString(name) {
-		return nil, Result{Code: CodeNotInstalled, Error: fmt.Sprintf("%q is not an add-on name", name)}, false
+		return nil, "", Result{Code: CodeNotInstalled, Error: fmt.Sprintf("%q is not an add-on name", name)}, false
 	}
 	dir := filepath.Join(s.Root, name)
 	if _, err := os.Stat(dir); err != nil {
-		return nil, Result{Code: CodeNotInstalled, Error: "this computer does not have the add-on " + name}, false
+		return nil, "", Result{Code: CodeNotInstalled, Error: "this computer does not have the add-on " + name}, false
 	}
 	ap, ok, err := s.Store.Get(name)
 	if err != nil {
-		return nil, Result{Code: CodeError, Error: err.Error()}, false
+		return nil, "", Result{Code: CodeError, Error: err.Error()}, false
 	}
 	if !ok {
-		return nil, Result{Code: CodeNotInstalled, Error: name + " is on this computer but was never approved here"}, false
+		return nil, "", Result{Code: CodeNotInstalled, Error: name + " is on this computer but was never approved here"}, false
 	}
 	m, ph, mh, err := Load(dir)
 	if err != nil {
-		return nil, Result{Code: CodeChanged, Error: name + " changed since it was approved and can no longer be read: " + err.Error()}, false
+		return nil, "", Result{Code: CodeChanged, Error: name + " changed since it was approved and can no longer be read: " + err.Error()}, false
 	}
 	if ph != ap.PackageHash || mh != ap.ManifestHash || m.Name != name {
-		return nil, Result{Code: CodeChanged, Error: name + " changed since it was approved; approve it again with handloom addon add"}, false
+		return nil, "", Result{Code: CodeChanged, Error: name + " changed since it was approved; approve it again with handloom addon add"}, false
 	}
-	return m, Result{}, true
+	return m, mh, Result{}, true
 }
 
 // Call runs one tool and waits for its answer, at most the tool's timeout. A Go error means the call was
@@ -518,6 +525,42 @@ func lastLine(s string) string {
 		s = s[i+1:]
 	}
 	return s
+}
+
+// StopStrays ends the services an earlier link left running when it stopped without closing them. Such a
+// link let go of its lock on the id file, so the file alone proves nothing and its number may by now belong
+// to another program; a process is ended only if it is in the group the file names and still has the
+// add-on's folder as its working folder.
+func (s *Supervisor) StopStrays() {
+	files, err := os.ReadDir(filepath.Join(s.Root, ".running"))
+	if err != nil {
+		return
+	}
+	for _, f := range files {
+		name := f.Name()
+		if _, held := RunningPID(s.Root, name); held {
+			continue // alive and held by a link, not a stray
+		}
+		b, err := os.ReadFile(pidPath(s.Root, name))
+		pid, perr := strconv.Atoi(strings.TrimSpace(string(b)))
+		if err == nil && perr == nil && pid > 1 && inFolder(pid, filepath.Join(s.Root, name)) {
+			killGroup(pid)
+		}
+		os.Remove(pidPath(s.Root, name))
+	}
+}
+
+// inFolder says whether the process has dir as its working folder. Where that cannot be told, it is false.
+func inFolder(pid int, dir string) bool {
+	cwd, err := os.Readlink("/proc/" + strconv.Itoa(pid) + "/cwd")
+	if err != nil {
+		return false
+	}
+	want, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		want = dir
+	}
+	return cwd == want || cwd == dir
 }
 
 // release forgets the process's id file.

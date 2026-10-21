@@ -34,6 +34,8 @@ func TestDecideGivesEachCodeAndKeepsTheOrder(t *testing.T) {
 		{"call limit reached", gateInput{Tool: tool(false, 3), Used: 3}, codeDeniedBudget},
 		{"one call left", gateInput{Tool: tool(false, 3), Used: 2}, codeOK},
 		{"changed on this computer", gateInput{Tool: tool(false, 5), Local: localState{Changed: true}}, codeChanged},
+		{"granted for another manifest than the installed one", gateInput{Tool: &api.SpawnTool{Addon: "echo", Tool: "say", MaxCalls: 5, ManifestHash: "aaa"}, Local: localState{ManifestHash: "bbb"}}, codeChanged},
+		{"granted for the installed manifest", gateInput{Tool: &api.SpawnTool{Addon: "echo", Tool: "say", MaxCalls: 5, ManifestHash: "aaa"}, Local: localState{ManifestHash: "aaa"}}, codeOK},
 		{"changed, said by the hub", gateInput{Unavailable: gone(api.CauseChanged)}, codeChanged},
 		{"cannot be started, said by the hub", gateInput{Unavailable: gone(api.CausePluginDown)}, codeDown},
 		{"cannot be read here", gateInput{Tool: tool(false, 5), Local: localState{Broken: "the approvals file is damaged"}}, codeDown},

@@ -25,6 +25,9 @@ type localState struct {
 	Missing bool   // the add-on is not installed and approved here, or it has no such tool
 	Changed bool   // what is on disk is not what the owner approved
 	Broken  string // the add-on cannot be read or started; the reason in words
+	// ManifestHash is the hash of the manifest installed and approved here, set only when the add-on is
+	// sound. A grant is good only for the manifest it was made for.
+	ManifestHash string
 }
 
 // gateInput is one call, as the deciding function sees it.
@@ -42,7 +45,7 @@ type gateInput struct {
 //  2. denied-grant: the spawn's profile was not granted the tool
 //  3. denied-confidential: a confidential job and the tool leaves the computer
 //  4. denied-budget: the spawn has used up the tool's call limit
-//  5. changed: the add-on is not what was approved or granted
+//  5. changed: the add-on is not what was approved, or not the manifest the grant was made for
 //  6. plugin-down: the add-on is not running and could not be started
 func decide(in gateInput) string {
 	cause := ""
@@ -58,7 +61,7 @@ func decide(in gateInput) string {
 		return codeDeniedConfidential
 	case in.Tool != nil && in.Used >= in.Tool.MaxCalls:
 		return codeDeniedBudget
-	case in.Local.Changed || cause == api.CauseChanged:
+	case in.Local.Changed || (in.Tool != nil && in.Local.ManifestHash != "" && in.Tool.ManifestHash != in.Local.ManifestHash) || cause == api.CauseChanged:
 		return codeChanged
 	case in.Local.Broken != "" || cause == api.CausePluginDown:
 		return codeDown

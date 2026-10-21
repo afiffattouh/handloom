@@ -168,6 +168,13 @@ func (l *Link) Run(ctx context.Context) error {
 	go srv.Serve(ln)
 	defer srv.Close()
 	defer l.closeAddons()
+	// A call the last link left open can never end now; a service it left running has nobody to serve.
+	if n, err := l.callJournal().closeDangling(l.opt.Now()); err != nil {
+		l.opt.Log.Printf("the call journal could not be checked for calls cut short: %v", err)
+	} else if n > 0 {
+		l.opt.Log.Printf("%d tool call(s) were cut short when the last link stopped; each is closed in the call journal as an error", n)
+	}
+	l.supervisor().StopStrays()
 
 	l.opt.Log.Printf("link up: device %s, hub %s, socket %s", l.opt.Device, l.opt.Hub, l.opt.Socket)
 	go l.pollLoop(ctx)

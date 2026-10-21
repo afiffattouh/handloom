@@ -1152,6 +1152,7 @@ type SpawnTool struct {
 	Summary        string      `json:"summary"`
 	Input          []ToolField `json:"input,omitempty"`
 	LeavesMachine  bool        `json:"leaves_machine"`
+	ManifestHash   string      `json:"manifest_hash,omitempty"` // the manifest the grant was made for; the link refuses the call when the installed one differs
 	MaxCalls       int         `json:"max_calls"`
 	TimeoutSeconds int         `json:"timeout_seconds"`
 	MaxOutput      int64       `json:"max_output"`

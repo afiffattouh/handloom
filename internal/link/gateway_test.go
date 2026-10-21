@@ -355,6 +355,64 @@ func TestAChangedAddOnIsRefusedAtTheCall(t *testing.T) {
 	}
 }
 
+// An owner who approves a changed add-on after a helper started does not hand the helper the new code: the
+// grant was made for the old manifest, so the call is refused until the owner grants the tool again.
+func TestAGrantStopsWhenTheAddOnIsApprovedAgainWithAnotherManifest(t *testing.T) {
+	e := newToolEnv(t)
+	e.profile("scribe", profile.Cloud)
+	e.grant("scribe", "say", false, 0)
+	c, _ := e.helper("alpha", "scribe", false)
+	if got, _ := call(c, "echo.say", map[string]any{"text": "x"}); !got.OK {
+		t.Fatalf("before the change: %+v", got)
+	}
+	e.link.closeAddons() // the service is idle and stopped, as it would be after ten minutes
+	src := t.TempDir()
+	for _, f := range []string{"addon.yaml", "service.py"} {
+		b, err := os.ReadFile(filepath.Join(echoAddon, f))
+		if err != nil {
+			t.Fatal(err)
+		}
+		os.WriteFile(filepath.Join(src, f), b, 0o644)
+	}
+	mf := filepath.Join(src, "addon.yaml")
+	b, _ := os.ReadFile(mf)
+	os.WriteFile(mf, []byte(strings.Replace(string(b), "Return the text it is given", "Return the text it is given, changed", 1)), 0o644)
+	if _, err := addon.Install(e.root, addon.NewStore(e.root), src, "", "tester", e.clock()); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := call(c, "echo.say", map[string]any{"text": "x"})
+	if got.OK || got.Code != "changed" {
+		t.Fatalf("after the owner approved another manifest: %+v", got)
+	}
+}
+
+// A link that stopped in the middle of a call leaves a call line with no result. The next start closes it.
+func TestALinkStartClosesACallTheLastLinkLeftOpen(t *testing.T) {
+	j := &callJournal{path: filepath.Join(t.TempDir(), "addon-calls.jsonl")}
+	now := time.Date(2026, 10, 21, 9, 0, 0, 0, time.UTC)
+	add := func(id, phase string) {
+		if err := j.append(api.AddonCall{CallID: id, Spawn: 3, Agent: "alpha", Addon: "echo", Tool: "wait", Phase: phase, Time: now}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	add("c1", "call")
+	add("c1", "result")
+	add("c2", "denied")
+	add("c3", "call") // cut short
+	n, err := j.closeDangling(now.Add(time.Minute))
+	if err != nil || n != 1 {
+		t.Fatalf("closed %d: %v", n, err)
+	}
+	calls, _, _, _ := j.unsent(100)
+	last := calls[len(calls)-1]
+	if len(calls) != 5 || last.CallID != "c3" || last.Phase != "result" || last.Code != codeError {
+		t.Fatalf("journal: %+v", calls)
+	}
+	if n, _ := j.closeDangling(now); n != 0 {
+		t.Fatalf("closed again: %d", n)
+	}
+}
+
 // The call line is on disk before the add-on is asked, and when the add-on dies in the middle of the call the
 // result line says so.
 func TestTheCallIsJournaledBeforeTheAddOnHearsOfIt(t *testing.T) {
@@ -615,8 +673,12 @@ func TestATokenEndsWithItsSpawn(t *testing.T) {
 		t.Fatalf("a token outlived its spawn: %v", err)
 	}
 	// a helper started again under the same name gets a new token and the old one stops
+	_, _, mh, err := addon.Load(echoAddon)
+	if err != nil {
+		t.Fatal(err)
+	}
 	mint := func() *client.Client {
-		tok, err := e.link.gate.mint(api.Spawn{ID: 5, Name: "beta", Tools: []api.SpawnTool{{Addon: "echo", Tool: "say", MaxCalls: 9}}}, t.TempDir(), e.clock())
+		tok, err := e.link.gate.mint(api.Spawn{ID: 5, Name: "beta", Tools: []api.SpawnTool{{Addon: "echo", Tool: "say", MaxCalls: 9, ManifestHash: mh}}}, t.TempDir(), e.clock())
 		if err != nil {
 			t.Fatal(err)
 		}

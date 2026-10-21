@@ -809,8 +809,12 @@ const maxBody = 256 << 10
 
 // decode reads a JSON body. Unknown fields are rejected, so a client cannot
 // smuggle in fields such as "from" or "role".
-func (c *call) decode(v any) error {
-	dec := json.NewDecoder(io.LimitReader(c.r.Body, maxBody))
+func (c *call) decode(v any) error { return c.decodeUpTo(v, maxBody) }
+
+// decodeUpTo is decode with a body limit of the caller's choosing, for the few routes whose own limits
+// allow more than maxBody.
+func (c *call) decodeUpTo(v any, limit int64) error {
+	dec := json.NewDecoder(io.LimitReader(c.r.Body, limit))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(v); err != nil {
 		if errors.Is(err, io.EOF) {

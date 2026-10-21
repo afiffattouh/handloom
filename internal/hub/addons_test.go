@@ -147,3 +147,21 @@ func TestRevokedComputersAddonsAreNotListed(t *testing.T) {
 		t.Fatalf("a revoked computer's add-ons are listed: %+v", all)
 	}
 }
+
+func TestAFullReportOfLargeManifestsIsAccepted(t *testing.T) {
+	m := newTeam(t)
+	desk := caller{m.miaBox, ""}
+	// ten manifests at the limit is far past the ordinary body cap
+	var items []api.AddonItem
+	for i := 0; i < 10; i++ {
+		a := addonItem("big"+string(rune('a'+i)), "ready")
+		a.Manifest = "name: " + a.Name + "\n#" + strings.Repeat("x", maxAddonManifest-64) + "\n"
+		items = append(items, a)
+	}
+	m.ok(desk, "POST", "/v1/device/addons", api.AddonReport{Addons: items}, nil)
+	var all []api.Addon
+	m.ok(m.olive, "GET", "/v1/addons", nil, &all)
+	if len(all) != 10 {
+		t.Fatalf("listed %d, want 10", len(all))
+	}
+}

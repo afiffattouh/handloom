@@ -14,6 +14,9 @@ import (
 const (
 	maxAddonsReported = 100
 	maxAddonManifest  = 64 << 10
+	// maxAddonBody is what a full report can weigh: every add-on at its manifest limit, with room for the
+	// quoting the manifest text gets inside JSON. The ordinary body cap would cut such a report off.
+	maxAddonBody = 16 << 20
 )
 
 var (
@@ -28,7 +31,7 @@ func addonReport(c *call) (any, error) {
 		return nil, forbidden("only a computer's link reports its add-ons")
 	}
 	var req api.AddonReport
-	if err := c.decode(&req); err != nil {
+	if err := c.decodeUpTo(&req, maxAddonBody); err != nil {
 		return nil, err
 	}
 	if len(req.Addons) > maxAddonsReported {

@@ -19,6 +19,10 @@ import (
 // maxManifestReport is the longest manifest text sent; the hub refuses more.
 const maxManifestReport = 64 << 10
 
+// maxManifestTotal is the most manifest text one report carries in all. Past it the rest are sent without
+// their text, so a few large manifests cannot keep the whole report from being accepted.
+const maxManifestTotal = 4 << 20
+
 // addonsResendEvery is how long an accepted report stands before the full list is sent again anyway. The link
 // cannot see what the hub holds, so this is what puts the rows right after the hub lost or cleared them.
 const addonsResendEvery = 5 * time.Minute
@@ -31,11 +35,13 @@ func (l *Link) addonItems() ([]api.AddonItem, error) {
 		return nil, err
 	}
 	items := []api.AddonItem{}
+	total := 0
 	for _, in := range list {
 		it := api.AddonItem{Name: in.Name, Version: in.Version, PackageHash: in.PackageHash, ManifestHash: in.ManifestHash, Status: in.State, Detail: in.Detail}
 		if in.Manifest != nil {
-			if text, err := os.ReadFile(filepath.Join(root, in.Name, addon.ManifestFile)); err == nil && len(text) <= maxManifestReport {
+			if text, err := os.ReadFile(filepath.Join(root, in.Name, addon.ManifestFile)); err == nil && len(text) <= maxManifestReport && total+len(text) <= maxManifestTotal {
 				it.Manifest = string(text)
+				total += len(text)
 			}
 		}
 		items = append(items, it)

@@ -73,7 +73,7 @@ func (e *env) toolList(args []string) error {
 		}
 		for _, t := range list.Tools {
 			fmt.Fprintf(e.out, "%s.%s: %s\n", t.Addon, t.Tool, t.Summary)
-			for _, f := range t.Input {
+			for _, f := range requiredFirst(t.Input) {
 				need := ""
 				if f.Required {
 					need = ", required"
@@ -100,6 +100,13 @@ func typeWords(t string) string {
 		return "true or false"
 	}
 	return "text"
+}
+
+// requiredFirst puts the arguments a call cannot do without before the optional ones, keeping the order otherwise.
+func requiredFirst(in []api.ToolField) []api.ToolField {
+	out := append([]api.ToolField(nil), in...)
+	sort.SliceStable(out, func(i, j int) bool { return out[i].Required && !out[j].Required })
+	return out
 }
 
 func exampleArgs(t api.SpawnTool) string {
@@ -268,7 +275,7 @@ func toolsSection(list api.ToolList) string {
 		})
 		for _, t := range tools {
 			fmt.Fprintf(&b, "- `%s.%s`: %s", t.Addon, t.Tool, strings.TrimSpace(t.Summary))
-			for i, f := range t.Input {
+			for i, f := range requiredFirst(t.Input) {
 				sep := " Takes "
 				if i > 0 {
 					sep = "; "

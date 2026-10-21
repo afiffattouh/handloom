@@ -37,7 +37,7 @@
     <label>Tool <select name="tool">{{range .KnownTools}}<option value="{{.Value}}"{{if eq .Value (index $.Extra.GrantForm "tool")}} selected{{end}}>{{.Label}}</option>{{end}}</select></label>
     <div class="grid2 even">
       <label>Leaves this computer <select name="leaves"><option value="yes"{{if ne (index .GrantForm "leaves") "no"}} selected{{end}}>yes</option><option value="no"{{if eq (index .GrantForm "leaves") "no"}} selected{{end}}>no</option></select></label>
-      <label>Calls per job <input name="max_calls" type="number" min="1" max="10000" placeholder="50" value="{{index .GrantForm "max_calls"}}"></label>
+      <label>Calls per helper <input name="max_calls" type="number" min="1" max="10000" placeholder="50" value="{{index .GrantForm "max_calls"}}"></label>
     </div>
     {{if .Computers}}<label><span>Computer <span class="desc">(some computers hold different versions of an add-on: name one when the tool is on several)</span></span>
       <select name="computer"><option value="">Any</option>{{range .Computers}}<option value="{{.}}"{{if eq . (index $.Extra.GrantForm "computer")}} selected{{end}}>{{.}}</option>{{end}}</select></label>{{end}}

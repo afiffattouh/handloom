@@ -272,3 +272,11 @@ Written while building phase 3a (result limits, `tool promote`, the web-fetch ad
 - **Not tried:** a real agent program calling a tool, Windows, `web-fetch` on a real site from the docs alone (the phase gate asks a person who did not build it to do that).
 - **The user document and revoking.** `docs/addons.md` says a revoke or a new grant reaches helpers started afterwards, as built, not "at once".
 - **DECISIONS number.** D111, the next free one in this branch; a branch that adds its own D111 will need renumbering at merge.
+
+Fixes after the final full check.
+
+- **Call-time causes on the job page.** The job page now also reads the job's stored `result` and `denied` call lines and lists each tool and cause that was not `ok` once, with a count, beside the spawn-time notice. It shows for a finished job too, since it is history and not today's state. The words come from a fixed table in the hub that matches what the link tells the helper; `plugin-error` gets the action "Look at the add-on's own output on this computer".
+- **Package hash in the grant.** A grant now stores the package hash as well as the manifest hash, and the snapshot and the gateway compare both, as the trust section says. This reverses the earlier build note. Grants made before this change have an empty package hash and stop until they are made again (the feature is not released).
+- **Journal lines that are too long.** A line with no end in a full 1MB window is counted as not a call and passed over up to its next newline, so it cannot hold back later lines. A long line with no newline yet is left where it is, as a line still being written.
+- **Manifest size.** `Parse` refuses an `addon.yaml` over 64KB, the same limit the hub keeps, so an add-on that installs can always be granted. An add-on installed earlier with a larger manifest reads as changed on the next look.
+- **Words.** The profile page says "Calls per helper". The Add-ons page shows one action under each status; a line under the grants table explains a grant for an earlier version; and the Help entry and the tool-table note say the confidential rule stops the tool, not everything a helper can do, and that the owner's answer is taken at its word.

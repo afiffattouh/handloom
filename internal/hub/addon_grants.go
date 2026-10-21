@@ -383,6 +383,56 @@ func (c *call) jobToolsUnavailable(jobID int64) ([]api.ToolUnavailable, error) {
 	return out, nil
 }
 
+// callWords are the fixed words for a call that did not go well, and the one thing to do, for the job page.
+// They say what the link says to the helper (internal/link/gate.go); the cause is the code in the record.
+var callWords = map[string]struct{ Why, Action string }{
+	"not-installed":       {toolWhy[api.CauseNotInstalled], actionInstall},
+	"denied-grant":        {"The helper's profile may not use that tool.", "Grant the tool on the profile."},
+	"denied-confidential": {toolWhy[api.CauseDeniedConfidential], actionConfidential},
+	"denied-budget":       {"A helper used up its call limit for the tool.", "Raise the limit on the grant."},
+	"changed":             {"The add-on changed since it was approved.", "Approve it again on this computer."},
+	"plugin-down":         {toolWhy[api.CausePluginDown], actionDown},
+	"plugin-error":        {"The add-on reported an error.", "Look at the add-on's own output on this computer."},
+	"timeout":             {"The call took longer than its limit.", "Try again, or raise the limit."},
+}
+
+// callTrouble is a tool call of a job that did not go through, as the record of the computer's link has it.
+type callTrouble struct {
+	Addon, Tool, Code, Why, Action string
+	Count                          int
+}
+
+// jobCallTroubles reads the call lines the links reported for a job and gives each tool and cause that is not
+// ok once, with how many times. Unlike the spawn-time notice it sees what happened at the call: an add-on
+// that failed, a call that timed out, a limit that was reached.
+func (c *call) jobCallTroubles(jobID int64) ([]callTrouble, error) {
+	rows, err := c.tx.Query(`SELECT action, json_extract(payload, '$.tool'), json_extract(payload, '$.code'), count(*) FROM audit
+		WHERE target = ? AND (action LIKE 'addon.%.result' OR action LIKE 'addon.%.denied') AND json_extract(payload, '$.code') != 'ok'
+		GROUP BY 1, 2, 3 ORDER BY min(seq)`, fmt.Sprintf("job:%d", jobID))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []callTrouble
+	for rows.Next() {
+		var action, tool, code string
+		var n int
+		if err := rows.Scan(&action, &tool, &code, &n); err != nil {
+			return nil, err
+		}
+		w, ok := callWords[code]
+		if !ok {
+			continue
+		}
+		parts := strings.Split(action, ".")
+		if len(parts) != 3 {
+			continue
+		}
+		out = append(out, callTrouble{Addon: parts[1], Tool: tool, Code: code, Why: w.Why, Action: w.Action, Count: n})
+	}
+	return out, rows.Err()
+}
+
 // ---- the call journal ----
 
 // addonCallsReport stores a link's batch of journal lines as audit entries under each add-on's own prefix.

@@ -62,7 +62,7 @@ handloom tool promote <path printed by the call> --to notes/example.md
 
 From there it is a change like any other. The profile's write scope is checked when the helper submits, and the project's check can read the file. At most 20 files, and no more than the tool's output limit, are kept per call; a call that goes over fails and says why.
 
-If a call does not work, the helper is told in plain words that the tool is not available and that it must not guess the answer. The job page shows which tools a helper was started without, and the one thing to do about each.
+If a call does not work, the helper is told in plain words that the tool is not available and that it must not guess the answer. The job page shows which tools a helper was started without, and also the calls that went wrong while the helpers worked (an add-on that failed, a call that took too long, a limit that was reached), each with the one thing to do about it.
 
 ## What is protected, and what is not
 

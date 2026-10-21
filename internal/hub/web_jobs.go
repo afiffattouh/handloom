@@ -327,8 +327,9 @@ type jobView2 struct {
 	Agents   []string // agents that could take over as lead
 	CanAct   bool
 	Open     bool
-	Ready    bool     // every task is done: the job can be closed
-	Profiles []string // for giving a task to a new helper
+	Ready    bool          // every task is done: the job can be closed
+	CallsOut []callTrouble // tool calls that did not go through
+	Profiles []string      // for giving a task to a new helper
 
 	Overlap    string        // other open jobs on the same repository: a warning
 	Publishes  []publishView // newest first
@@ -377,6 +378,9 @@ func (q *webReq) jobPage(status int, errMsg string, id int64) error {
 		if v.ToolsOut, err = q.c.jobToolsUnavailable(id); err != nil {
 			return err
 		}
+	}
+	if v.CallsOut, err = q.c.jobCallTroubles(id); err != nil {
+		return err
 	}
 	v.Ready = v.Open && jv.Tasks.Done > 0 && jv.Tasks.Open+jv.Tasks.Claimed+jv.Tasks.Submitted == 0
 	agents, err := q.c.agents(`WHERE a.job_id = ?`, id)

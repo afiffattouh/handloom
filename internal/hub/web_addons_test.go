@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"handloom/internal/api"
 )
@@ -497,4 +498,49 @@ func TestTheConfidentialRuleSaysWhatItDoesNotCover(t *testing.T) {
 			t.Errorf("%s does not say what the rule leaves out", path)
 		}
 	}
+}
+
+// A call that ends badly after the helper started is on the job page too, with its cause and the one thing to do.
+func TestTheJobPageShowsCallsThatDidNotGoThrough(t *testing.T) {
+	e, dev := newAddonWeb(t)
+	e.reportWeb(dev, notesManifest(""), "ready", "")
+	c, tok := e.owner()
+	if r := e.req("POST", "/addons/grant", url.Values{"csrf": {tok}, "profile": {"boss"}, "tool": {"notes.search"}}, c, nil); r.status != 303 {
+		t.Fatalf("grant: %d", r.status)
+	}
+	r := e.req("POST", "/jobs", url.Values{"title": {"Calls"}, "body": {"b"}, "device": {"d1"}, "repo": {"/srv/app"}, "verify": {"./check.sh"}, "lead_profile": {"boss"}, "csrf": {tok}}, c, nil)
+	if r.status != 303 {
+		t.Fatalf("start: %d %s", r.status, r.body)
+	}
+	loc := strings.SplitN(r.header.Get("Location"), "?", 2)[0]
+	if body := e.req("GET", loc, nil, c, nil).body; strings.Contains(body, "did not go through") {
+		t.Fatal("a notice about nothing")
+	}
+	var sp []api.Spawn
+	e.apiOK(dev, "", "GET", "/v1/device/spawns", nil, &sp)
+	var s api.Spawn
+	for _, x := range sp {
+		if x.Job != nil {
+			s = x
+		}
+	}
+	if s.ID == 0 {
+		t.Fatalf("no spawn for the job: %+v", sp)
+	}
+	line := func(id, phase, code string) api.AddonCall {
+		return api.AddonCall{CallID: id, Spawn: s.ID, Agent: s.Name, Job: *s.Job, Addon: "notes", Tool: "search", Phase: phase, Code: code, Time: time.Date(2026, 10, 3, 12, 0, 0, 0, time.UTC)}
+	}
+	e.apiOK(dev, "", "POST", "/v1/device/addon-calls", api.AddonCallReport{Calls: []api.AddonCall{
+		line("c1", "call", ""), line("c1", "result", "ok"),
+		line("c2", "call", ""), line("c2", "result", "plugin-error"),
+		line("c3", "call", ""), line("c3", "result", "plugin-error"),
+		line("c4", "denied", "denied-budget"),
+	}}, nil)
+	body := e.req("GET", loc, nil, c, nil).body
+	for _, want := range []string{"Some tool calls did not go through", "notes.search", "(2 times)", "The add-on reported an error.", "A helper used up its call limit", "Raise the limit on the grant."} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the job page lacks %q", want)
+		}
+	}
+	noInline(t, "job page", body)
 }

@@ -17,7 +17,7 @@
   <div class="cc flush"><div class="rows">
   {{range .Computers}}
     <div class="row line">
-      <span class="grow"><span><strong>{{.Name}}</strong>{{if $card.Version}}{{else}} <span class="mono desc">v{{.Version}}</span>{{end}}</span>{{if .Detail}}<span class="desc">{{.Detail}}</span>{{end}}</span>
+      <span class="grow"><span><strong>{{.Name}}</strong>{{if $card.Version}}{{else}} <span class="mono desc">v{{.Version}}</span>{{end}}</span>{{if .Detail}}<span class="desc">{{.Detail}}</span>{{end}}{{if .Action}}<span class="desc">{{.Action}}</span>{{end}}</span>
       <span class="end"><span class="badge {{.Badge}}">{{if .Ready}}<i class="dot"></i>{{end}}{{.Words}}</span></span>
     </div>
   {{end}}
@@ -28,7 +28,7 @@
     <thead><tr><th>Tool</th><th>What it does</th><th>Leaves this computer</th></tr></thead><tbody>
     {{range .Tools}}<tr><td class="nw"><span class="mono">{{.Name}}</span></td><td class="desc">{{.Summary}}</td><td class="nw">{{if .Leaves}}yes{{else}}no{{end}}</td></tr>{{end}}
     </tbody></table></div>
-  <div class="cc"><p class="desc">Whether a tool leaves the computer is what the add-on says. The owner sets the answer that counts when granting it, and a confidential job is never given a tool that leaves the computer.</p></div>
+  <div class="cc"><p class="desc">Whether a tool leaves the computer is what the add-on says. The owner sets the answer that counts when granting it, and a confidential job is never given a tool that leaves the computer. That stops the tool, not everything a helper can do on the computer, and the answer you give is taken at its word.</p></div>
   {{end}}
   {{if $.Extra.CanManage}}
   <div class="cc"><h3>Who may use it</h3></div>
@@ -40,6 +40,7 @@
           <form method="post" action="/addons/revoke" class="inline"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="profile" value="{{.Profile}}"><input type="hidden" name="tool" value="{{.Addon}}.{{.Tool}}"><button type="submit" class="link">Revoke</button></form></div></td></tr>
       {{end}}
       </tbody></table></div>
+  {{if .AnyStale}}<div class="cc"><p class="desc">A grant for an earlier version does not work. Check the new version, then grant the tool again.</p></div>{{end}}
   {{else}}<div class="cc"><p class="desc">No profile may use it yet.</p></div>{{end}}
   {{if and .Tools $.Extra.Profiles}}
   <form method="post" action="/addons/grant" class="cc stack">

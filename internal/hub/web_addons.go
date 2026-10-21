@@ -16,16 +16,17 @@ import (
 // API keeps the grant list behind the same action.
 
 // addonWords are what a person reads for each status a link reports, and the badge that goes with it.
-var addonWords = map[string]struct{ Words, Badge string }{
-	"ready":   {"Ready", "success"},
-	"changed": {"Changed since approved", "warning"},
-	"down":    {"Not running", "destructive"},
-	"missing": {"Missing on this computer", "warning"},
+// Action is the one thing to do about it, shown under the badge; a ready add-on needs none.
+var addonWords = map[string]struct{ Words, Badge, Action string }{
+	"ready":   {"Ready", "success", ""},
+	"changed": {"Changed since approved", "warning", "Run handloom addon add FOLDER on this computer to approve it again."},
+	"down":    {"Not running", "destructive", "Run handloom addon doctor on this computer."},
+	"missing": {"Missing on this computer", "warning", "Run handloom addon add FOLDER on this computer to bring it back, or handloom addon remove NAME to forget it."},
 }
 
 type addonComputer struct {
-	Name, Version, Words, Badge, Detail string
-	Ready                               bool
+	Name, Version, Words, Badge, Detail, Action string
+	Ready                                       bool
 }
 
 type addonToolView struct {
@@ -47,6 +48,7 @@ type addonCard struct {
 	Computers            []addonComputer
 	Tools                []addonToolView
 	Grants               []grantView
+	AnyStale             bool     // some grant is for a version no computer has now
 	Hashes               int      // how many different manifests the computers hold
 	Names                []string // computers that report it, for the grant form when they differ
 }
@@ -92,7 +94,7 @@ func (q *webReq) addonCards() ([]addonCard, []grantView, error) {
 		if !known {
 			w.Words, w.Badge = r.Status, "outline"
 		}
-		c.Computers = append(c.Computers, addonComputer{Name: r.Computer, Version: r.Version, Words: w.Words, Badge: w.Badge, Detail: r.Detail, Ready: r.Status == "ready"})
+		c.Computers = append(c.Computers, addonComputer{Name: r.Computer, Version: r.Version, Words: w.Words, Badge: w.Badge, Detail: r.Detail, Action: w.Action, Ready: r.Status == "ready"})
 		c.Names = append(c.Names, r.Computer)
 		if r.Version != c.Version {
 			c.Version = ""
@@ -123,6 +125,7 @@ func (q *webReq) addonCards() ([]addonCard, []grantView, error) {
 			orphans = append(orphans, grantView{Profile: g.Profile, Addon: g.Addon, Tool: g.Tool, Leaves: g.LeavesMachine, MaxCalls: g.MaxCalls, Stale: true})
 			continue
 		}
+		cards[i].AnyStale = cards[i].AnyStale || !hashes[g.Addon][g.ManifestHash+"/"+g.PackageHash]
 		cards[i].Grants = append(cards[i].Grants, grantView{Profile: g.Profile, Addon: g.Addon, Tool: g.Tool, Leaves: g.LeavesMachine, MaxCalls: g.MaxCalls,
 			Stale: !hashes[g.Addon][g.ManifestHash+"/"+g.PackageHash]})
 	}

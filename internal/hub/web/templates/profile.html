@@ -30,6 +30,7 @@
         <form method="post" action="/addons/revoke" class="inline"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="from" value="profile:{{$.Extra.Name}}"><input type="hidden" name="profile" value="{{$.Extra.Name}}"><input type="hidden" name="tool" value="{{.Addon}}.{{.Tool}}"><button type="submit" class="link">Revoke</button></form></div></td></tr>
     {{end}}
     </tbody></table></div>
+  {{if .AnyStale}}<div class="cc"><p class="desc">A grant for an earlier version does not work. Check the new version, then grant the tool again.</p></div>{{end}}
   {{else}}<div class="cc"><p class="desc">None yet.</p></div>{{end}}
   {{if .KnownTools}}
   <form method="post" action="/addons/grant" class="cc stack">

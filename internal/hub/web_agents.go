@@ -52,6 +52,16 @@ type profileView struct {
 	GrantForm  map[string]string // what was typed in the grant form that was refused
 }
 
+// AnyStale says whether one of the profile's grants is for a version no computer has now.
+func (v *profileView) AnyStale() bool {
+	for _, g := range v.Grants {
+		if g.Stale {
+			return true
+		}
+	}
+	return false
+}
+
 // profileReview is what the form shows before anything is saved.
 type profileReview struct {
 	Adapted  []string // what was fitted to the chosen CLI instead of refused

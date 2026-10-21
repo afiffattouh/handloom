@@ -137,9 +137,9 @@ func TestAddonsPageShowsEachStatusInWords(t *testing.T) {
 	c, _ := e.owner()
 	for status, want := range map[string][]string{
 		"ready":   {"Ready", "badge success"},
-		"changed": {"Changed since approved", "badge warning", "the folder was edited"},
-		"down":    {"Not running", "badge destructive", "did not start"},
-		"missing": {"Missing on this computer", "badge warning", "folder is gone"},
+		"changed": {"Changed since approved", "badge warning", "the folder was edited", "Run handloom addon add FOLDER on this computer to approve it again."},
+		"down":    {"Not running", "badge destructive", "did not start", "Run handloom addon doctor on this computer."},
+		"missing": {"Missing on this computer", "badge warning", "folder is gone", "to bring it back"},
 	} {
 		detail := map[string]string{"changed": "the folder was edited", "down": "did not start", "missing": "folder is gone"}[status]
 		e.reportWeb(dev, notesManifest(""), status, detail)
@@ -459,5 +459,42 @@ func TestTheProfilePageNamesTheComputerWhenVersionsDiffer(t *testing.T) {
 	f.Set("computer", "d2")
 	if r := e.req("POST", "/addons/grant", f, c, nil); r.status != 303 {
 		t.Fatalf("with a computer: %d", r.status)
+	}
+}
+
+// A grant for a version no computer has says so, and says what to do, on the Add-ons page and on the profile.
+func TestAStaleGrantIsExplainedWhereItIsListed(t *testing.T) {
+	e, dev := newAddonWeb(t)
+	c, tok := e.owner()
+	e.reportWeb(dev, notesManifest(""), "ready", "")
+	f := url.Values{"csrf": {tok}, "profile": {"boss"}, "tool": {"notes.search"}}
+	if r := e.req("POST", "/addons/grant", f, c, nil); r.status != 303 {
+		t.Fatalf("grant: %d", r.status)
+	}
+	const line = "A grant for an earlier version does not work. Check the new version, then grant the tool again."
+	for _, path := range []string{"/addons", "/profiles/boss"} {
+		if strings.Contains(e.req("GET", path, nil, c, nil).body, line) {
+			t.Errorf("%s: the line is there with nothing stale", path)
+		}
+	}
+	e.reportWeb(dev, notesManifest("")+"# a new version\n", "ready", "")
+	for _, path := range []string{"/addons", "/profiles/boss"} {
+		body := e.req("GET", path, nil, c, nil).body
+		if !strings.Contains(body, "Granted for an earlier version") || !strings.Contains(body, line) {
+			t.Errorf("%s: a stale grant is not explained", path)
+		}
+	}
+}
+
+// The words about a confidential job do not promise more than the rule does.
+func TestTheConfidentialRuleSaysWhatItDoesNotCover(t *testing.T) {
+	e, dev := newAddonWeb(t)
+	c, _ := e.owner()
+	e.reportWeb(dev, notesManifest(""), "ready", "")
+	const limit = "This stops the tool, not everything a helper can do on the computer, and the answer you give is taken at its word."
+	for _, path := range []string{"/addons", "/help"} {
+		if body := e.req("GET", path, nil, c, nil).body; !strings.Contains(body, "That stops the tool") && !strings.Contains(body, limit) {
+			t.Errorf("%s does not say what the rule leaves out", path)
+		}
 	}
 }

@@ -20,7 +20,7 @@ import (
 
 const (
 	latestEvery  = 30 * time.Minute // how often the release host is asked what is newest (one small request)
-	latestRetry  = time.Hour     // after a failed look
+	latestRetry  = time.Hour        // after a failed look
 	selfResend   = 5 * time.Minute
 	updateMarker = "update-result.json"
 )

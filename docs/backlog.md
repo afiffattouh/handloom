@@ -43,7 +43,7 @@ Context that survives a change of device, agent or person (tracking issue #20):
 
 ## Add-ons (D111)
 
-Built: the add-on host, the tool gateway with the audit log, the Add-ons page, grants on profiles and the job notice, `docs/addons.md`, and the examples `echo` and `web-fetch`. Still to do, in this order:
+Released in v0.1.14 (2026-10-22), phases 1 to 3 of `docs/direction/addons.md`. Built: the add-on host, the tool gateway with the audit log, the Add-ons page, grants on profiles and the job notice, `docs/addons.md`, and the examples `echo` and `web-fetch`. Still to do, in this order:
 
 - Run `web-fetch` through a real agent program on a real job, and fix what shows (the Codex MCP token handoff, for one, was not tried; the other kinds use the command line).
 - A revoke that reaches helpers that are already running (the link would ask the hub for revocations in its ladder).
@@ -52,6 +52,17 @@ Built: the add-on host, the tool gateway with the audit log, the Add-ons page, g
 - Waiting on isolation (a container or a separate user for the link, see `docs/isolation.md`): add-ons that keep secrets, and shared services with their own credentials and TLS.
 - Waiting on a project that fails in a way they would catch: installable kits, adapter packs, a catalogue, installing from a web address, a rules table from task label to profile (a router).
 - Not designed: teams.
+
+## Updating computers (D112)
+
+Built and released in v0.1.14: version on the Computers page, the Update button, `handloom device update`, the link's own checked download and restart. Still to do:
+
+- A computer on v0.1.13 or older has no updater: run `install.sh` on it once. After that every release can be installed from the page.
+- Prove it on a real computer: Linux with systemd, a background start, and macOS with launchd (only a fake release host and a stand-in program were tested), including the case of a running job.
+- Update several computers at once ("Update all"), and a way to cancel a waiting request.
+- Check the Sigstore signature of `checksums.txt` as `install.sh` does (needs a verifier in the link or a call to `cosign` when present).
+- Tell the hub which release it is itself, and show it, so a person can see hub and computers side by side.
+- Tool tokens live in the link's memory, so an update (or any restart) during a job leaves a running helper with "unknown token" on its next tool call until it is started again; keep the tokens across a restart.
 
 ## Projects (D104)
 

@@ -1,6 +1,6 @@
 # Add-ons: a small core and things that plug into it
 
-Status: design, version 1, 2026-10-21. Replaces the "plugins" sketch. It was reviewed by five specialists (security, extension contract, core and data, the self-hosting owner, operations), each cross-checked by a second one; this version applies what survived. Nothing here depends on any particular machine, provider or tool: Handloom is run by anyone, on their own server, with their own agent programs and models, cloud or local.
+Status: phases 0 to 3 built and released in v0.1.14 (2026-10-22); phase 4 is gated on isolation and not built. Design version 1, 2026-10-21. Replaces the "plugins" sketch. It was reviewed by five specialists (security, extension contract, core and data, the self-hosting owner, operations), each cross-checked by a second one; this version applies what survived. Nothing here depends on any particular machine, provider or tool: Handloom is run by anyone, on their own server, with their own agent programs and models, cloud or local.
 
 ## The idea
 

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"syscall"
 	"time"
 
 	"handloom/internal/api"
@@ -151,7 +150,7 @@ func (l *Link) runSelfUpdate(ctx context.Context, agents []api.DeviceAgent) {
 	l.closeAddons()
 	restart := l.opt.Restart
 	if restart == nil {
-		restart = func(exe string) error { return syscall.Exec(exe, os.Args, os.Environ()) }
+		restart = func(exe string) error { return execSelf(exe) }
 	}
 	if err := restart(l.exe()); err != nil {
 		os.Remove(l.markerPath())

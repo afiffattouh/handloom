@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"syscall"
 )
 
 // Result files. An add-on saves files only into the results folder the link made for the call:
@@ -203,7 +202,7 @@ func promote(worktree, file, to string, force bool, accepted map[string]accepted
 		return "", fmt.Errorf("the destination %q is not allowed: %w", to, err)
 	}
 	// Opened without following a link, and looked at again once open: what is copied is the file that was accepted.
-	in, err := os.OpenFile(src, os.O_RDONLY|syscall.O_NOFOLLOW, 0)
+	in, err := os.OpenFile(src, os.O_RDONLY|oNoFollow, 0)
 	if err != nil {
 		return "", fmt.Errorf("%s could not be opened as a plain file: %w", rel, err)
 	}
@@ -260,13 +259,6 @@ func noLinksBelow(base, rel string) error {
 	return nil
 }
 
-// hasOtherNames says whether a regular file has more than one name: a hard link to a file elsewhere would
-// show that file's content as a result.
-func hasOtherNames(fi os.FileInfo) bool {
-	st, ok := fi.Sys().(*syscall.Stat_t)
-	return ok && st.Nlink > 1
-}
-
 func sumOf(r io.Reader) (string, error) {
 	h := sha256.New()
 	if _, err := io.Copy(h, r); err != nil {
@@ -276,7 +268,7 @@ func sumOf(r io.Reader) (string, error) {
 }
 
 func fileSum(path string) (string, error) {
-	f, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NOFOLLOW, 0)
+	f, err := os.OpenFile(path, os.O_RDONLY|oNoFollow, 0)
 	if err != nil {
 		return "", err
 	}

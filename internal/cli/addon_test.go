@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"handloom/internal/addon"
 	"handloom/internal/api"
@@ -184,9 +185,7 @@ func TestAddonStatusListsWhatTheHubHolds(t *testing.T) {
 		t.Fatal(err)
 	}
 	item := api.AddonItem{Name: "echo", Version: "0.1.0", PackageHash: strings.Repeat("a", 64), ManifestHash: strings.Repeat("b", 64), Manifest: "name: echo\n", Status: "changed", Detail: "differs from what was approved"}
-	if err := client.Direct(cfg.Hub, cfg.Credential).Post("/v1/device/addons", api.AddonReport{Addons: []api.AddonItem{item}}, nil); err != nil {
-		t.Fatal(err)
-	}
+	r.injectAddon(t, cfg, item)
 	out := r.as(r.admin, "addon", "status")
 	for _, want := range []string{"echo", "0.1.0", "on dev", "Changed since approved", "differs from what was approved"} {
 		if !strings.Contains(out, want) {
@@ -220,9 +219,7 @@ func TestAddonGrantVerbs(t *testing.T) {
 		t.Fatal(err)
 	}
 	item := api.AddonItem{Name: m.Name, Version: m.Version, PackageHash: strings.Repeat("a", 64), ManifestHash: mh, Manifest: string(text), Status: "ready"}
-	if err := client.Direct(cfg.Hub, cfg.Credential).Post("/v1/device/addons", api.AddonReport{Addons: []api.AddonItem{item}}, nil); err != nil {
-		t.Fatal(err)
-	}
+	r.injectAddon(t, cfg, item)
 	spec := profile.Spec{Kind: "claude", Tools: profile.Tools{Allow: []string{"read"}}}
 	if err := client.Direct(r.hubURL, r.admin).Post("/v1/profiles", api.ProfileReq{Name: "reader", Spec: spec}, nil); err != nil {
 		t.Fatal(err)
@@ -269,4 +266,23 @@ func TestAddonGrantVerbs(t *testing.T) {
 			t.Errorf("%v was accepted", bad)
 		}
 	}
+}
+
+// injectAddon reports an add-on to the hub as the rig's computer would. The rig's own link makes its first report
+// (an empty list) when it starts, which can land after this one and clear it, so the report is repeated until it
+// is still there a moment later. The link reports again only every five minutes, so one repeat is enough.
+func (r *rig) injectAddon(t *testing.T, cfg *client.LinkConfig, item api.AddonItem) {
+	t.Helper()
+	admin := client.Direct(cfg.Hub, r.admin)
+	for i := 0; i < 5; i++ {
+		if err := client.Direct(cfg.Hub, cfg.Credential).Post("/v1/device/addons", api.AddonReport{Addons: []api.AddonItem{item}}, nil); err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(300 * time.Millisecond)
+		var got []api.Addon
+		if err := admin.Get("/v1/addons", &got); err == nil && len(got) > 0 {
+			return
+		}
+	}
+	t.Fatal("the reported add-on never stayed on the hub")
 }

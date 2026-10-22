@@ -45,7 +45,7 @@ Context that survives a change of device, agent or person (tracking issue #20):
 
 Released in v0.1.14 (2026-10-22), phases 1 to 3 of `docs/direction/addons.md`. Built: the add-on host, the tool gateway with the audit log, the Add-ons page, grants on profiles and the job notice, `docs/addons.md`, and the examples `echo` and `web-fetch`. Still to do, in this order:
 
-- Run `web-fetch` through a real agent program on a real job, and fix what shows (the Codex MCP token handoff, for one, was not tried; the other kinds use the command line).
+- Done 2026-10-22: `web-fetch` run by a real Pi helper on a local model in a real job on the GB10 (job 21: the call and its result are in the journal, the page title ended up in `NOTES.md`, nothing from `.handloom/` was committed). Still not tried: Claude, OMP, and the Codex MCP token handoff.
 - A revoke that reaches helpers that are already running (the link would ask the hub for revocations in its ladder).
 - Set an add-on to Not running in the report when its service crashes (today only the call's result says so).
 - A block list for `web-fetch` (addresses on this computer or a private network).
@@ -58,7 +58,7 @@ Released in v0.1.14 (2026-10-22), phases 1 to 3 of `docs/direction/addons.md`. B
 Built and released in v0.1.14: version on the Computers page, the Update button, `handloom device update`, the link's own checked download and restart. Still to do:
 
 - A computer on v0.1.13 or older has no updater: run `install.sh` on it once. After that every release can be installed from the page.
-- Prove it on a real computer: Linux with systemd, a background start, and macOS with launchd (only a fake release host and a stand-in program were tested), including the case of a running job.
+- Done 2026-10-22: a background-started link on Linux (the GB10) updated v0.1.14 to v0.1.15 from a request on the hub. Still to prove: a systemd service, macOS with launchd, and an update asked for while a helper is mid-turn. Found by the drill: the link looked up the newest release only every 6 hours, so the button lagged a release; now every 30 minutes.
 - Update several computers at once ("Update all"), and a way to cancel a waiting request.
 - Check the Sigstore signature of `checksums.txt` as `install.sh` does (needs a verifier in the link or a call to `cosign` when present).
 - Tell the hub which release it is itself, and show it, so a person can see hub and computers side by side.

@@ -20,6 +20,13 @@ const AgentHeader = "Handloom-Agent"
 // the link) next to the device credential the link adds.
 const RunTokenHeader = "Handloom-Run-Token"
 
+// ToolTokenHeader carries a spawn's tool token to the link's tool gateway. The gateway knows the caller by
+// this and by nothing else.
+const ToolTokenHeader = "Handloom-Tool-Token"
+
+// ToolTokenEnv is the environment variable a spawn finds its tool token in.
+const ToolTokenEnv = "HANDLOOM_TOOL_TOKEN"
+
 // AgentFrom returns the calling agent's name from a request.
 func AgentFrom(h interface{ Get(string) string }) string { return h.Get(AgentHeader) }
 
@@ -527,25 +534,31 @@ type JobResumeReq struct {
 
 // Spawn is a request to start an agent on a device.
 type Spawn struct {
-	ID        int64     `json:"id"`
-	Name      string    `json:"name"`
-	Kind      string    `json:"kind"`
-	Model     string    `json:"model,omitempty"`
-	Device    string    `json:"device"`
-	Project   string    `json:"project"`
-	Job       *int64    `json:"job,omitempty"`
-	Role      string    `json:"role,omitempty"` // worker, or lead for the job's own lead
-	Repo      string    `json:"repo,omitempty"` // the repository its work directory is a worktree of
-	Knowledge string    `json:"knowledge,omitempty"`
-	Base      string    `json:"base,omitempty"`
-	Verify    string    `json:"verify,omitempty"`     // the job's verify command, which the device runs after this agent submits
-	Profile   string    `json:"profile,omitempty"`    // name@version it is pinned to
-	FreshBase bool      `json:"fresh_base,omitempty"` // the job belongs to a project and its start has not been recorded: get the latest base first (D105)
-	Status    string    `json:"status"`               // pending | launching | started | failed
-	Pane      string    `json:"pane,omitempty"`
-	Error     string    `json:"error,omitempty"`
-	CreatedBy string    `json:"created_by"`
-	CreatedAt time.Time `json:"created_at"`
+	ID        int64  `json:"id"`
+	Name      string `json:"name"`
+	Kind      string `json:"kind"`
+	Model     string `json:"model,omitempty"`
+	Device    string `json:"device"`
+	Project   string `json:"project"`
+	Job       *int64 `json:"job,omitempty"`
+	Role      string `json:"role,omitempty"` // worker, or lead for the job's own lead
+	Repo      string `json:"repo,omitempty"` // the repository its work directory is a worktree of
+	Knowledge string `json:"knowledge,omitempty"`
+	Base      string `json:"base,omitempty"`
+	Verify    string `json:"verify,omitempty"`     // the job's verify command, which the device runs after this agent submits
+	Profile   string `json:"profile,omitempty"`    // name@version it is pinned to
+	FreshBase bool   `json:"fresh_base,omitempty"` // the job belongs to a project and its start has not been recorded: get the latest base first (D105)
+	// Confidential is the job's flag. Tools is the snapshot of what this spawn may call on this computer
+	// and ToolsUnavailable what its profile is granted but this spawn cannot have; both are filled for a
+	// request a link is about to start. The link enforces the snapshot and the hub is off the per-call path.
+	Confidential     bool              `json:"confidential,omitempty"`
+	Tools            []SpawnTool       `json:"tools,omitempty"`
+	ToolsUnavailable []ToolUnavailable `json:"tools_unavailable,omitempty"`
+	Status           string            `json:"status"` // pending | launching | started | failed
+	Pane             string            `json:"pane,omitempty"`
+	Error            string            `json:"error,omitempty"`
+	CreatedBy        string            `json:"created_by"`
+	CreatedAt        time.Time         `json:"created_at"`
 }
 
 type SpawnReq struct {
@@ -1070,4 +1083,155 @@ type CodebaseReport struct {
 	Path   string `json:"path,omitempty"`
 	Remote string `json:"remote,omitempty"` // for a create: the address of the repository that was made
 	Base   string `json:"base,omitempty"`   // the repository's default branch
+}
+
+// AddonItem is one add-on a computer has installed, as its link reports it. Status is ready, changed, down or
+// missing. The manifest is the text of addon.yaml, sent so the hub can show what an add-on does without
+// holding the program.
+type AddonItem struct {
+	Name         string `json:"name"`
+	Version      string `json:"version"`
+	PackageHash  string `json:"package_hash"`
+	ManifestHash string `json:"manifest_hash"`
+	Manifest     string `json:"manifest,omitempty"`
+	Status       string `json:"status"`
+	Detail       string `json:"detail,omitempty"`
+}
+
+// AddonReport is a link saying everything it has installed. It replaces the computer's earlier report.
+type AddonReport struct {
+	Addons []AddonItem `json:"addons"`
+}
+
+// Addon is one add-on on one computer, as the hub holds it.
+type Addon struct {
+	Computer string `json:"computer"`
+	AddonItem
+	ReportedAt time.Time `json:"reported_at"`
+}
+
+// Add-on grants, calls and the tool snapshot (docs/direction/addons.md).
+
+// AddonGrant is the owner letting a profile use one tool of an add-on. ManifestHash is the manifest the
+// grant was made for: it works only where the installed manifest is that one. LeavesMachine is the owner's
+// value for "this tool sends something off the computer".
+type AddonGrant struct {
+	Profile       string    `json:"profile"`
+	Addon         string    `json:"addon"`
+	Tool          string    `json:"tool"`
+	ManifestHash  string    `json:"manifest_hash"`
+	PackageHash   string    `json:"package_hash"`
+	LeavesMachine bool      `json:"leaves_machine"`
+	MaxCalls      int       `json:"max_calls"`
+	GrantedBy     string    `json:"granted_by"`
+	GrantedAt     time.Time `json:"granted_at"`
+}
+
+// AddonGrantReq grants a tool to a profile. LeavesMachine left out means it leaves the computer, the
+// cautious value; MaxCalls left out is 50 per job. When computers hold different versions of the add-on,
+// Computer says which one's manifest the grant is for.
+type AddonGrantReq struct {
+	Addon         string `json:"addon"`
+	Tool          string `json:"tool"`
+	LeavesMachine *bool  `json:"leaves_machine,omitempty"`
+	MaxCalls      int    `json:"max_calls,omitempty"`
+	Computer      string `json:"computer,omitempty"`
+}
+
+// ToolField is one argument of a tool in a snapshot.
+type ToolField struct {
+	Name     string `json:"name"`
+	Type     string `json:"type"`
+	Required bool   `json:"required,omitempty"`
+	Summary  string `json:"summary,omitempty"`
+}
+
+// SpawnTool is one tool a spawn may call on its computer.
+type SpawnTool struct {
+	Addon          string      `json:"addon"`
+	Tool           string      `json:"tool"`
+	Summary        string      `json:"summary"`
+	Input          []ToolField `json:"input,omitempty"`
+	LeavesMachine  bool        `json:"leaves_machine"`
+	ManifestHash   string      `json:"manifest_hash,omitempty"` // the manifest the grant was made for; the link refuses the call when the installed one differs
+	PackageHash    string      `json:"package_hash,omitempty"`  // the same for the add-on's files as a whole
+	MaxCalls       int         `json:"max_calls"`
+	TimeoutSeconds int         `json:"timeout_seconds"`
+	MaxOutput      int64       `json:"max_output"`
+}
+
+// Why a granted tool is not in a spawn's snapshot.
+const (
+	CauseNotInstalled       = "not-installed"
+	CauseChanged            = "changed"
+	CausePluginDown         = "plugin-down"
+	CauseDeniedConfidential = "denied-confidential"
+)
+
+// ToolUnavailable is a tool a profile is granted but a spawn cannot have: the fixed cause, what it means in
+// plain words, and the one thing a person can do.
+type ToolUnavailable struct {
+	Addon  string `json:"addon"`
+	Tool   string `json:"tool"`
+	Cause  string `json:"cause"`
+	Why    string `json:"why"`
+	Action string `json:"action"`
+}
+
+// AddonCall is one line of a link's journal of tool calls. Phase is call (before the add-on is asked),
+// result (after) or denied. Nothing a person typed and nothing an add-on answered is in it.
+type AddonCall struct {
+	CallID string    `json:"call_id"`
+	Spawn  int64     `json:"spawn"`
+	Agent  string    `json:"agent"`
+	Job    int64     `json:"job,omitempty"`
+	Addon  string    `json:"addon"`
+	Tool   string    `json:"tool"`
+	Phase  string    `json:"phase"`
+	Code   string    `json:"code,omitempty"`
+	Size   int64     `json:"size,omitempty"`
+	Millis int64     `json:"millis,omitempty"`
+	Time   time.Time `json:"time"`
+}
+
+// AddonCallReport is a batch of journal lines from one link.
+type AddonCallReport struct {
+	Calls []AddonCall `json:"calls"`
+}
+
+// ToolCallReq is an agent asking the link's gateway to run one tool. Tool is ADDON.TOOL.
+type ToolCallReq struct {
+	Tool string         `json:"tool"`
+	Args map[string]any `json:"args,omitempty"`
+}
+
+// ToolCallResp is how a call ended. Code is one of the fixed result codes; Text is the add-on's reply when
+// the call went well and a sentence in plain words when it did not. Files are the full paths of what the
+// add-on saved for this call.
+type ToolCallResp struct {
+	OK    bool     `json:"ok"`
+	Code  string   `json:"code"`
+	Text  string   `json:"text"`
+	Files []string `json:"files,omitempty"`
+}
+
+// ToolPromoteReq asks the link to copy one result file of the spawn into its project tree. File is a full path
+// inside the spawn's results folder or a path relative to it; To is a path relative to the project folder.
+type ToolPromoteReq struct {
+	File  string `json:"file"`
+	To    string `json:"to"`
+	Force bool   `json:"force,omitempty"`
+}
+
+// ToolPromoteResp says where the file went (To, relative to the project folder) and in words what happens next.
+type ToolPromoteResp struct {
+	To      string `json:"to"`
+	Message string `json:"message"`
+}
+
+// ToolList is what the gateway tells a spawn it may call, and what it was granted but cannot have.
+type ToolList struct {
+	Tools        []SpawnTool       `json:"tools"`
+	Unavailable  []ToolUnavailable `json:"unavailable,omitempty"`
+	Confidential bool              `json:"confidential,omitempty"`
 }

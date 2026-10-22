@@ -41,6 +41,18 @@ Context that survives a change of device, agent or person (tracking issue #20):
 - #18 Let a finished job teach: reviewed lessons become notes and skills
 - #19 Join a machine in one step (done, v0.1.1)
 
+## Add-ons (D111)
+
+Built: the add-on host, the tool gateway with the audit log, the Add-ons page, grants on profiles and the job notice, `docs/addons.md`, and the examples `echo` and `web-fetch`. Still to do, in this order:
+
+- Run `web-fetch` through a real agent program on a real job, and fix what shows (the Codex MCP token handoff, for one, was not tried; the other kinds use the command line).
+- A revoke that reaches helpers that are already running (the link would ask the hub for revocations in its ladder).
+- Set an add-on to Not running in the report when its service crashes (today only the call's result says so).
+- A block list for `web-fetch` (addresses on this computer or a private network).
+- Waiting on isolation (a container or a separate user for the link, see `docs/isolation.md`): add-ons that keep secrets, and shared services with their own credentials and TLS.
+- Waiting on a project that fails in a way they would catch: installable kits, adapter packs, a catalogue, installing from a web address, a rules table from task label to profile (a router).
+- Not designed: teams.
+
 ## Projects (D104)
 
 Stage one is built: a project is a name and a shared remote; attach or create it, and any machine gets its own copy under its own login. Stage two is built (D105): a job of a project starts from a fast-forwarded base (fresh, stale or diverged, recorded on the job) and a published pull request's status is followed. Planned, not built:

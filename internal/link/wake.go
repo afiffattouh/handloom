@@ -125,6 +125,9 @@ func (l *Link) runLadder(ctx context.Context) {
 	l.runProjectRequests(ctx)
 	l.runTails(ctx)
 	l.runUsage(ctx, agents)
+	l.runAddons(ctx)
+	l.reapToolSessions(ctx, agents)
+	l.runAddonCalls(ctx)
 }
 
 // vouch tells the hub that an agent's terminal still exists, so the hub can

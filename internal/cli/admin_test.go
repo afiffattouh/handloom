@@ -64,7 +64,7 @@ func TestTheOwnersSettingsAreCommands(t *testing.T) {
 
 func TestAProfileInPlainWords(t *testing.T) {
 	r := newRig(t)
-	out := r.as(r.admin, "profile", "make", "scout", "--can", "look", "--kind", "pi", "--runtime", "local", "--model", "gb10/qwen3.8-27b", "--prompt", "Find things.")
+	out := r.as(r.admin, "profile", "make", "scout", "--can", "look", "--kind", "pi", "--runtime", "local", "--model", "local-server/model-name", "--prompt", "Find things.")
 	if !strings.Contains(out, "scout: version 1") || !strings.Contains(out, "adapted: Pi always has a shell") {
 		t.Fatalf("make: %s", out)
 	}

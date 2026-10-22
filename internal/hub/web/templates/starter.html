@@ -51,7 +51,7 @@
             <option value="local"{{if eq (index .Form "runtime") "local"}} selected{{end}}>Local (confidential jobs need this){{if index .Form "recommend"}} · recommended{{end}}</option>
           </select></label>
       </div>
-      <label>Model <span class="desc">(optional; name it for a local model, such as gb10/qwen3.8-27b)</span><input name="model" value="{{index .Form "model"}}" placeholder="the CLI's default" class="mono-input"></label>
+      <label>Model <span class="desc">(optional; name it for a local model, such as local-server/model-name)</span><input name="model" value="{{index .Form "model"}}" placeholder="the CLI's default" class="mono-input"></label>
       <label>Your password, to confirm <input type="password" name="current_password" autocomplete="current-password" required></label>
       <div class="acts">
         <button type="submit">Add profile</button>

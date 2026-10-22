@@ -164,7 +164,7 @@ func TestTheStarterPagesAndTheAssistedForm(t *testing.T) {
 func TestADeniedCommandOnACLIThatCannotRefuseItIsAskedNotRefused(t *testing.T) {
 	e := newWebEnv(t, Options{})
 	c, tok := e.owner()
-	save := url.Values{"name": {"careful-pi"}, "kind": {"pi"}, "runtime": {"local"}, "model": {"gb10/qwen3.8-27b"}, "tool": {"read", "edit", "shell", "web"},
+	save := url.Values{"name": {"careful-pi"}, "kind": {"pi"}, "runtime": {"local"}, "model": {"local-server/model-name"}, "tool": {"read", "edit", "shell", "web"},
 		"deny": {"rm\ngit push"}, "prompt": {"Be careful."}, "csrf": {tok}, "current_password": {goodPassword}}
 	r := e.req("POST", "/profiles", save, c, nil)
 	if r.status != 303 || !strings.Contains(r.header.Get("Location"), "done=adapted") {
@@ -194,12 +194,12 @@ func TestAProfileIsNotReplacedByAccident(t *testing.T) {
 		t.Fatalf("create: %d %s", r.status, r.body)
 	}
 	// Making another profile under the same name would silently replace what new agents get: refused, in words.
-	local := url.Values{"name": {"lead"}, "kind": {"omp"}, "runtime": {"local"}, "model": {"gb10/qwen3.8-27b"}, "tool": {"read", "shell"}, "prompt": {"You lead."}}
+	local := url.Values{"name": {"lead"}, "kind": {"omp"}, "runtime": {"local"}, "model": {"local-server/model-name"}, "tool": {"read", "shell"}, "prompt": {"You lead."}}
 	if r := post("/profiles", local); r.status != 409 || !strings.Contains(r.body, "already have a profile called") {
 		t.Fatalf("a second profile with the same name: %d", r.status)
 	}
 	// Editing it into a different CLI or runtime needs a yes, and says what changes.
-	edit := url.Values{"kind": {"omp"}, "runtime": {"local"}, "model": {"gb10/qwen3.8-27b"}, "tool": {"read", "shell"}, "prompt": {"You lead."}}
+	edit := url.Values{"kind": {"omp"}, "runtime": {"local"}, "model": {"local-server/model-name"}, "tool": {"read", "shell"}, "prompt": {"You lead."}}
 	r := post("/profiles/lead", edit)
 	if r.status != 409 || !strings.Contains(r.body, "This changes what lead is") || !strings.Contains(r.body, `name="confirm_change"`) || !strings.Contains(r.body, "under a new name") {
 		t.Fatalf("an unconfirmed change: %d %s", r.status, r.body)
@@ -224,7 +224,7 @@ func TestAProfileIsNotReplacedByAccident(t *testing.T) {
 		t.Fatalf("the profile page does not show what each version was")
 	}
 	// A change that keeps the CLI and the runtime needs no yes.
-	same := url.Values{"kind": {"omp"}, "runtime": {"local"}, "model": {"gb10/qwen3.8-27b"}, "tool": {"read", "shell"}, "prompt": {"You lead, more carefully."}}
+	same := url.Values{"kind": {"omp"}, "runtime": {"local"}, "model": {"local-server/model-name"}, "tool": {"read", "shell"}, "prompt": {"You lead, more carefully."}}
 	if r := post("/profiles/lead", same); r.status != 303 {
 		t.Fatalf("a plain edit: %d", r.status)
 	}
@@ -237,7 +237,7 @@ func TestAnEarlierVersionCanBecomeAProfileOfItsOwn(t *testing.T) {
 	e.req("POST", "/profiles", f, c, nil)
 	f.Set("kind", "omp")
 	f.Set("runtime", "local")
-	f.Set("model", "gb10/qwen3.8-27b")
+	f.Set("model", "local-server/model-name")
 	f.Add("tool", "shell")
 	f.Set("confirm_change", "1")
 	e.req("POST", "/profiles/lead", f, c, nil)

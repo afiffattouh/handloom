@@ -125,8 +125,15 @@ func (l *Link) launch(ctx context.Context, s api.Spawn) error {
 	}
 	l.fresh[s.Name] = l.opt.Now()
 	l.mu.Unlock()
-	cmd, err := l.isolator().Command(ctx, l.plan(s, dir))
+	// The spawn's tool token: it goes into the spawn's environment and nowhere else, and it is good for this
+	// spawn only. The snapshot the hub put into the request is all the link will ever know of what it may call.
+	toolToken, err := l.gate.mint(s, dir, l.opt.Now())
 	if err != nil {
+		return fmt.Errorf("could not make a tool token for %s: %w", s.Name, err)
+	}
+	cmd, err := l.isolator().Command(ctx, l.plan(s, dir, toolToken))
+	if err != nil {
+		l.gate.revoke(toolToken)
 		return fmt.Errorf("could not prepare %s's environment: %w", s.Name, err)
 	}
 	tmux := func(args ...string) (string, error) {
@@ -134,6 +141,7 @@ func (l *Link) launch(ctx context.Context, s api.Spawn) error {
 	}
 	if _, err := tmux("has-session", "-t", "handloom"); err != nil {
 		if _, err = tmux("new-session", "-d", "-s", "handloom", "-n", s.Name, "-c", dir, "-x", "200", "-y", "50", cmd); err != nil {
+			l.gate.revoke(toolToken)
 			return err
 		}
 		// An agent CLI that dies with an error leaves its last screen behind
@@ -141,8 +149,11 @@ func (l *Link) launch(ctx context.Context, s api.Spawn) error {
 		tmux("set-option", "-g", "remain-on-exit", "failed")
 		return nil
 	}
-	_, err = tmux("new-window", "-d", "-t", "handloom:", "-n", s.Name, "-c", dir, cmd)
-	return err
+	if _, err = tmux("new-window", "-d", "-t", "handloom:", "-n", s.Name, "-c", dir, cmd); err != nil {
+		l.gate.revoke(toolToken)
+		return err
+	}
+	return nil
 }
 
 // worktree makes dir a git worktree of the job's repository on the branch

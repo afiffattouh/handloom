@@ -311,6 +311,13 @@ func (h *Hub) buildHandler() http.Handler {
 	v1("GET /agents/{name}/screen", agentScreen)
 	v1("POST /agents/{name}/remove", agentRemove)
 	v1("POST /device/usage", usagePost)
+	v1("POST /device/addons", addonReport)
+	v1("GET /addons", addonList)
+	v1("GET /addons/{name}", addonGet)
+	v1("POST /device/addon-calls", addonCallsReport)
+	v1("GET /addon-grants", addonGrantList)
+	v1("POST /profiles/{name}/addon-grants", addonGrantNew)
+	v1("DELETE /profiles/{name}/addon-grants/{addon}/{tool}", addonGrantRevoke)
 	v1("GET /device/tails", deviceTails)
 	v1("POST /device/tails/{name}", tailPut)
 	v1("GET /device/kcollects", deviceCollects)
@@ -806,8 +813,12 @@ const maxBody = 256 << 10
 
 // decode reads a JSON body. Unknown fields are rejected, so a client cannot
 // smuggle in fields such as "from" or "role".
-func (c *call) decode(v any) error {
-	dec := json.NewDecoder(io.LimitReader(c.r.Body, maxBody))
+func (c *call) decode(v any) error { return c.decodeUpTo(v, maxBody) }
+
+// decodeUpTo is decode with a body limit of the caller's choosing, for the few routes whose own limits
+// allow more than maxBody.
+func (c *call) decodeUpTo(v any, limit int64) error {
+	dec := json.NewDecoder(io.LimitReader(c.r.Body, limit))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(v); err != nil {
 		if errors.Is(err, io.EOF) {

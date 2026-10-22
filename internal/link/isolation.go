@@ -84,10 +84,10 @@ func (l *Link) isolator() Isolator {
 }
 
 // plan describes a spawn for an Isolator.
-func (l *Link) plan(s api.Spawn, dir string) LaunchPlan {
+func (l *Link) plan(s api.Spawn, dir, toolToken string) LaunchPlan {
 	home := client.Home()
 	path := filepath.Dir(l.opt.Binary) + ":" + os.Getenv("PATH")
 	return LaunchPlan{Spawn: s, Dir: dir, Home: home, Binary: l.opt.Binary, Path: path,
-		ExecLine: fmt.Sprintf("env HANDLOOM_HOME=%s PATH=%s HANDLOOM_SPAWN=%d %s spawn-exec %d",
-			shellQuote(home), shellQuote(path), s.ID, shellQuote(l.opt.Binary), s.ID)}
+		ExecLine: fmt.Sprintf("env HANDLOOM_HOME=%s PATH=%s HANDLOOM_SPAWN=%d %s=%s %s spawn-exec %d",
+			shellQuote(home), shellQuote(path), s.ID, api.ToolTokenEnv, shellQuote(toolToken), shellQuote(l.opt.Binary), s.ID)}
 }

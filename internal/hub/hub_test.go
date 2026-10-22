@@ -446,6 +446,7 @@ func TestScopeTableMatchesDesign(t *testing.T) {
 		ActProjectManage:    "no no no yes", // added with projects (D104): only a person attaches, creates or clones a shared repository; creating one is outward-facing
 		ActProjectMerge:     "no no no yes", // added with hosted projects (D106): only a person puts a published job into the main branch of the code the hub holds; an agent never merges its own work
 		ActDeviceAdd:        "no no no yes", // added with machines that belong to people (D108): an owner or a member adds a machine and owns it; a viewer, an agent or an AI app never does (the admin token adds machines in its own way, shared by the owner)
+		ActAddonManage:      "no no no no",  // added with add-ons: no row of the four subjects may; only the owner role may, checked below
 	}
 	if len(scopeTable) != len(want) {
 		t.Fatalf("scope table has %d actions, want %d", len(scopeTable), len(want))
@@ -461,6 +462,12 @@ func TestScopeTableMatchesDesign(t *testing.T) {
 		}
 		if strings.Join(got, " ") != row {
 			t.Errorf("%s: got %q, want %q", action, strings.Join(got, " "), row)
+		}
+	}
+	// addon.manage is the owner's alone: not a member, not a viewer, not an agent.
+	for _, s := range []string{subjectOwner, subjectHuman, subjectViewer, api.RoleLead, api.RoleWorker, api.RoleObserver} {
+		if got, want := Allowed(ActAddonManage, s), s == subjectOwner; got != want {
+			t.Errorf("addon.manage for %s: %v, want %v", s, got, want)
 		}
 	}
 }

@@ -481,6 +481,46 @@ CREATE TABLE task_result (
 `, `
 -- A task handed to a helper that is still starting: it is assigned when that helper registers.
 ALTER TABLE task ADD COLUMN assign_name TEXT NOT NULL DEFAULT '';
+`, `
+-- Add-ons: what each computer says it has installed. One row per computer and name, replaced whole by
+-- the link's report. The hub only registers them; it never holds program bytes.
+CREATE TABLE addon (
+  device_id     INTEGER NOT NULL REFERENCES device(id),
+  name          TEXT NOT NULL,
+  version       TEXT NOT NULL DEFAULT '',
+  package_hash  TEXT NOT NULL DEFAULT '',
+  manifest_hash TEXT NOT NULL DEFAULT '',
+  manifest      TEXT NOT NULL DEFAULT '',
+  status        TEXT NOT NULL CHECK (status IN ('ready', 'changed', 'down', 'missing')),
+  detail        TEXT NOT NULL DEFAULT '',
+  reported_at   INTEGER NOT NULL,
+  PRIMARY KEY (device_id, name)
+);
+`, `
+-- Add-on grants: the owner lets a profile use one tool of an add-on. A grant works only where the installed
+-- manifest hash is the one it was granted for. leaves_machine is the owner's value, never the add-on's.
+CREATE TABLE addon_grant (
+  profile        TEXT NOT NULL,
+  addon          TEXT NOT NULL,
+  tool           TEXT NOT NULL,
+  manifest_hash  TEXT NOT NULL,
+  leaves_machine INTEGER NOT NULL DEFAULT 1,
+  max_calls      INTEGER NOT NULL DEFAULT 50,
+  granted_by     TEXT NOT NULL,
+  granted_at     INTEGER NOT NULL,
+  PRIMARY KEY (profile, addon, tool)
+);
+-- Which call reports a computer's link has already sent, so (call ids are only unique within one spawn) a batch sent twice is stored once.
+CREATE TABLE addon_call_seen (
+  device_id INTEGER NOT NULL REFERENCES device(id),
+  spawn_id  INTEGER NOT NULL,
+  call_id   TEXT NOT NULL,
+  phase     TEXT NOT NULL,
+  PRIMARY KEY (device_id, spawn_id, call_id, phase)
+);
+`, `
+-- A grant is also for one package: when any file of an add-on changes and is approved again, the grant stops until it is made again.
+ALTER TABLE addon_grant ADD COLUMN package_hash TEXT NOT NULL DEFAULT '';
 `}
 
 // Open opens (and migrates) the database at path. Use ":memory:" in tests.

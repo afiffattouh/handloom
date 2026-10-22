@@ -45,7 +45,7 @@ type inboxView struct {
 type startStep struct {
 	N                         int
 	Title, Hint, Link, Action string
-	Note                      string // what is true now, in words ("GB10 is connected")
+	Note                      string // what is true now, in words ("the office computer is connected")
 	Icon                      string
 	Done                      bool
 }

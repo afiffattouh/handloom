@@ -319,6 +319,7 @@ Handloom is used for real work by its author and is pre-1.0. Honest about what i
 | [docs/add-a-machine.md](docs/add-a-machine.md) | Joining a Linux, macOS or Windows machine with one pasted line, and what to do when something is missing |
 | [docs/overview.html](docs/overview.html) | The whole picture on one page: topology, architecture, flow, teams, knowledge (open in a browser) |
 | [docs/collaborate.md](docs/collaborate.md) | Working on one project together: machines, splitting by job, publishing to the shared remote, overlap warnings |
+| [docs/addons.md](docs/addons.md) | Add-ons: giving helpers a new tool, installing one on a computer, what is and is not protected, writing your own |
 | [docs/tui.md](docs/tui.md) · [docs/mcp.md](docs/mcp.md) | The terminal console · using Handloom from an AI app |
 | [docs/protocol.md](docs/protocol.md) | The API, version `handloom/1` |
 | [docs/deploy.md](docs/deploy.md) · [docs/isolation.md](docs/isolation.md) | Deploying · the container-mode design |

@@ -139,3 +139,59 @@ func TestSearchToolsRunTheSearchCommand(t *testing.T) {
 		t.Fatal("an empty search should be a tool error")
 	}
 }
+
+// A helper started with tools finds them in the list, next to the handloom verbs, and calling one runs
+// `handloom tool call`, the same gateway as the command line.
+func TestAddonToolsAreListedAndCallTheGateway(t *testing.T) {
+	var got [][]string
+	run := func(argv []string) (string, string, int) {
+		got = append(got, argv)
+		return "hello", "", 0
+	}
+	var out bytes.Buffer
+	extra := []AddonTool{{Addon: "web-fetch", Tool: "fetch", Summary: "Fetch a page.",
+		Input: []AddonField{{Name: "url", Type: "string", Required: true, Summary: "The address"}, {Name: "depth", Type: "number"}}}}
+	in := `{"jsonrpc":"2.0","id":1,"method":"tools/list"}` + "\n" +
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"handloom_tool_web_fetch_fetch","arguments":{"url":"https://example.org","depth":2}}}` + "\n"
+	if err := ServeWithAddons(strings.NewReader(in), &out, "test", run, extra); err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(strings.TrimSpace(out.String()), "\n")
+	var list struct {
+		Result struct {
+			Tools []struct {
+				Name, Description string
+				InputSchema       map[string]any
+			}
+		}
+	}
+	json.Unmarshal([]byte(lines[0]), &list)
+	var found bool
+	for _, tl := range list.Result.Tools {
+		if tl.Name == "handloom_tool_web_fetch_fetch" {
+			found = true
+			req, _ := tl.InputSchema["required"].([]any)
+			if !strings.Contains(tl.Description, "do not guess") || len(req) != 1 || req[0] != "url" {
+				t.Errorf("the add-on tool as listed: %+v", tl)
+			}
+		}
+	}
+	if !found || len(list.Result.Tools) != len(Tools)+1 {
+		t.Fatalf("tools listed: %d, found %v", len(list.Result.Tools), found)
+	}
+	if len(got) != 1 || strings.Join(got[0][:3], " ") != "tool call web-fetch.fetch" || got[0][3] != "--args" {
+		t.Fatalf("command run: %q", got)
+	}
+	var sent map[string]any
+	json.Unmarshal([]byte(got[0][4]), &sent)
+	if sent["url"] != "https://example.org" || sent["depth"] != float64(2) {
+		t.Fatalf("arguments passed on: %v", sent)
+	}
+	// without any, the list is the plain one
+	var plain bytes.Buffer
+	ServeWithAddons(strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"tools/list"}`+"\n"), &plain, "test", run, nil)
+	json.Unmarshal([]byte(strings.TrimSpace(plain.String())), &list)
+	if len(list.Result.Tools) != len(Tools) {
+		t.Fatalf("with no add-on tools: %d", len(list.Result.Tools))
+	}
+}

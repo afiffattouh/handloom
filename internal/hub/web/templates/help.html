@@ -99,6 +99,17 @@
   </div>
 </section>
 
+<section class="section hsec" id="addons" aria-labelledby="h-addons">
+  <h2 id="h-addons">Add-ons</h2>
+  <p class="desc">An add-on gives helpers a tool they do not have, such as saving a web page as a file. The <a href="/addons">Add-ons</a> page lists what is installed and who may use it.</p>
+  <div class="card"><div class="cc stack">
+    <details><summary>What is an add-on?</summary><p class="text">A small program that runs on one of your computers and offers helpers one or more tools. A helper asks for a tool by name, the add-on does the work on that computer, and the answer comes back to the helper. Handloom works without any.</p></details>
+    <details><summary>Is it safe?</summary><p class="text">An add-on is code, so install only one you trust. It is installed on the computer by the person who runs that computer, who approves exactly what is in its folder. If a single byte changes, it stops until it is approved again. A helper can use a tool only when an owner has granted that tool to its profile, with a limit on calls per helper. An add-on cannot keep a secret such as a password, because anything on a computer can be read by the helpers running there. Every call is written to the record, though what was asked and answered stays on the computer.</p></details>
+    <details><summary>Why can't a confidential job use some tools?</summary><p class="text">Some tools send what they are given off the computer, for example to fetch a page or search the web. A confidential job must stay on the computer, so it is never given a tool that leaves it. This stops the tool, not everything a helper can do on the computer, and the answer you give is taken at its word. The owner says whether a tool leaves the computer when granting it; the job page names a tool that was held back and what to do.</p></details>
+    <details><summary>How do I install one?</summary><p class="text">On the computer that will run it, run <code>handloom addon add FOLDER</code>, where FOLDER is the add-on's folder. It shows what the add-on can do and asks you to approve it. Then an owner grants its tools to a profile on the <a href="/addons">Add-ons</a> page or on the profile. Helpers started after that can use them.</p></details>
+  </div></div>
+</section>
+
 <section class="section hsec" id="faq" aria-labelledby="h-faq">
   <h2 id="h-faq">Questions</h2>
   <div class="card"><div class="cc stack">

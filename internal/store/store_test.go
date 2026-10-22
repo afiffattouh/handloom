@@ -191,3 +191,147 @@ func TestMachinesOfAnOlderDatabaseHaveNoOwner(t *testing.T) {
 		t.Fatalf("after the hand-over: %+v", got)
 	}
 }
+
+// The add-on table came with the third migration from the end (the grants and their package hash follow): a database from the
+// release before has none, and gets it.
+func TestAddonTableArrivesWithItsMigration(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "handloom.db")
+	old, err := sql.Open("sqlite", "file:"+path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, m := range migrations[:len(migrations)-3] {
+		if _, err := old.Exec(m); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := old.Exec(`PRAGMA user_version = ` + strconv.Itoa(len(migrations)-3)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := old.Exec(`INSERT INTO device(name, credential_hash, created_at) VALUES ('desk', 'x', 1)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := old.Exec(`SELECT 1 FROM addon`); err == nil {
+		t.Fatal("the older schema already has an addon table")
+	}
+	old.Close()
+
+	db, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	ins := func(device int, name, status string) error {
+		_, err := db.Exec(`INSERT INTO addon(device_id, name, status, reported_at) VALUES (?, ?, ?, 1)`, device, name, status)
+		return err
+	}
+	for _, s := range []string{"ready", "changed", "down", "missing"} {
+		if err := ins(1, "echo-"+s, s); err != nil {
+			t.Errorf("status %s refused: %v", s, err)
+		}
+	}
+	if err := ins(1, "x", "running"); err == nil {
+		t.Error("a status outside the four was accepted")
+	}
+	if err := ins(1, "echo-ready", "ready"); err == nil {
+		t.Error("two rows for one computer and name were accepted")
+	}
+	if err := ins(99, "echo", "ready"); err == nil {
+		t.Error("a row for a computer that does not exist was accepted")
+	}
+}
+
+// The grant and call-report tables are the newest migration: a database from the release before has neither.
+func TestAddonGrantTablesArriveWithTheirMigration(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "handloom.db")
+	old, err := sql.Open("sqlite", "file:"+path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, m := range migrations[:len(migrations)-2] {
+		if _, err := old.Exec(m); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := old.Exec(`PRAGMA user_version = ` + strconv.Itoa(len(migrations)-2)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := old.Exec(`INSERT INTO device(name, credential_hash, created_at) VALUES ('desk', 'x', 1)`); err != nil {
+		t.Fatal(err)
+	}
+	for _, q := range []string{`SELECT 1 FROM addon_grant`, `SELECT 1 FROM addon_call_seen`} {
+		if _, err := old.Exec(q); err == nil {
+			t.Fatalf("the older schema already has it: %s", q)
+		}
+	}
+	old.Close()
+
+	db, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	grant := func(profile, addon, tool string) error {
+		_, err := db.Exec(`INSERT INTO addon_grant(profile, addon, tool, manifest_hash, granted_by, granted_at) VALUES (?, ?, ?, 'h', 'olive', 1)`, profile, addon, tool)
+		return err
+	}
+	if err := grant("reader", "notes", "search"); err != nil {
+		t.Fatal(err)
+	}
+	var leaves, max int
+	if err := db.QueryRow(`SELECT leaves_machine, max_calls FROM addon_grant`).Scan(&leaves, &max); err != nil || leaves != 1 || max != 50 {
+		t.Fatalf("defaults: leaves %d, limit %d, %v", leaves, max, err)
+	}
+	if err := grant("reader", "notes", "search"); err == nil {
+		t.Error("two grants of one tool to one profile were accepted")
+	}
+	if err := grant("reader", "notes", "fetch"); err != nil {
+		t.Error(err)
+	}
+	seen := func(device int) error {
+		_, err := db.Exec(`INSERT INTO addon_call_seen(device_id, spawn_id, call_id, phase) VALUES (?, 1, 'c1', 'call')`, device)
+		return err
+	}
+	if err := seen(1); err != nil {
+		t.Fatal(err)
+	}
+	if err := seen(1); err == nil {
+		t.Error("a call report was stored twice")
+	}
+	if _, err := db.Exec(`INSERT INTO addon_call_seen(device_id, spawn_id, call_id, phase) VALUES (1, 2, 'c1', 'call')`); err != nil {
+		t.Errorf("the same call id in another spawn was refused: %v", err)
+	}
+	if err := seen(99); err == nil {
+		t.Error("a call report for a computer that does not exist was accepted")
+	}
+}
+
+// A grant made before grants held a package hash gets an empty one, so it stops working until it is made again.
+func TestGrantPackageHashArrivesWithItsMigration(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "handloom.db")
+	old, err := sql.Open("sqlite", "file:"+path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, m := range migrations[:len(migrations)-1] {
+		if _, err := old.Exec(m); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := old.Exec(`PRAGMA user_version = ` + strconv.Itoa(len(migrations)-1)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := old.Exec(`INSERT INTO addon_grant(profile, addon, tool, manifest_hash, granted_by, granted_at) VALUES ('reader', 'notes', 'search', 'h', 'olive', 1)`); err != nil {
+		t.Fatal(err)
+	}
+	old.Close()
+	db, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	var pkg string
+	if err := db.QueryRow(`SELECT package_hash FROM addon_grant`).Scan(&pkg); err != nil || pkg != "" {
+		t.Fatalf("package hash of an older grant: %q, %v", pkg, err)
+	}
+}

@@ -362,9 +362,9 @@ func TestKindsSayWhatTheyCannotEnforce(t *testing.T) {
 }
 
 func TestArgvPerKind(t *testing.T) {
-	s := &Spec{Kind: "omp", Model: "gb10/qwen3.8-27b", Tools: Tools{Allow: []string{"read", "edit", "shell", "web"}}}
+	s := &Spec{Kind: "omp", Model: "local-server/model-name", Tools: Tools{Allow: []string{"read", "edit", "shell", "web"}}}
 	line := strings.Join(OmpArgv(s, "", "worker", "/w/.handloom/omp-extension.ts"), " ")
-	for _, want := range []string{"omp --approval-mode yolo", "--tools read,grep,glob,write,edit,bash,web_search", "--thinking medium", "-e /w/.handloom/omp-extension.ts", "--model gb10/qwen3.8-27b"} {
+	for _, want := range []string{"omp --approval-mode yolo", "--tools read,grep,glob,write,edit,bash,web_search", "--thinking medium", "-e /w/.handloom/omp-extension.ts", "--model local-server/model-name"} {
 		if !strings.Contains(line, want) {
 			t.Errorf("omp: %q lacks %q", line, want)
 		}
@@ -377,7 +377,7 @@ func TestArgvPerKind(t *testing.T) {
 		t.Errorf("pi: %s", got)
 	}
 	// The model names people really use are accepted.
-	for _, m := range []string{"gb10/qwen3.8-27b", "local:qwen3.8-27b?effort=high", "anthropic/claude-sonnet-5-5:high", "sonnet"} {
+	for _, m := range []string{"local-server/model-name", "local:model-name?effort=high", "anthropic/claude-sonnet-5-5:high", "sonnet"} {
 		if bad := Normalize(&Spec{Kind: "omp", Model: m, Tools: Tools{Allow: []string{"read", "shell"}}}); len(bad) != 0 {
 			t.Errorf("model %q: %v", m, bad)
 		}

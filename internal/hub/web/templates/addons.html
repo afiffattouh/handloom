@@ -1,0 +1,79 @@
+{{define "content"}}
+<div class="page-head"><div><h1>Add-ons</h1><p class="desc">An add-on gives helpers a new tool, such as saving a web page as a file. Someone installs it on the computer that will run it, and an owner then chooses which profiles may use each of its tools. A helper can use nothing that was not granted.</p></div></div>
+{{with .Extra}}
+{{if and (not .Cards) (not .Orphans)}}
+<section class="card" aria-labelledby="none">
+  <div class="ch"><div><h2 id="none">No add-ons yet</h2><p class="desc">Handloom works fully without them. Add one when a helper needs something it does not have.</p></div></div>
+  <div class="cc stack">
+    <p class="text">On the computer that will run it:</p>
+    <div class="inset wrap sel mono" tabindex="0" aria-label="The command that installs an add-on">handloom addon add FOLDER</div>
+    <p class="desc">FOLDER is the add-on's own folder. The command shows what the add-on can do and asks you to approve exactly what is in the folder. Once it is approved, the computer reports it and it shows up here, ready for an owner to grant its tools to a profile.</p>
+  </div>
+</section>
+{{else}}
+{{range .Cards}}{{$card := .}}
+<section class="card" aria-labelledby="a-{{.Name}}">
+  <div class="ch"><div><h2 id="a-{{.Name}}">{{.Name}}{{if .Version}} <span class="mono muted">v{{.Version}}</span>{{end}}</h2>{{if .Title}}<p class="desc">{{.Title}}{{if .Summary}}. {{.Summary}}{{end}}</p>{{end}}</div></div>
+  <div class="cc flush"><div class="rows">
+  {{range .Computers}}
+    <div class="row line">
+      <span class="grow"><span><strong>{{.Name}}</strong>{{if $card.Version}}{{else}} <span class="mono desc">v{{.Version}}</span>{{end}}</span>{{if .Detail}}<span class="desc">{{.Detail}}</span>{{end}}{{if .Action}}<span class="desc">{{.Action}}</span>{{end}}</span>
+      <span class="end"><span class="badge {{.Badge}}">{{if .Ready}}<i class="dot"></i>{{end}}{{.Words}}</span></span>
+    </div>
+  {{end}}
+  </div></div>
+  {{if .Tools}}
+  <div class="cc"><h3>Tools</h3></div>
+  <div class="cc flush tw"><table>
+    <thead><tr><th>Tool</th><th>What it does</th><th>Leaves this computer</th></tr></thead><tbody>
+    {{range .Tools}}<tr><td class="nw"><span class="mono">{{.Name}}</span></td><td class="desc">{{.Summary}}</td><td class="nw">{{if .Leaves}}yes{{else}}no{{end}}</td></tr>{{end}}
+    </tbody></table></div>
+  <div class="cc"><p class="desc">Whether a tool leaves the computer is what the add-on says. The owner sets the answer that counts when granting it, and a confidential job is never given a tool that leaves the computer. That stops the tool, not everything a helper can do on the computer, and the answer you give is taken at its word.</p></div>
+  {{end}}
+  {{if $.Extra.CanManage}}
+  <div class="cc"><h3>Who may use it</h3></div>
+  {{if .Grants}}
+  <div class="cc flush tw"><table class="grants">
+      <thead><tr><th>Profile and tool</th><th>Leaves it</th><th>Calls</th><th></th></tr></thead><tbody>
+      {{range .Grants}}<tr><td><a href="/profiles/{{.Profile}}">{{.Profile}}</a><div class="mono desc">{{.Tool}}</div></td><td class="nw">{{if .Leaves}}yes{{else}}no{{end}}</td><td class="nw">{{.MaxCalls}}</td>
+        <td class="nw"><div class="acts">{{if .Stale}}<span class="badge warning">Granted for an earlier version</span>{{end}}
+          <form method="post" action="/addons/revoke" class="inline"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="profile" value="{{.Profile}}"><input type="hidden" name="tool" value="{{.Addon}}.{{.Tool}}"><button type="submit" class="link">Revoke</button></form></div></td></tr>
+      {{end}}
+      </tbody></table></div>
+  {{if .AnyStale}}<div class="cc"><p class="desc">A grant for an earlier version does not work. Check the new version, then grant the tool again.</p></div>{{end}}
+  {{else}}<div class="cc"><p class="desc">No profile may use it yet.</p></div>{{end}}
+  {{if and .Tools $.Extra.Profiles}}
+  <form method="post" action="/addons/grant" class="cc stack">
+    <input type="hidden" name="csrf" value="{{$.CSRF}}">
+    <div class="grid2 even">
+      <label>Profile <select name="profile">{{range $.Extra.Profiles}}<option value="{{.}}"{{if eq . (index $.Extra.Form "profile")}} selected{{end}}>{{.}}</option>{{end}}</select></label>
+      <label>Tool <select name="tool">{{range .Tools}}<option value="{{$card.Name}}.{{.Name}}"{{if eq (print $card.Name "." .Name) (index $.Extra.Form "tool")}} selected{{end}}>{{.Name}}</option>{{end}}</select></label>
+    </div>
+    <div class="grid2 even">
+      <label>Leaves this computer <select name="leaves"><option value="yes"{{if ne (index $.Extra.Form "leaves") "no"}} selected{{end}}>yes</option><option value="no"{{if eq (index $.Extra.Form "leaves") "no"}} selected{{end}}>no</option></select></label>
+      <label>Calls per helper <input name="max_calls" type="number" min="1" max="10000" placeholder="50" value="{{index $.Extra.Form "max_calls"}}"></label>
+    </div>
+    {{if gt .Hashes 1}}<label><span>Computer <span class="desc">(they hold different versions: say which one this grant is for)</span></span>
+      <select name="computer">{{range .Names}}<option value="{{.}}"{{if eq . (index $.Extra.Form "computer")}} selected{{end}}>{{.}}</option>{{end}}</select></label>{{end}}
+    <div class="acts"><button type="submit">Grant</button></div>
+  </form>
+  {{else if .Tools}}<div class="cc"><p class="desc">There is no profile to grant it to yet. <a href="/profiles/new">Make one</a>.</p></div>{{end}}
+  {{end}}
+</section>
+{{end}}
+{{if and .CanManage .Orphans}}
+<section class="card" aria-labelledby="orph">
+  <div class="ch"><div><h2 id="orph">Granted but not installed anywhere</h2><p class="desc">These tools were granted, but no computer has the add-on now. Revoke them, or install the add-on again.</p></div></div>
+  <div class="cc flush tw"><table class="grants">
+    <thead><tr><th>Profile and tool</th><th>Leaves it</th><th>Calls</th><th></th></tr></thead><tbody>
+    {{range .Orphans}}<tr><td><a href="/profiles/{{.Profile}}">{{.Profile}}</a><div class="mono desc">{{.Addon}}.{{.Tool}}</div></td><td class="nw">{{if .Leaves}}yes{{else}}no{{end}}</td><td class="nw">{{.MaxCalls}}</td>
+      <td class="nw"><div class="acts"><span class="badge warning">No computer has it</span>
+        <form method="post" action="/addons/revoke" class="inline"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="profile" value="{{.Profile}}"><input type="hidden" name="tool" value="{{.Addon}}.{{.Tool}}"><button type="submit" class="link">Revoke</button></form></div></td></tr>
+    {{end}}
+    </tbody></table></div>
+</section>
+{{end}}
+{{if not .CanManage}}<p class="desc">Only the owner sees who may use each tool and changes it.</p>{{end}}
+{{end}}
+{{end}}
+{{end}}

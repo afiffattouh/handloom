@@ -1,0 +1,26 @@
+schema: 1
+kind: tool
+name: echo
+version: 0.1.0
+api: 1
+title: Echo
+summary: Returns what it is given, and can save it as a file. It uses no network and holds no keys.
+run: ["python3", "service.py"]
+hosts: []
+secrets: []
+tools:
+  - name: say
+    summary: Return the text it is given, and save it as a file when asked.
+    input:
+      text: {type: string, required: true, summary: "The text to return"}
+      file: {type: string, required: false, summary: "A file name; when given, the text is also saved under that name"}
+    leaves_machine: false
+    timeout: 10s
+    max_output: 1MB
+  - name: wait
+    summary: Do nothing for a number of seconds, then say so. It is for trying out time limits.
+    input:
+      seconds: {type: number, required: true, summary: "How long to wait"}
+    leaves_machine: false
+    timeout: 5m
+    max_output: 64KB

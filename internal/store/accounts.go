@@ -223,6 +223,15 @@ type DeviceInfo struct {
 	Agents    int
 	OwnerID   sql.NullInt64
 	Owner     string // the person's name; empty when the machine is shared by the owner
+
+	LinkVersion  string // what the link says it is; empty until it has reported
+	LinkLatest   string // the newest release the link saw
+	CanUpdate    bool
+	UpdateNote   string // why it cannot update itself
+	UpdateWanted bool   // a person asked and the link has not finished
+	UpdateState  string // waiting, updating, done, failed
+	UpdateDetail string
+	UpdateAt     sql.NullInt64
 }
 
 // DeviceScope says which machines a caller may see: all of them (the owner and the admin token),
@@ -248,7 +257,8 @@ func ListDevices(q Querier, sc DeviceScope) ([]DeviceInfo, error) {
 	where, args := sc.Clause("d")
 	rows, err := q.Query(`SELECT d.name, d.credential_hash IS NOT NULL, d.last_seen_at, d.revoked_at,
 		CASE WHEN d.join_hash IS NOT NULL THEN d.join_expires_at END, (SELECT count(*) FROM agent a WHERE a.device_id = d.id),
-		d.owner_id, COALESCE(h.name, '')
+		d.owner_id, COALESCE(h.name, ''),
+		d.link_version, d.link_latest, d.link_can_update, d.link_update_note, d.update_want, d.update_state, d.update_detail, d.update_at
 		FROM device d LEFT JOIN human h ON h.id = d.owner_id WHERE `+where+` ORDER BY d.name`, args...)
 	if err != nil {
 		return nil, err
@@ -257,7 +267,8 @@ func ListDevices(q Querier, sc DeviceScope) ([]DeviceInfo, error) {
 	var out []DeviceInfo
 	for rows.Next() {
 		var d DeviceInfo
-		if err := rows.Scan(&d.Name, &d.Joined, &d.LastSeen, &d.Revoked, &d.JoinUntil, &d.Agents, &d.OwnerID, &d.Owner); err != nil {
+		if err := rows.Scan(&d.Name, &d.Joined, &d.LastSeen, &d.Revoked, &d.JoinUntil, &d.Agents, &d.OwnerID, &d.Owner,
+			&d.LinkVersion, &d.LinkLatest, &d.CanUpdate, &d.UpdateNote, &d.UpdateWanted, &d.UpdateState, &d.UpdateDetail, &d.UpdateAt); err != nil {
 			return nil, err
 		}
 		out = append(out, d)

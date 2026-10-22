@@ -154,7 +154,7 @@ func deviceList(c *call) (any, error) {
 	}
 	out := []api.Device{}
 	for _, d := range ds {
-		x := api.Device{Name: d.Name, Joined: d.Joined, Owner: d.Owner, Shared: d.Owner == ""}
+		x := api.Device{Name: d.Name, Joined: d.Joined, Owner: d.Owner, Shared: d.Owner == "", Version: d.LinkVersion, Latest: d.LinkLatest}
 		x.LastSeenAt, x.RevokedAt = store.TimePtr(d.LastSeen), store.TimePtr(d.Revoked)
 		out = append(out, x)
 	}

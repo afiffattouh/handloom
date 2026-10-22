@@ -46,8 +46,13 @@
   <div class="cc flush"><div class="rows">
   {{range .Devices}}
   <div class="row line"{{if .Pending}} data-pending="{{.Name}}"{{end}} data-name="{{.Name}}"{{if .Ready}} data-ready="1"{{end}}{{if .Settling}} data-settling="1"{{end}}>
-    <span><strong>{{.Name}}</strong> <span class="desc">{{.Agents}} agent{{if ne .Agents 1}}s{{end}}</span>{{if $.Extra.ShowOwner}} <span class="desc">belongs to {{if .Shared}}no one (shared by the owner){{else}}{{.Owner}}{{end}}</span>{{end}}</span>
+    <span><strong>{{.Name}}</strong> <span class="desc">{{.Agents}} agent{{if ne .Agents 1}}s{{end}}</span>{{if .Version}} <span class="desc">{{.Version}}</span>{{end}}{{if $.Extra.ShowOwner}} <span class="desc">belongs to {{if .Shared}}no one (shared by the owner){{else}}{{.Owner}}{{end}}</span>{{end}}</span>
     <span class="end"><span class="badge{{if .Ready}} success{{end}}">{{.Status}}</span>{{if .Seen}}<span class="desc">{{.Seen}}</span>{{end}}
+    {{if .Updating}}<span class="badge">{{.Updating}}</span>{{end}}
+    {{if .Latest}}<span class="desc">{{.Latest}} is out</span>{{end}}
+    {{if .CanUpdate}}<form method="post" action="/devices/{{.Name}}/update" class="inline"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button type="submit" class="link">Update to {{.Latest}}</button></form>{{end}}
+    {{if .UpdateNote}}<span class="desc">cannot update itself: {{.UpdateNote}}</span>{{end}}
+    {{if .UpdateLast}}<span class="desc{{if .UpdateBad}} bad{{end}}">{{.UpdateLast}}</span>{{end}}
     {{if .Assign}}{{if $.Extra.People}}
     <form method="post" action="/devices/{{.Name}}/assign" class="inline"><input type="hidden" name="csrf" value="{{$.CSRF}}"><select aria-label="Hand {{.Name}} to" name="to">{{range $.Extra.People}}<option>{{.}}</option>{{end}}</select> <button type="submit" class="link">Hand over</button></form>
     {{end}}{{end}}

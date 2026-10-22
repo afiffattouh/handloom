@@ -22,6 +22,7 @@ import (
 	"handloom/internal/api"
 	"handloom/internal/client"
 	"handloom/internal/drivers"
+	"handloom/internal/selfupdate"
 )
 
 type Options struct {
@@ -32,6 +33,10 @@ type Options struct {
 	Socket     string
 	AddonRoot  string // where this computer's add-ons are installed; default <home>/addons
 	Journal    string // the file of tool calls this link keeps; default <home>/addon-calls.jsonl
+	Version    string // this program's version, reported to the hub; empty: not reported, never updated
+	Exe        string // the program file an update replaces; default this one
+	Source     selfupdate.Source
+	Restart    func(exe string) error // starts the new program in place of this one; default exec
 
 	NudgeEvery    time.Duration // at most one nudge per agent in this time; default 60s
 	Renudge       time.Duration // nudge again when delivered mail stays unread this long; default 5m
@@ -76,6 +81,10 @@ type Link struct {
 	baseDone map[int64]bool       // jobs whose base this process has looked at (D105)
 	prSeen   map[int64]time.Time  // publishes and when their pull request was last looked at (D105)
 
+	selfSent   []byte // the last version report the hub accepted, as JSON
+	selfAt     time.Time
+	latest     string    // the newest release this link saw
+	latestNext time.Time // when to look again
 	addonsSent []byte    // the last add-on report the hub accepted, as JSON; nil until one was
 	addonsAt   time.Time // when that report was accepted
 

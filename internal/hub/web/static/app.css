@@ -516,3 +516,4 @@ html[data-sidebar="collapsed"] .sb-sub { display: none; }
 .wstep .badge { align-self: flex-start; }
 .wstep.wnext { box-shadow: 0 0 0 2px var(--primary); }
 .wstep.wdone .hic { color: var(--success); background: var(--success-soft); }
+.desc.bad { color: var(--destructive); }

@@ -192,7 +192,7 @@ func TestMachinesOfAnOlderDatabaseHaveNoOwner(t *testing.T) {
 	}
 }
 
-// The add-on table came with the third migration from the end (the grants and their package hash follow): a database from the
+// The add-on table came with the fourth migration from the end (the grants, their package hash and the link version follow): a database from the
 // release before has none, and gets it.
 func TestAddonTableArrivesWithItsMigration(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "handloom.db")
@@ -200,12 +200,12 @@ func TestAddonTableArrivesWithItsMigration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, m := range migrations[:len(migrations)-3] {
+	for _, m := range migrations[:len(migrations)-4] {
 		if _, err := old.Exec(m); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if _, err := old.Exec(`PRAGMA user_version = ` + strconv.Itoa(len(migrations)-3)); err != nil {
+	if _, err := old.Exec(`PRAGMA user_version = ` + strconv.Itoa(len(migrations)-4)); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := old.Exec(`INSERT INTO device(name, credential_hash, created_at) VALUES ('desk', 'x', 1)`); err != nil {
@@ -248,12 +248,12 @@ func TestAddonGrantTablesArriveWithTheirMigration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, m := range migrations[:len(migrations)-2] {
+	for _, m := range migrations[:len(migrations)-3] {
 		if _, err := old.Exec(m); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if _, err := old.Exec(`PRAGMA user_version = ` + strconv.Itoa(len(migrations)-2)); err != nil {
+	if _, err := old.Exec(`PRAGMA user_version = ` + strconv.Itoa(len(migrations)-3)); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := old.Exec(`INSERT INTO device(name, credential_hash, created_at) VALUES ('desk', 'x', 1)`); err != nil {
@@ -333,5 +333,39 @@ func TestGrantPackageHashArrivesWithItsMigration(t *testing.T) {
 	var pkg string
 	if err := db.QueryRow(`SELECT package_hash FROM addon_grant`).Scan(&pkg); err != nil || pkg != "" {
 		t.Fatalf("package hash of an older grant: %q, %v", pkg, err)
+	}
+}
+
+// The columns for updating a link from the web page come with the last migration.
+func TestLinkUpdateColumnsArriveWithTheirMigration(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "handloom.db")
+	old, err := sql.Open("sqlite", "file:"+path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, m := range migrations[:len(migrations)-1] {
+		if _, err := old.Exec(m); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := old.Exec(`PRAGMA user_version = ` + strconv.Itoa(len(migrations)-1)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := old.Exec(`INSERT INTO device(name, credential_hash, created_at) VALUES ('desk', 'x', 1)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := old.Exec(`SELECT link_version FROM device`); err == nil {
+		t.Fatal("the older schema already has the column")
+	}
+	old.Close()
+	db, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	var v string
+	var want int
+	if err := db.QueryRow(`SELECT link_version, update_want FROM device WHERE name = 'desk'`).Scan(&v, &want); err != nil || v != "" || want != 0 {
+		t.Fatalf("after migrating: %q %d %v", v, want, err)
 	}
 }

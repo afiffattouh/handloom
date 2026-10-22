@@ -521,6 +521,16 @@ CREATE TABLE addon_call_seen (
 `, `
 -- A grant is also for one package: when any file of an add-on changes and is approved again, the grant stops until it is made again.
 ALTER TABLE addon_grant ADD COLUMN package_hash TEXT NOT NULL DEFAULT '';
+`, `
+-- Updating a computer's link from the web page. The link reports its version, the latest release it saw, and whether it can replace itself; a person asks for an update (update_want); the link does it and reports how it went (update_state, update_detail). The hub never sends a program.
+ALTER TABLE device ADD COLUMN link_version TEXT NOT NULL DEFAULT '';
+ALTER TABLE device ADD COLUMN link_latest TEXT NOT NULL DEFAULT '';
+ALTER TABLE device ADD COLUMN link_can_update INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE device ADD COLUMN link_update_note TEXT NOT NULL DEFAULT '';
+ALTER TABLE device ADD COLUMN update_want INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE device ADD COLUMN update_state TEXT NOT NULL DEFAULT '';
+ALTER TABLE device ADD COLUMN update_detail TEXT NOT NULL DEFAULT '';
+ALTER TABLE device ADD COLUMN update_at INTEGER;
 `}
 
 // Open opens (and migrates) the database at path. Use ":memory:" in tests.

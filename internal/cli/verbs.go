@@ -21,7 +21,7 @@ import (
 func (e *env) device(args []string) error {
 	fs := e.flags("device")
 	to := fs.String("to", "", "assign: the person the machine goes to")
-	pos, err := fs.need(args, 1, 2, "device add <name> | list | revoke <name> | assign <name> --to <person>")
+	pos, err := fs.need(args, 1, 2, "device add <name> | list | update <name> | revoke <name> | assign <name> --to <person>")
 	if err != nil {
 		return err
 	}
@@ -61,12 +61,22 @@ func (e *env) device(args []string) error {
 				if d.Shared {
 					who = "shared by the owner"
 				}
-				fmt.Fprintf(e.out, "%-20s %-11s %-22s %s\n", d.Name, status, who, seen)
+				ver := d.Version
+				if ver != "" && d.Latest != "" && d.Latest != ver {
+					ver += " (" + d.Latest + " is out)"
+				}
+				fmt.Fprintf(e.out, "%-20s %-11s %-22s %-22s %s\n", d.Name, status, who, seen, ver)
 			}
 			if len(devices) == 0 {
 				fmt.Fprintln(e.out, "No machines of yours yet. Add one with: handloom device add NAME")
 			}
 		})
+	case pos[0] == "update" && len(pos) == 2:
+		if err := c.Post("/v1/devices/"+url.PathEscape(pos[1])+"/update", nil, nil); err != nil {
+			return err
+		}
+		fmt.Fprintf(e.out, "Update of %s requested. Its link downloads the newest release, checks it, and restarts; `handloom device list` shows the version.\n", pos[1])
+		return nil
 	case pos[0] == "revoke" && len(pos) == 2:
 		if err := c.Post("/v1/devices/"+url.PathEscape(pos[1])+"/revoke", nil, nil); err != nil {
 			return err
@@ -81,7 +91,7 @@ func (e *env) device(args []string) error {
 		}
 		fmt.Fprintf(e.out, "Machine %s now belongs to %s.\n", pos[1], *to)
 	default:
-		return usageErr("usage: handloom device add <name> | list | revoke <name> | assign <name> --to <person>")
+		return usageErr("usage: handloom device add <name> | list | update <name> | revoke <name> | assign <name> --to <person>")
 	}
 	return nil
 }

@@ -126,6 +126,7 @@ func (l *Link) runLadder(ctx context.Context) {
 	l.runTails(ctx)
 	l.runUsage(ctx, agents)
 	l.runAddons(ctx)
+	l.runSelfUpdate(ctx, agents)
 	l.reapToolSessions(ctx, agents)
 	l.runAddonCalls(ctx)
 }

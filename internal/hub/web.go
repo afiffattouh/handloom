@@ -236,6 +236,7 @@ func (h *Hub) webRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /devices", web(h.authed(h.webDeviceAdd)))
 	mux.HandleFunc("POST /devices/{name}/revoke", web(h.authed(h.webDeviceRevoke)))
 	mux.HandleFunc("POST /devices/{name}/assign", web(h.authed(h.webDeviceAssign)))
+	mux.HandleFunc("POST /devices/{name}/update", web(h.authed(h.webDeviceUpdate)))
 	mux.HandleFunc("GET /addons", web(h.authed(h.webAddons)))
 	mux.HandleFunc("POST /addons/grant", web(h.authed(h.webAddonGrant)))
 	mux.HandleFunc("POST /addons/revoke", web(h.authed(h.webAddonRevoke)))

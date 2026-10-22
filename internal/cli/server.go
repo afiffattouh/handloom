@@ -324,8 +324,8 @@ func (e *env) link(args []string) error {
 			fmt.Fprintln(e.err, "Note: "+note)
 		}
 		l := link.New(link.Options{
-			Isolation: *isolation,
-			Hub:       cfg.Hub, Device: cfg.Device, Credential: cfg.Credential, Socket: client.SocketPath(),
+			Isolation: *isolation, Version: Version,
+			Hub: cfg.Hub, Device: cfg.Device, Credential: cfg.Credential, Socket: client.SocketPath(),
 			NudgeEvery: *nudge, Renudge: *renudge, UnknownAfter: *unknown, Heartbeat: *heartbeat, LiveEvery: *liveEvery, Tick: *tick, TmuxSocket: firstNonEmpty(*tmuxSocket, setting.Get("TMUX_SOCKET")),
 			Log: log.New(e.err, "link ", log.LstdFlags),
 		})

@@ -81,8 +81,10 @@ type Device struct {
 	Joined     bool       `json:"joined"`
 	LastSeenAt *time.Time `json:"last_seen_at,omitempty"`
 	RevokedAt  *time.Time `json:"revoked_at,omitempty"`
-	Owner      string     `json:"owner,omitempty"`  // the person the machine belongs to (D108); empty when it is shared by the owner
-	Shared     bool       `json:"shared,omitempty"` // no person owns it: only owners may use it
+	Owner      string     `json:"owner,omitempty"`   // the person the machine belongs to (D108); empty when it is shared by the owner
+	Shared     bool       `json:"shared,omitempty"`  // no person owns it: only owners may use it
+	Version    string     `json:"version,omitempty"` // the program its link says it is
+	Latest     string     `json:"latest,omitempty"`  // the newest release its link has seen
 }
 
 // DeviceAssignReq hands a machine to a person (D108). Owners only.
@@ -1234,4 +1236,20 @@ type ToolList struct {
 	Tools        []SpawnTool       `json:"tools"`
 	Unavailable  []ToolUnavailable `json:"unavailable,omitempty"`
 	Confidential bool              `json:"confidential,omitempty"`
+}
+
+// LinkSelf is what a computer's link says about itself: its version, the newest release it has seen, whether it
+// can replace its own program, and how a requested update is going. An empty State leaves the last one alone.
+type LinkSelf struct {
+	Version   string `json:"version"`
+	Latest    string `json:"latest,omitempty"`
+	CanUpdate bool   `json:"can_update"`
+	Note      string `json:"note,omitempty"`   // why it cannot
+	State     string `json:"state,omitempty"`  // waiting, updating, done or failed
+	Detail    string `json:"detail,omitempty"` // in words
+}
+
+// LinkUpdateWant is whether a person has asked this computer to update.
+type LinkUpdateWant struct {
+	Want bool `json:"want"`
 }

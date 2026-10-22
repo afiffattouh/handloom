@@ -44,6 +44,18 @@ The agent programs (Claude Code and the others) must be installed **in the Linux
 
 To remove: `Unregister-ScheduledTask -TaskName 'Handloom link' -Confirm:$false`, then `handloom uninstall --purge` in Linux, then revoke the machine on the Machines page (`handloom device revoke NAME`). You can revoke your own; the owner can revoke any.
 
+## Updating a computer
+
+When a newer release is out, the computer's row on the Computers page says so and shows **Update to vX.Y.Z** (the CLI form is `handloom device update NAME`). The computer does the work itself, in this order:
+
+1. waits until none of its helpers is in the middle of a turn (the row says "waiting for N helper(s)");
+2. downloads the release from GitHub and checks it against that release's `checksums.txt`, then runs the new program once to see that it starts and reports the version it should;
+3. swaps its own program file and starts again in place. Helpers in their tmux windows keep running; a tool call in flight at that moment is lost.
+
+The hub sends no program and no address, only the request, so it cannot make a computer run anything it did not download from the releases page. The row shows how it went; a request a computer does not pick up within an hour is dropped. What can stop it, and what the row says: a program built from source (update by building again), a program folder this user cannot write to (for example `/usr/local/bin` installed by root: run `install.sh` as that user, or set `HANDLOOM_INSTALL_DIR` to a folder you own), or no release yet. The signature check `install.sh` does with `cosign` is not done here; the checksum is. Windows runs the link inside Linux, so it updates like Linux.
+
+Who may: the owner for any computer, a member for their own. The hub's own program is updated by deploying it, not from this page.
+
 ## When the page does not turn "ready"
 
 The page shows the machine as ready when its link has called in within the last minute. If it does not: on the machine, `handloom doctor` says what is missing; `handloom link status` says whether the link answers; the log is `~/.config/handloom/link.log` (background start), `journalctl --user -u handloom-link` (systemd) or `~/Library/Logs/handloom-link.log` (macOS).

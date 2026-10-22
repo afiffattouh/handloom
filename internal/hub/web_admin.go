@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"handloom/internal/notify"
+	"handloom/internal/selfupdate"
 	"handloom/internal/store"
 )
 
@@ -114,6 +115,14 @@ type deviceView struct {
 	Pending   bool
 	Ready     bool // joined, and its link has called in lately
 	Settling  bool // waiting to join, or joined and its link has not called in yet: the page keeps looking
+
+	Version    string // the link's version; empty until it reports
+	Latest     string // set when a newer release is known
+	CanUpdate  bool   // the Update button shows
+	UpdateNote string // why it cannot update itself, when that is what the person should know
+	Updating   string // a request in progress, in words
+	UpdateLast string // how the last update went, in words
+	UpdateBad  bool   // the last update failed
 }
 
 type devicesView struct {
@@ -177,9 +186,42 @@ func (q *webReq) devicesView(fresh *devicesView) (*devicesView, error) {
 				}
 			}
 		}
+		q.updateView(&dv, d)
 		v.Devices = append(v.Devices, dv)
 	}
 	return v, nil
+}
+
+// updateView fills in what the page says about updating a computer's link.
+func (q *webReq) updateView(dv *deviceView, d store.DeviceInfo) {
+	if d.Revoked.Valid || !d.Joined {
+		return
+	}
+	dv.Version = d.LinkVersion
+	switch {
+	case d.UpdateWanted:
+		dv.Updating = "update requested"
+		if d.UpdateState == "updating" {
+			dv.Updating = "updating now"
+		}
+		if d.UpdateDetail != "" {
+			dv.Updating = d.UpdateDetail
+		}
+		dv.Settling = true
+	case d.UpdateState == "done" || d.UpdateState == "failed":
+		dv.UpdateLast, dv.UpdateBad = d.UpdateDetail, d.UpdateState == "failed"
+	}
+	if d.LinkVersion == "" || d.UpdateWanted {
+		return
+	}
+	if selfupdate.Newer(d.LinkVersion, d.LinkLatest) {
+		dv.Latest = d.LinkLatest
+		if d.CanUpdate {
+			dv.CanUpdate = dv.CanRevoke && dv.Ready
+		} else {
+			dv.UpdateNote = d.UpdateNote
+		}
+	}
 }
 
 func (q *webReq) devicesPage(status int, errMsg string, fresh *devicesView) error {
@@ -187,7 +229,7 @@ func (q *webReq) devicesPage(status int, errMsg string, fresh *devicesView) erro
 	if err != nil {
 		return err
 	}
-	q.page(status, "devices", pageData{Title: "Computers", Error: errMsg, Notice: map[string]string{"revoked": "Computer revoked: it can no longer connect.", "assigned": "The computer was handed over."}[q.r.URL.Query().Get("done")], Extra: v})
+	q.page(status, "devices", pageData{Title: "Computers", Error: errMsg, Notice: map[string]string{"revoked": "Computer revoked: it can no longer connect.", "assigned": "The computer was handed over.", "updating": "Update requested. The computer downloads the newest release, checks it, and restarts its link; this page shows how it went."}[q.r.URL.Query().Get("done")], Extra: v})
 	return nil
 }
 
@@ -246,6 +288,17 @@ func (h *Hub) webDeviceRevoke(q *webReq) error {
 		return q.deviceError(err)
 	}
 	http.Redirect(q.w, q.r, "/devices?done=revoked", http.StatusSeeOther)
+	return nil
+}
+
+func (h *Hub) webDeviceUpdate(q *webReq) error {
+	if q.human.Role == store.RoleViewer {
+		return q.refuse("Viewers cannot update computers.")
+	}
+	if err := q.c.requestUpdate(q.r.PathValue("name")); err != nil {
+		return q.deviceError(err)
+	}
+	http.Redirect(q.w, q.r, "/devices?done=updating", http.StatusSeeOther)
 	return nil
 }
 

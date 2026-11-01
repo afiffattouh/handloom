@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"handloom/internal/api"
+	"handloom/internal/plan"
 	"handloom/internal/store"
 )
 
@@ -318,6 +319,7 @@ func diffLines(diff string) []diffLine {
 }
 
 type jobView2 struct {
+	Plan     *plan.Status
 	Job      api.Job
 	Body     string
 	Team     []agentView
@@ -369,6 +371,18 @@ func (q *webReq) jobPage(status int, errMsg string, id int64) error {
 		return err
 	}
 	v := &jobView2{Job: jv, Body: t.body, CanAct: q.human.Role != store.RoleViewer, Open: t.status == api.StatusOpen}
+	var managed int
+	if err := q.c.tx.QueryRow(`SELECT count(*) FROM job_plan WHERE job_id = ?`, id).Scan(&managed); err != nil {
+		return err
+	}
+	if managed > 0 {
+		p, err := q.c.planStatus(id)
+		if err != nil {
+			return err
+		}
+		v.Plan = &p
+	}
+
 	if pl, err := profileList(q.c); err == nil {
 		for _, p := range pl.([]api.ProfileInfo) {
 			v.Profiles = append(v.Profiles, p.Name)

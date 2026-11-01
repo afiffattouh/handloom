@@ -243,6 +243,13 @@ func (c *call) putInJob(a *agentRow, job sql.NullInt64, role string) error {
 			return err
 		}
 		body := fmt.Sprintf("You are the lead of job #%d: %s. Plan it as tasks with `handloom task create`, assign them, and accept or reject what comes back. Use `handloom ask` for decisions only the human can make.", t.id, t.title)
+		var managed int
+		if err := c.tx.QueryRow(`SELECT count(*) FROM job_plan WHERE job_id = ?`, t.id).Scan(&managed); err != nil {
+			return err
+		}
+		if managed > 0 {
+			body = fmt.Sprintf("You lead job #%d: %s.\n%s", t.id, t.title, "This job has a system-managed task graph. Do not create, assign, or spawn workers. Inspect handloom job plan and review submitted tasks using their evidence and verification results. Accept or reject with a concrete reason; the controller handles worker scheduling.")
+		}
 		if t.body != "" {
 			body += "\n\n" + t.body
 		}

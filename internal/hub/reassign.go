@@ -33,6 +33,9 @@ func taskReassign(c *call) (any, error) {
 var nameChars = regexp.MustCompile(`[^a-z0-9-]+`)
 
 func (c *call) reassignTask(t *taskRow, req api.ReassignReq) (any, error) {
+	if err := c.refusePlannedAssignment(t.id); err != nil {
+		return nil, err
+	}
 	req.Profile, req.Note = strings.TrimSpace(req.Profile), strings.TrimSpace(req.Note)
 	if req.Profile == "" {
 		return nil, badRequest("say which profile the new helper should start from")

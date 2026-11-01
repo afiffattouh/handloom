@@ -195,17 +195,18 @@ func TestMachinesOfAnOlderDatabaseHaveNoOwner(t *testing.T) {
 // The add-on table came with the fourth migration from the end (the grants, their package hash and the link version follow): a database from the
 // release before has none, and gets it.
 func TestAddonTableArrivesWithItsMigration(t *testing.T) {
+	before := migrationBefore(t, "CREATE TABLE addon (")
 	path := filepath.Join(t.TempDir(), "handloom.db")
 	old, err := sql.Open("sqlite", "file:"+path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, m := range migrations[:len(migrations)-4] {
+	for _, m := range migrations[:before] {
 		if _, err := old.Exec(m); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if _, err := old.Exec(`PRAGMA user_version = ` + strconv.Itoa(len(migrations)-4)); err != nil {
+	if _, err := old.Exec(`PRAGMA user_version = ` + strconv.Itoa(before)); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := old.Exec(`INSERT INTO device(name, credential_hash, created_at) VALUES ('desk', 'x', 1)`); err != nil {
@@ -243,17 +244,18 @@ func TestAddonTableArrivesWithItsMigration(t *testing.T) {
 
 // The grant and call-report tables are the newest migration: a database from the release before has neither.
 func TestAddonGrantTablesArriveWithTheirMigration(t *testing.T) {
+	before := migrationBefore(t, "CREATE TABLE addon_grant (")
 	path := filepath.Join(t.TempDir(), "handloom.db")
 	old, err := sql.Open("sqlite", "file:"+path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, m := range migrations[:len(migrations)-3] {
+	for _, m := range migrations[:before] {
 		if _, err := old.Exec(m); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if _, err := old.Exec(`PRAGMA user_version = ` + strconv.Itoa(len(migrations)-3)); err != nil {
+	if _, err := old.Exec(`PRAGMA user_version = ` + strconv.Itoa(before)); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := old.Exec(`INSERT INTO device(name, credential_hash, created_at) VALUES ('desk', 'x', 1)`); err != nil {
@@ -308,17 +310,18 @@ func TestAddonGrantTablesArriveWithTheirMigration(t *testing.T) {
 
 // A grant made before grants held a package hash gets an empty one, so it stops working until it is made again.
 func TestGrantPackageHashArrivesWithItsMigration(t *testing.T) {
+	before := migrationBefore(t, "ALTER TABLE addon_grant ADD COLUMN package_hash")
 	path := filepath.Join(t.TempDir(), "handloom.db")
 	old, err := sql.Open("sqlite", "file:"+path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, m := range migrations[:len(migrations)-1] {
+	for _, m := range migrations[:before] {
 		if _, err := old.Exec(m); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if _, err := old.Exec(`PRAGMA user_version = ` + strconv.Itoa(len(migrations)-1)); err != nil {
+	if _, err := old.Exec(`PRAGMA user_version = ` + strconv.Itoa(before)); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := old.Exec(`INSERT INTO addon_grant(profile, addon, tool, manifest_hash, granted_by, granted_at) VALUES ('reader', 'notes', 'search', 'h', 'olive', 1)`); err != nil {
@@ -338,17 +341,18 @@ func TestGrantPackageHashArrivesWithItsMigration(t *testing.T) {
 
 // The columns for updating a link from the web page come with the last migration.
 func TestLinkUpdateColumnsArriveWithTheirMigration(t *testing.T) {
+	before := migrationBefore(t, "ALTER TABLE device ADD COLUMN link_version")
 	path := filepath.Join(t.TempDir(), "handloom.db")
 	old, err := sql.Open("sqlite", "file:"+path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, m := range migrations[:len(migrations)-1] {
+	for _, m := range migrations[:before] {
 		if _, err := old.Exec(m); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if _, err := old.Exec(`PRAGMA user_version = ` + strconv.Itoa(len(migrations)-1)); err != nil {
+	if _, err := old.Exec(`PRAGMA user_version = ` + strconv.Itoa(before)); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := old.Exec(`INSERT INTO device(name, credential_hash, created_at) VALUES ('desk', 'x', 1)`); err != nil {
@@ -367,5 +371,55 @@ func TestLinkUpdateColumnsArriveWithTheirMigration(t *testing.T) {
 	var want int
 	if err := db.QueryRow(`SELECT link_version, update_want FROM device WHERE name = 'desk'`).Scan(&v, &want); err != nil || v != "" || want != 0 {
 		t.Fatalf("after migrating: %q %d %v", v, want, err)
+	}
+}
+
+// Historical upgrade tests must not move their starting version when a new
+// migration is appended. Locate the specific change each test exercises.
+func migrationBefore(t *testing.T, statement string) int {
+	t.Helper()
+	for i, m := range migrations {
+		if strings.Contains(m, statement) {
+			return i
+		}
+	}
+	t.Fatalf("migration not found: %s", statement)
+	return 0
+}
+
+func TestPlanTablesUpgradeExistingJobs(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "hub.db")
+	old, err := sql.Open("sqlite", "file:"+path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	before := migrationBefore(t, "CREATE TABLE job_plan (")
+	for _, m := range migrations[:before] {
+		if _, err := old.Exec(m); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := old.Exec(`PRAGMA user_version = ` + strconv.Itoa(before)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := old.Exec(`INSERT INTO project(name,created_at) VALUES ('existing',1);
+ INSERT INTO task(project_id,title,status,created_by,created_at,updated_at,kind) VALUES (1,'Existing job','open','human:owner',1,1,'job')`); err != nil {
+		t.Fatal(err)
+	}
+	old.Close()
+	db, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	var title string
+	if err := db.QueryRow(`SELECT title FROM task WHERE id = 1`).Scan(&title); err != nil || title != "Existing job" {
+		t.Fatalf("existing job changed: %s %v", title, err)
+	}
+	for _, table := range []string{"job_plan", "plan_step", "plan_attempt"} {
+		var n int
+		if err := db.QueryRow(`SELECT count(*) FROM ` + table).Scan(&n); err != nil || n != 0 {
+			t.Fatalf("%s: %d %v", table, n, err)
+		}
 	}
 }

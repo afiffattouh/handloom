@@ -57,6 +57,7 @@ func shellQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", `'\''
 // claimed first (pending -> launching); the hub refuses a second claim, so a
 // restarted or duplicate link run cannot start an agent twice.
 func (l *Link) runSpawns(ctx context.Context) {
+	l.stopPlanWorkers(ctx)
 	var spawns []api.Spawn
 	if err := l.hub.Do(ctx, "GET", "/v1/device/spawns", nil, &spawns); err != nil {
 		if ctx.Err() == nil {

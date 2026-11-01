@@ -531,6 +531,42 @@ ALTER TABLE device ADD COLUMN update_want INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE device ADD COLUMN update_state TEXT NOT NULL DEFAULT '';
 ALTER TABLE device ADD COLUMN update_detail TEXT NOT NULL DEFAULT '';
 ALTER TABLE device ADD COLUMN update_at INTEGER;
+`, `
+-- System-owned plans. Existing task/spawn records remain the execution protocol.
+CREATE TABLE job_plan (
+ job_id INTEGER PRIMARY KEY REFERENCES task(id),
+ request TEXT NOT NULL,
+ device_id INTEGER NOT NULL REFERENCES device(id),
+ max_attempts INTEGER NOT NULL CHECK(max_attempts BETWEEN 1 AND 3),
+ created_by TEXT NOT NULL,
+ created_at INTEGER NOT NULL
+);
+CREATE TABLE plan_step (
+ task_id INTEGER PRIMARY KEY REFERENCES task(id),
+ job_id INTEGER NOT NULL REFERENCES job_plan(job_id),
+ step_key TEXT NOT NULL,
+ profile TEXT NOT NULL,
+ attempts INTEGER NOT NULL DEFAULT 0,
+ spawn_id INTEGER REFERENCES spawn(id),
+ worker TEXT NOT NULL DEFAULT '',
+ detail TEXT NOT NULL DEFAULT '',
+ UNIQUE(job_id, step_key)
+);
+CREATE TABLE plan_attempt (
+ task_id INTEGER NOT NULL REFERENCES plan_step(task_id),
+ attempt INTEGER NOT NULL,
+ spawn_id INTEGER NOT NULL UNIQUE REFERENCES spawn(id),
+ PRIMARY KEY(task_id, attempt)
+);
+`, `
+-- Product launch requests are committed with the job, lead and entire plan.
+CREATE TABLE product_run (
+ actor TEXT NOT NULL,
+ request_id TEXT NOT NULL,
+ request TEXT NOT NULL,
+ job_id INTEGER NOT NULL UNIQUE REFERENCES task(id),
+ PRIMARY KEY(actor, request_id)
+);
 `}
 
 // Open opens (and migrates) the database at path. Use ":memory:" in tests.

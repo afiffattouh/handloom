@@ -317,6 +317,18 @@ func taskCreate(c *call) (any, error) {
 	if err := c.decode(&req); err != nil {
 		return nil, err
 	}
+	job := req.Job
+	if c.p.kind == kindDevice {
+		a, err := c.agent()
+		if err != nil {
+			return nil, err
+		}
+		job = a.jobID.Int64
+	}
+	if err := c.refuseManagedGraph(job); err != nil {
+		return nil, err
+	}
+
 	t, err := c.createTask(req)
 	if err != nil {
 		return nil, err
@@ -475,6 +487,9 @@ func taskAssign(c *call) (any, error) {
 	}
 	t, err := c.pathTask()
 	if err != nil {
+		return nil, err
+	}
+	if err := c.refusePlannedAssignment(t.id); err != nil {
 		return nil, err
 	}
 	var req api.AssignReq
@@ -741,6 +756,9 @@ func taskClaim(c *call) (any, error) {
 	}
 	t, err := c.pathTask()
 	if err != nil {
+		return nil, err
+	}
+	if err := c.plannedClaim(t, a); err != nil {
 		return nil, err
 	}
 	if t.kind == "job" {

@@ -125,6 +125,22 @@ func spawnNew(c *call) (any, error) {
 	if err := c.decode(&req); err != nil {
 		return nil, err
 	}
+	if req.Role != api.RoleLead {
+
+		job := req.Job
+		if c.p.kind == kindDevice {
+			a, err := c.agent()
+			if err != nil {
+				return nil, err
+			}
+			job = a.jobID.Int64
+		}
+		if err := c.refuseManagedGraph(job); err != nil {
+			return nil, err
+		}
+
+	}
+
 	return c.spawnFromRequest(req)
 }
 
@@ -415,6 +431,12 @@ func deviceSpawns(c *call) (any, error) {
 	}
 	out := make([]api.Spawn, 0, len(rows))
 	for _, r := range rows {
+		if allowed, err := c.planLaunchAllowed(r.id); err != nil {
+			return nil, err
+		} else if !allowed {
+			continue
+		}
+
 		a := r.api()
 		if r.status == api.SpawnPending && r.job.Valid {
 			// A job of a project whose start has not been recorded: the link gets the latest base first (D105).
@@ -454,6 +476,16 @@ func spawnReport(c *call) (any, error) {
 	if s.deviceID != c.p.deviceID {
 		return nil, forbidden("spawn %d belongs to another device", id)
 	}
+	if req.Status == api.SpawnLaunching || req.Status == api.SpawnStarted {
+		allowed, err := c.planLaunchAllowed(s.id)
+		if err != nil {
+			return nil, err
+		}
+		if !allowed {
+			return nil, conflict("this plan worker was cancelled or superseded")
+		}
+	}
+
 	allowed := map[string][]string{
 		api.SpawnLaunching: {api.SpawnPending},
 		api.SpawnStarted:   {api.SpawnPending, api.SpawnLaunching},

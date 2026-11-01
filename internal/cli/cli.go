@@ -137,6 +137,9 @@ Hub and administration (HANDLOOM_HUB and HANDLOOM_TOKEN set to the hub URL and a
   handloom profiles                               the library: what an agent may do and know
   handloom profile new <dir> | check <dir> | show <name> | export <name> <dir> | versions <name>   (new: owner)
   handloom spawn <name> [--profile P] [--kind claude] [--model M] [--device D] [--job N]   start an agent in a terminal the link owns (lead, human)
+  handloom build <brief> --project NAME            start the MVP specialist playbook (--dry-run to inspect)
+  handloom playbook install mvp-v1 --kind K --runtime R   install its profiles once (owner)
+  handloom job plan <job> [--file plan.json]        submit a durable task plan or inspect worker attempts
   handloom spawns                                 list spawn requests and how they went
   handloom digest                                 what needs you, what waits for review, what runs
   handloom kit init [DIR] [--preset web] | handover | task new|seal | upgrade   the project kit: a check and a gate any agent, CI or person runs the same way (needs Python 3.8+; works without a hub)
@@ -275,6 +278,10 @@ func run(e *env, args []string) int {
 		err = e.answer(rest)
 	case "escalations":
 		err = e.escalations(rest)
+	case "build":
+		err = e.build(rest)
+	case "playbook":
+		err = e.playbook(rest)
 	case "job":
 		err = e.job(rest)
 	case "task":

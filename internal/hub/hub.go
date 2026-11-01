@@ -172,6 +172,9 @@ func (h *Hub) Sweep() error {
 	if err := c.expireSpawns(); err != nil {
 		return err
 	}
+	if err := c.dispatchPlans(); err != nil {
+		return err
+	}
 	if err := tx.Commit(); err != nil {
 		return err
 	}
@@ -254,11 +257,16 @@ func (h *Hub) buildHandler() http.Handler {
 	v1("GET /audit", auditList)
 	v1("GET /digest", digestGet)
 
+	v1("POST /products", productBuild)
+	v1("POST /playbooks/{name}/install", playbookInstall)
 	v1("POST /jobs", jobNew)
 	v1("GET /jobs", jobList)
 	v1("GET /jobs/{id}", jobGet)
 	v1("POST /jobs/{id}/close", jobClose)
 	v1("POST /jobs/{id}/resume", jobResume)
+	v1("POST /jobs/{id}/plan", jobPlanSubmit)
+	v1("GET /jobs/{id}/plan", jobPlanGet)
+	v1("GET /device/plan-stops", devicePlanStops)
 	v1("POST /jobs/{id}/publish", jobPublish)
 	v1("GET /jobs/{id}/publishes", jobPublishes)
 	v1("GET /device/publishes", devicePublishes)

@@ -42,6 +42,16 @@
 </article>
 {{end}}
 
+{{with .Plan}}
+<section aria-labelledby="build-stages">
+  <h2 id="build-stages" class="sect">Build stages</h2>
+  {{if .Playbook}}<p class="desc">MVP workflow · Finishes with a release handoff. Deployment is not automatic.</p>{{end}}
+  <table><thead><tr><th scope="col">Stage</th><th scope="col">Progress</th><th scope="col">Attempts</th></tr></thead><tbody>
+  {{range .Steps}}<tr><td><a href="#task-{{.Task}}">{{.Title}}</a></td><td>{{if eq .Status "done"}}Accepted{{else if eq .Status "submitted"}}Under review{{else if eq .Status "claimed"}}Working{{else if eq .Status "cancelled"}}Stopped{{else}}Waiting{{end}}{{if .Detail}}<p class="desc">{{.Detail}}</p>{{end}}</td><td>{{.Attempts}} / {{$.Extra.Plan.MaxAttempts}}</td></tr>{{end}}
+  </tbody></table>
+</section>
+{{end}}
+
 <div class="grid2">
   <div class="stream-col">
     <h2 id="tasks" class="sect">Tasks</h2>

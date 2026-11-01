@@ -295,6 +295,13 @@ For a CLI that cannot refuse commands, "never run risky commands" becomes a stan
 
 ## Run it yourself
 
+For a managed specialist build on an existing project, see the [MVP playbook](docs/mvp-playbook.md).
+After one-time profile setup, `handloom build "your product brief" --project NAME` creates the
+product, UX/UI, implementation, QA/security/review and release-handoff stages. Use `--dry-run`
+to inspect the recipe without starting agents. This version prepares release readiness; it
+does not create GitHub repositories or deploy to Dokploy.
+
+
 - **Docker, behind Caddy:** the quick start above. One image, one volume; accounts, jobs and profiles live in one SQLite file, snapshotted before every migration. `handloom hub backup` and `restore` are built in.
 - **Dokploy or any compose host:** [docs/deploy.md](docs/deploy.md): a compose app that you deploy from your own machine, or from Git if you prefer.
 - **A private network, no domain:** `scripts/setup.sh hub <ssh-name>` runs the hub as a systemd service on a Tailscale address (plain HTTP: keep it private), and `scripts/setup.sh device <ssh-name> --hub <url>` does the same for each machine.

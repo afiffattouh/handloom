@@ -651,6 +651,9 @@ func publishLine(p api.Publish) string {
 }
 
 func (e *env) job(args []string) error {
+	if len(args) > 0 && args[0] == "plan" {
+		return e.jobPlan(args[1:])
+	}
 	if len(args) == 0 {
 		return usageErr("usage: handloom job new|list|show|publish|merge|resume|close|draft-tests")
 	}

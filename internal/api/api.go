@@ -1253,3 +1253,23 @@ type LinkSelf struct {
 type LinkUpdateWant struct {
 	Want bool `json:"want"`
 }
+
+// ProductBuildReq starts a complete managed playbook on an existing repository.
+// RequestID makes retries safe without merging separate product runs.
+type ProductBuildReq struct {
+	RequestID string `json:"request_id"`
+	Playbook  string `json:"playbook,omitempty"`
+	Title     string `json:"title"`
+	Brief     string `json:"brief"`
+	Project   string `json:"project,omitempty"`
+	Repo      string `json:"repo,omitempty"`
+	Device    string `json:"device,omitempty"`
+	Verify    string `json:"verify,omitempty"`
+	Base      string `json:"base,omitempty"`
+}
+
+// PlaybookInstallResp includes capability adaptations that the owner must see.
+type PlaybookInstallResp struct {
+	Profiles []ProfileInfo `json:"profiles"`
+	Warnings []string      `json:"warnings"`
+}

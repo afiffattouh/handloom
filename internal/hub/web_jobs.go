@@ -1,6 +1,8 @@
 package hub
 
 import (
+	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -319,6 +321,7 @@ func diffLines(diff string) []diffLine {
 }
 
 type jobView2 struct {
+	Build    *buildProgressView
 	Plan     *plan.Status
 	Job      api.Job
 	Body     string
@@ -381,6 +384,18 @@ func (q *webReq) jobPage(status int, errMsg string, id int64) error {
 			return err
 		}
 		v.Plan = &p
+		var original string
+		err = q.c.tx.QueryRow(`SELECT request FROM product_run WHERE job_id = ?`, id).Scan(&original)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return err
+		}
+		if err == nil {
+			var request api.ProductBuildReq
+			if err := json.Unmarshal([]byte(original), &request); err != nil {
+				return err
+			}
+			v.Body = request.Brief
+		}
 	}
 
 	if pl, err := profileList(q.c); err == nil {
@@ -459,6 +474,10 @@ func (q *webReq) jobPage(status int, errMsg string, id int64) error {
 		v.Tasks = append(v.Tasks, tv)
 		targets = append(targets, tk.target())
 	}
+	if v.Plan != nil {
+		v.Build = buildProgress(v)
+		v.Ready = v.Open && v.Build.Complete
+	}
 	v.Overlap = api.OverlapText(jv.Overlaps)
 	if t.repo != "" && t.deviceID.Valid {
 		v.RepoJob = true
@@ -533,6 +552,9 @@ func (q *webReq) jobPage(status int, errMsg string, id int64) error {
 		}
 	}
 	notice := map[string]string{"started": "Job started. Its lead is starting; this page updates as work arrives.", "closed": "Job closed.", "resumed": "Job resumed with the new lead.", "merged": "Merged. The work is now in the project's main branch; other computers pick it up when their next job starts.", "accepted": "Result used. It is queued to be merged into the job's branch.", "sentback": "Sent back with your note. Its helper has it again.", "taskstopped": "Task stopped.", "reassigned": "Given to a new helper. It appears under Team within a minute and picks the task up when it starts.", "published": "Publishing asked for: the computer that holds the repository is pushing the branch. The result appears under Publish."}[q.r.URL.Query().Get("done")]
+	if v.Plan != nil && q.r.URL.Query().Get("done") == "started" {
+		notice = "Build started. Handloom will schedule the specialist stages and the orchestrator will review their work."
+	}
 	if q.r.URL.Query().Get("done") == "started" && v.Overlap != "" {
 		notice += " " + v.Overlap
 	}

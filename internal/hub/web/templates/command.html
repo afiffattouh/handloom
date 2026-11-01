@@ -4,7 +4,7 @@
   <div><h1>Overview</h1><p class="desc">Everything that is running, and what needs a person.</p></div>
   <div class="acts">
     <div class="tabs" role="group" aria-label="Range">{{range .Ranges}}<a href="{{.Href}}"{{if .Current}} aria-current="page"{{end}}>{{.Key}}</a>{{end}}</div>
-    {{if .CanStart}}<a class="button" href="/jobs/new">New job</a>{{end}}
+    {{if .CanStart}}<a class="button outline" href="/jobs/new">New job</a><a class="button" href="/build">Build a product</a>{{end}}
   </div>
 </div>
 <div id="live" data-live="/command/fragment?range={{.Range}}{{if .Machine}}&machine={{.Machine}}{{end}}" class="live-box">{{template "commandbody" $}}</div>

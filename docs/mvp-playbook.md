@@ -1,5 +1,17 @@
 # Build an MVP from one brief
 
+In the web UI, choose **Build a product** from the menu (or open `/build`). Enter
+your brief and select a prepared project. A workspace owner can install the MVP
+team from the same page; the brief is preserved during team setup. Projects must
+already have a ready copy on an authorized, joined machine and a check command.
+The form points to Projects when preparation is incomplete.
+
+The build page shows stage progress, the original brief, and delivery status.
+Progress refreshes automatically; choose a stage to load its current evidence.
+Technical details and manual intervention controls remain available underneath.
+See [the UX review](direction/product-ux-review.md) for the changes and remaining
+work. The command-line flow follows below.
+
 The built-in `mvp-v1` recipe creates a managed job from a product brief. The hub
 creates the task graph, pins its profiles, schedules workers after dependencies
 are accepted/integrated, and records bounded attempts. An orchestrator reviews

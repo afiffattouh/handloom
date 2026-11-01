@@ -122,7 +122,7 @@ preserves existing jobs. Go dependencies downloaded with checksum verification
 after the published network policy became active.
 
 This is the execution foundation, not a completed product-delivery system. Automatic
-lead recovery, run budgets/authorization, versioned replanning, automated repair/re-review, the simplified product UI, and GitHub/Dokploy release
+lead recovery, run budgets/authorization, versioned replanning, automated repair/re-review, guided project setup and a product-focused home, and GitHub/Dokploy release
 reconciliation remain subsequent milestones. Real authenticated agent processes
 and external deployment have not been exercised in this environment.
 
@@ -136,3 +136,8 @@ installed once in an isolated namespace, preserving existing customization.
 See `docs/mvp-playbook.md` for commands and explicit limits. Artifact/rubric
 assessment remains model-mediated; real-agent product delivery and deployment
 connectors are not validated by the local regression suite.
+
+The web UI now includes `/build` for brief-and-project launch, one-time team setup,
+and a managed-build overview with automatically refreshed stages, original brief,
+delivery expectations, and expandable evidence. See [the UX review](product-ux-review.md)
+for screenshots, browser checks, and remaining usability work.

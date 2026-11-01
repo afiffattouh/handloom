@@ -1,7 +1,7 @@
 {{define "content"}}
 {{with .Extra}}
 <div class="page-head"><div><h1>Jobs</h1><p class="desc">Each job has its own lead, team and tasks.</p></div>
-  {{if .CanStart}}<div class="acts"><a class="button" href="/jobs/new">New job</a></div>{{end}}</div>
+  {{if .CanStart}}<div class="acts"><a class="button outline" href="/jobs/new">New job</a><a class="button" href="/build">Build a product</a></div>{{end}}</div>
 <div class="card"><div class="cc flush tw"><table>
   <thead><tr><th>Job</th><th>Status</th><th>Lead</th><th>Tasks</th><th>Where</th><th>Started</th></tr></thead>
   <tbody>

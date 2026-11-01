@@ -2,20 +2,20 @@
 {{with .Extra}}
 <div class="page-head">
   <div><h1><span class="muted">#{{.Job.ID}}</span> {{.Job.Title}}</h1>
-    <p class="desc">{{if .Job.Codebase}}project <strong>{{.Job.Codebase}}</strong> · {{end}}{{if .Job.Repo}}<span class="mono">{{.Job.Repo}}</span> on {{.Job.Device}} · {{end}}lead {{if .Job.Lead}}{{.Job.Lead}}{{else}}none{{end}}{{if .Job.Confidential}} · confidential{{end}}</p>
+    {{if .Plan}}<p class="desc">{{if eq .Plan.Playbook "mvp-v1"}}MVP build{{else}}Managed workflow{{end}}{{if .Job.Codebase}} · {{.Job.Codebase}}{{end}}{{if eq .Plan.Playbook "mvp-v1"}} · Design, implementation, independent review, and release preparation{{end}}</p>{{else}}<p class="desc">{{if .Job.Codebase}}project <strong>{{.Job.Codebase}}</strong> · {{end}}{{if .Job.Repo}}<span class="mono">{{.Job.Repo}}</span> on {{.Job.Device}} · {{end}}lead {{if .Job.Lead}}{{.Job.Lead}}{{else}}none{{end}}{{if .Job.Confidential}} · confidential{{end}}</p>{{end}}
     {{if .Job.BaseState}}<p class="desc{{if ne .Job.BaseState "fresh"}} sev-warn{{end}}">Base: {{.Job.BaseState}}. {{.Job.BaseDetail}}</p>{{end}}</div>
   <div class="acts">
     {{if eq .Job.Status "open"}}<span class="badge success"><i class="dot"></i>Open</span>{{else if eq .Job.Status "done"}}<span class="badge">Done</span>{{else}}<span class="badge outline">{{.Job.Status}}</span>{{end}}
   </div>
 </div>
 
-{{if and .Open (ne .Job.Progress.State "ready")}}
+{{if and (not .Plan) .Open (ne .Job.Progress.State "ready")}}
 <article class="card{{if or (eq .Job.Progress.State "stuck") (eq .Job.Progress.State "needs_you")}} attention{{end}}">
   <div class="ch"><div class="lead"><svg class="icon {{if eq .Job.Progress.State "stuck"}}sev-bad{{else if eq .Job.Progress.State "needs_you"}}sev-warn{{else}}sev-ok{{end}}"><use href="#{{if eq .Job.Progress.State "stuck"}}i-circle-alert{{else}}i-circle-check{{end}}"/></svg><div><h3>{{if eq .Job.Progress.State "stuck"}}Stuck{{else if eq .Job.Progress.State "needs_you"}}Needs you{{else if eq .Job.Progress.State "planning"}}Planning{{else}}Working{{end}}</h3><p class="desc">{{.Job.Progress.Reason}}{{if .Job.Progress.Action}} {{.Job.Progress.Action}}{{end}}</p></div></div></div>
 </article>
 {{end}}
 
-{{if .Ready}}
+{{if and .Ready (not .Plan)}}
 <article class="card attention">
   <div class="ch"><div class="lead"><svg class="icon sev-ok"><use href="#i-circle-check"/></svg><div><h3>Every task is done</h3><p class="desc">Look over the result, then close the job.</p></div></div></div>
   {{if .CanAct}}<div class="cf"><form method="post" action="/jobs/{{.Job.ID}}/close" class="inline"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button type="submit">Finish the job</button></form></div>{{end}}
@@ -42,14 +42,11 @@
 </article>
 {{end}}
 
-{{with .Plan}}
-<section aria-labelledby="build-stages">
-  <h2 id="build-stages" class="sect">Build stages</h2>
-  {{if .Playbook}}<p class="desc">MVP workflow · Finishes with a release handoff. Deployment is not automatic.</p>{{end}}
-  <table><thead><tr><th scope="col">Stage</th><th scope="col">Progress</th><th scope="col">Attempts</th></tr></thead><tbody>
-  {{range .Steps}}<tr><td><a href="#task-{{.Task}}">{{.Title}}</a></td><td>{{if eq .Status "done"}}Accepted{{else if eq .Status "submitted"}}Under review{{else if eq .Status "claimed"}}Working{{else if eq .Status "cancelled"}}Stopped{{else}}Waiting{{end}}{{if .Detail}}<p class="desc">{{.Detail}}</p>{{end}}</td><td>{{.Attempts}} / {{$.Extra.Plan.MaxAttempts}}</td></tr>{{end}}
-  </tbody></table>
-</section>
+{{if .Plan}}
+{{template "buildoverview" $}}
+<div class="acts"><p class="desc" id="build-updates" role="status">Progress updates every 10 seconds.</p><a class="button outline sm" href="/jobs/{{.Job.ID}}">Refresh all details</a>{{if and .Ready .CanAct}}<form method="post" action="/jobs/{{.Job.ID}}/close" class="inline"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button type="submit">Finish build</button></form>{{end}}</div>
+{{if and .CanAct .Open}}<details class="build-stop"><summary>Stop build</summary><form method="post" action="/jobs/{{.Job.ID}}/close" class="stack"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="cancel" value="1"><p class="desc">Stops unfinished stages. Accepted work is retained.</p><div class="acts"><button type="submit" class="destructive">Stop this build</button></div></form></details>{{end}}
+<details class="build-details" id="build-details"><summary>Stage evidence and technical details</summary>
 {{end}}
 
 <div class="grid2">
@@ -61,7 +58,7 @@
         <h3><span class="mono muted">#{{.ID}}</span> {{.Title}}</h3>
         <p class="desc">{{if .Owner}}Helper <strong>{{.Owner}}</strong>{{if .Live}} · {{.Live}}{{end}}{{else}}Nobody has taken it yet{{end}}{{if .DependsOn}} · after {{range .DependsOn}}#{{.}} {{end}}{{end}}</p>
       </div><div class="acts">
-        {{if eq .Status "done"}}<span class="badge success" {{if .AcceptedBy}}title="Accepted by {{.AcceptedBy}}"{{end}}>Used</span>{{if .AcceptedBy}}<span class="desc">accepted by {{.AcceptedBy}}</span>{{end}}{{else if eq .Status "submitted"}}<span class="badge info">Ready for you</span>{{else if eq .Status "claimed"}}<span class="badge warning"><i class="dot"></i>Working</span>{{else if eq .Status "cancelled"}}<span class="badge outline">Stopped</span>{{else}}<span class="badge">{{.Status}}</span>{{end}}
+        {{if eq .Status "done"}}<span class="badge success" {{if .AcceptedBy}}title="Accepted by {{.AcceptedBy}}"{{end}}>Used</span>{{if .AcceptedBy}}<span class="desc">accepted by {{.AcceptedBy}}</span>{{end}}{{else if eq .Status "submitted"}}<span class="badge info">{{if $.Extra.Plan}}Under review{{else}}Ready for you{{end}}</span>{{else if eq .Status "claimed"}}<span class="badge warning"><i class="dot"></i>Working</span>{{else if eq .Status "cancelled"}}<span class="badge outline">Stopped</span>{{else}}<span class="badge">{{.Status}}</span>{{end}}
         {{if .Rejects}}<span class="badge warning" title="Its work was sent back; after three times it stops and you are asked">sent back {{.Rejects}}×</span>{{end}}
         {{if .Check}}{{if .CheckOK}}<span class="badge success">Check passed</span>{{else}}<span class="badge destructive">{{.Words}}</span>{{end}}{{end}}
       </div></div>
@@ -92,6 +89,7 @@
       {{if $.Extra.CanAct}}{{if or (eq .Status "submitted") (eq .Status "claimed") (eq .Status "open")}}
       <div class="cf stack">
         {{if eq .Status "submitted"}}
+        {{if $.Extra.Plan}}<p class="desc">The orchestrator reviews this submission. These controls let you intervene if needed.</p>{{end}}
         <div class="acts">
           <form method="post" action="/jobs/{{$.Extra.Job.ID}}/tasks/{{.ID}}/accept" class="inline"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button type="submit">Use this result</button></form>
           <details class="inline-details"><summary class="button secondary">Send back with a note</summary>
@@ -102,7 +100,7 @@
             </form></details>
         </div>
         {{end}}
-        {{if $.Extra.Open}}<details><summary class="desc">Try again with another profile</summary>
+        {{if and $.Extra.Open (not $.Extra.Plan)}}<details><summary class="desc">Try again with another profile</summary>
           <form method="post" action="/jobs/{{$.Extra.Job.ID}}/tasks/{{.ID}}/reassign" class="stack"><input type="hidden" name="csrf" value="{{$.CSRF}}">
             <p class="desc">{{if .Owner}}{{.Owner}} is told to stop.{{end}} A new helper starts fresh from the task, with your note.</p>
             <label>Profile <select name="profile" required>{{range $.Extra.Profiles}}<option value="{{.}}">{{.}}</option>{{end}}</select></label>
@@ -129,7 +127,7 @@
   <div class="stream-col">
     {{if .Body}}
     <section class="card" aria-labelledby="brief">
-      <div class="ch"><div><h2 id="brief">Brief</h2></div></div>
+      <div class="ch"><div><h2 id="brief">Original brief</h2></div></div>
       <div class="cc"><p class="text">{{.Body}}</p></div>
     </section>
     {{end}}
@@ -226,6 +224,31 @@
     {{end}}
   </div>
 </div>
+{{if .Plan}}</details><script src="/static/build-progress.js" defer></script>{{end}}
 {{end}}
 <script src="/static/tail.js" defer></script>
+{{end}}
+
+{{define "buildoverview"}}
+{{with .Extra}}
+<section id="build-overview" aria-labelledby="build-state" class="build-overview" data-build-progress>
+  <div class="build-summary">
+    <div><h2 id="build-state">{{.Build.State}}</h2><p class="desc">{{.Build.Description}}</p></div>
+    <div class="build-count"><strong class="num">{{.Build.Accepted}} / {{.Build.Total}}</strong><span class="desc">stages accepted</span></div>
+  </div>
+  <div class="build-layout">
+    <section aria-labelledby="build-stages" class="card">
+      <div class="ch"><h2 id="build-stages">Build stages</h2><span class="badge outline">{{if eq .Plan.Playbook "mvp-v1"}}MVP workflow{{else}}Managed workflow{{end}}</span></div>
+      <ol class="build-stages">
+        {{range .Build.Stages}}<li><div class="build-stage-body"><a href="/jobs/{{$.Extra.Job.ID}}#task-{{.Task}}">{{.Title}}</a>{{if .Detail}}<p class="desc">{{.Detail}}</p>{{end}}{{if gt .Attempts 1}}<p class="desc">Attempt {{.Attempts}} of {{$.Extra.Plan.MaxAttempts}}</p>{{end}}</div><span class="badge {{.Badge}}">{{.State}}</span></li>{{end}}
+      </ol>
+    </section>
+    <aside class="stack">
+      <section class="card" aria-labelledby="build-brief-summary"><div class="ch"><h2 id="build-brief-summary">Your brief</h2></div><div class="cc"><p class="text build-brief-summary">{{.Body}}</p></div></section>
+      {{if eq .Plan.Playbook "mvp-v1"}}<section class="card" aria-labelledby="build-delivery"><div class="ch"><h2 id="build-delivery">Delivery</h2></div><div class="cc stack"><p>{{if .Build.Complete}}Release handoff ready to review.{{else}}The release handoff appears after all stages are accepted and integrated.{{end}}</p><p class="desc">Deployment is not automatic. No live product URL is available from this workflow.</p>{{range .Build.Stages}}{{if eq .Title "Prepare the release handoff"}}<a href="/jobs/{{$.Extra.Job.ID}}#task-{{.Task}}">{{if $.Extra.Build.Complete}}View release evidence{{else}}View release stage{{end}}</a>{{end}}{{end}}</div></section>{{end}}
+      <p class="desc">{{if eq .Plan.Playbook "mvp-v1"}}The orchestrator reviews submissions. Only exceptions need your attention;{{else}}Review submitted stages in the details below;{{end}} <a href="/inbox">check the Inbox for questions</a>.</p>
+    </aside>
+  </div>
+</section>
+{{end}}
 {{end}}

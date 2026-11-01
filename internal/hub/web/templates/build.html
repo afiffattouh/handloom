@@ -1,0 +1,55 @@
+{{define "content"}}
+{{with .Extra}}
+<div class="page-head"><div><h1>Build a product</h1><p class="desc">Describe the outcome. Handloom coordinates design, development, and independent review.</p></div><a class="button outline" href="/jobs">View jobs</a></div>
+<form method="post" action="/build" class="build-layout">
+  <input type="hidden" name="csrf" value="{{$.CSRF}}">
+  <input type="hidden" name="request_id" value="{{index .Form "request_id"}}">
+  <div class="stack">
+    <section class="card" aria-labelledby="product-brief">
+      <div class="ch"><div><h2 id="product-brief">What would you like to build?</h2><p class="desc">Start with the people using it and what they need to do.</p></div><span class="badge outline">MVP playbook</span></div>
+      <div class="cc stack">
+        <label for="build-brief">Product brief</label>
+        <textarea id="build-brief" name="brief" rows="8" required maxlength="16000" aria-describedby="brief-help" placeholder="A booking tool for a small clinic. Patients choose an appointment, receive confirmation, and can reschedule. Staff manage availability. Keep the first version simple.">{{index .Form "brief"}}</textarea>
+        <p class="desc" id="brief-help">Include must-have journeys, constraints, and what a useful first version looks like. The product stage turns this into acceptance criteria.</p>
+        <label for="build-project">Project</label>
+        <select id="build-project" name="project" required aria-describedby="project-help">
+          <option value="">Choose a prepared project</option>
+          {{range .Projects}}<option value="{{.Value}}"{{if eq .Value (index $.Extra.Form "project")}} selected{{end}}>{{.Label}}</option>{{end}}
+        </select>
+        <p class="desc" id="project-help">Uses this project's working copy and configured checks. {{if not .Projects}}No project is prepared yet. <a href="/projects">Add a repository, fetch a copy, and set its check command</a>.{{else}}<a href="/projects">Manage projects</a>.{{end}}</p>
+        <details><summary>Build name <span class="desc">(optional)</span></summary><label>Name <input name="title" maxlength="200" value="{{index .Form "title"}}" placeholder="Otherwise, we use the first line of your brief"></label></details>
+      </div>
+      <div class="cf stack"><div class="acts"><button type="submit"{{if not .CanBuild}} disabled aria-describedby="build-requirements"{{end}}>Start MVP build</button><a href="/jobs/new" class="plain-link desc">Need a custom job?</a></div>
+        {{if not .CanBuild}}<p class="desc" id="build-requirements">Before starting: {{if .Missing}}set up the specialist team below{{end}}{{if and .Missing (not .Projects)}} and {{end}}{{if not .Projects}}prepare a project{{end}}. Your brief stays here while you set up the team.</p>{{else}}<p class="desc">Starts the orchestrator and specialist stages on your connected machine.</p>{{end}}
+      </div>
+    </section>
+    {{if .Missing}}
+    <section class="card" aria-labelledby="team-setup">
+      <div class="ch"><div><h2 id="team-setup">Set up your specialist team</h2><p class="desc">One-time setup for this workspace. Existing profiles are preserved.</p></div><span class="badge warning">Setup needed</span></div>
+      <div class="cc stack">
+        {{if .CanInstall}}
+        <label>Agent provider <select name="kind"><option value="claude"{{if eq (index .Form "kind") "claude"}} selected{{end}}>Claude Code</option><option value="codex"{{if eq (index .Form "kind") "codex"}} selected{{end}}>Codex</option></select></label>
+        <p class="desc">Choose the CLI already installed and signed in on your machine. This installs Handloom's role profiles; it does not install or authenticate the CLI.</p>
+        <label class="check"><input type="checkbox" name="adapt" value="1"{{if eq (index .Form "adapt") "1"}} checked{{end}}> Adapt unsupported permissions for this provider</label>
+        <p class="desc">Required for Codex. Unsupported tool and path restrictions may be removed; changes are reported after setup.</p>
+        <div class="acts"><button type="submit" formaction="/build/profiles" formnovalidate class="secondary">Set up team</button></div>
+        {{else}}<p>Ask the workspace owner to set up the MVP team from this page.</p>{{end}}
+      </div>
+    </section>
+    {{end}}
+    {{if .Warnings}}<details class="card options" open><summary>Team setup changes</summary><div class="cc"><ul class="plain">{{range .Warnings}}<li class="desc">{{.}}</li>{{end}}</ul></div></details>{{end}}
+  </div>
+  <aside class="build-guide stack" aria-labelledby="build-expectations">
+    <h2 id="build-expectations">From brief to release handoff</h2>
+    <ol class="build-journey">
+      <li><strong>Define</strong><p class="desc">Scope, user journeys, architecture, and visual design.</p></li>
+      <li><strong>Build</strong><p class="desc">Backend and frontend specialists implement complete journeys.</p></li>
+      <li><strong>Review</strong><p class="desc">Independent QA, security, and code review before release preparation.</p></li>
+      <li><strong>Prepare delivery</strong><p class="desc">Deployment files, configuration, checks, and a release runbook.</p></li>
+    </ol>
+    <div class="inset stack"><strong>What you receive</strong><p class="desc">Code, design artifacts, test evidence, and a release handoff in your project. Follow each stage from one page.</p><p class="desc">Deployment is not automatic. This version starts from an existing repository; it does not create a new GitHub repository or deploy to Dokploy.</p></div>
+    <p class="desc">Handloom schedules the stages and the orchestrator reviews submissions. Missing access, failed checks, or exhausted attempts can still require your attention.</p>
+  </aside>
+</form>
+{{end}}
+{{end}}

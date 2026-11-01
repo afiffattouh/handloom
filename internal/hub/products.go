@@ -14,14 +14,18 @@ import (
 )
 
 func playbookInstall(c *call) (any, error) {
-	if err := c.ownerOnly("installing playbook profiles"); err != nil {
-		return nil, err
-	}
 	if c.r.PathValue("name") != playbook.MVP {
 		return nil, notFound("unknown playbook")
 	}
 	var req api.StarterAddReq
 	if err := c.decode(&req); err != nil {
+		return nil, err
+	}
+	return c.installMVPProfiles(req)
+}
+
+func (c *call) installMVPProfiles(req api.StarterAddReq) (any, error) {
+	if err := c.ownerOnly("installing playbook profiles"); err != nil {
 		return nil, err
 	}
 	names := []string{}
@@ -91,11 +95,15 @@ func playbookInstall(c *call) (any, error) {
 }
 
 func productBuild(c *call) (any, error) {
-	if err := c.humanOnly("starting a product build"); err != nil {
-		return nil, err
-	}
 	var req api.ProductBuildReq
 	if err := c.decode(&req); err != nil {
+		return nil, err
+	}
+	return c.buildProduct(req)
+}
+
+func (c *call) buildProduct(req api.ProductBuildReq) (any, error) {
+	if err := c.humanOnly("starting a product build"); err != nil {
 		return nil, err
 	}
 	if req.Playbook == "" {

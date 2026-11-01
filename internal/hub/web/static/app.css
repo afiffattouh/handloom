@@ -218,6 +218,43 @@ html[data-sidebar="collapsed"] .sb-btn:has(.sb-badge.hot)::after { content: ""; 
 .main { padding: 24px; display: flex; flex-direction: column; gap: 20px; min-width: 0; max-width: var(--content-w); width: 100%; margin: 0 auto; flex: 1; }
 .main.narrow { max-width: 760px; }
 .page-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+
+/* Product delivery: a single brief, a visible sequence, and optional diagnostics. */
+.build-layout { display: grid; grid-template-columns: minmax(0, 2fr) minmax(240px, 1fr); gap: 24px; align-items: start; }
+.build-layout > *, .build-stage-body { min-width: 0; }
+.build-guide { padding: 8px 0; }
+.build-guide .inset { white-space: normal; font-family: var(--font); font-size: 14px; }
+.build-journey { margin: 0; padding-left: 24px; display: grid; gap: 24px; }
+.build-journey li { padding-left: 8px; }
+.build-journey li::marker { color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+.build-overview { display: grid; gap: 24px; }
+.build-summary { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 24px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--card); }
+.build-summary h2 { font-size: 24px; margin-bottom: 8px; }
+.build-count { display: grid; flex: none; text-align: right; }
+.build-count strong { font-size: 24px; font-weight: 500; }
+.build-stages { counter-reset: stage; padding: 0; margin: 0; list-style: none; }
+.build-stages li { counter-increment: stage; display: flex; align-items: start; gap: 12px; padding: 16px; box-shadow: 0 -1px 0 var(--border); }
+.build-stages li::before { content: counter(stage, decimal-leading-zero); font: 12px var(--mono); color: var(--muted-foreground); padding-top: 4px; }
+.build-stage-body { flex: 1; overflow-wrap: anywhere; }
+.build-stage-body > a { font-weight: 500; color: var(--foreground); text-decoration: none; }
+.build-stage-body > a:hover { text-decoration: underline; }
+.build-stage-body .desc { margin-top: 4px; }
+.build-stages .badge { flex: none; }
+.build-brief-summary { max-height: 240px; overflow-y: auto; }
+.build-details > summary { padding: 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--card); font-weight: 500; }
+.build-details[open] > summary { margin-bottom: 24px; }
+.task-card { scroll-margin-top: 80px; }
+.build-stop { max-width: 480px; }
+@media (max-width: 900px) {
+  .build-layout { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 520px) {
+  .build-summary { align-items: start; flex-direction: column; padding: 16px; gap: 16px; }
+  .build-count { text-align: left; }
+  .build-stages li { flex-wrap: wrap; }
+  .build-stage-body { flex-basis: calc(100% - 40px); }
+  .build-stages .badge { margin-left: 28px; }
+}
 .page-head .desc { margin-top: 4px; max-width: 70ch; }
 .section { display: flex; flex-direction: column; gap: 12px; }
 .grid2 { display: grid; grid-template-columns: minmax(0, 1.8fr) minmax(0, 1fr); gap: 20px; }

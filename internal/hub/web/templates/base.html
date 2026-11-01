@@ -27,6 +27,7 @@
         <li><a class="sb-btn" href="/command" title="Overview"{{if eq .Active "command"}} aria-current="page"{{end}}><svg class="icon"><use href="#i-layout-dashboard"/></svg><span>Command center</span></a></li>
       </ul></div>
       <div class="sb-group"><div class="sb-label">Work</div><ul class="sb-menu">
+        {{if ne .Human.Role "viewer"}}<li><a class="sb-btn" href="/build" title="Build a product"{{if eq .Active "build"}} aria-current="page"{{end}}><svg class="icon"><use href="#i-play"/></svg><span>Build a product</span></a></li>{{end}}
         <li><a class="sb-btn" href="/jobs" title="Jobs"{{if eq .Active "jobs"}} aria-current="page"{{end}}><svg class="icon"><use href="#i-briefcase"/></svg><span>Jobs</span>{{if .Nav.Jobs}}<span class="sb-badge">{{.Nav.Jobs}}</span>{{end}}</a></li>
         <li><a class="sb-btn" href="/projects" title="Projects"{{if eq .Active "projects"}} aria-current="page"{{end}}><svg class="icon"><use href="#i-library"/></svg><span>Projects</span></a></li>
         <li><a class="sb-btn" href="/agents" title="Helpers"{{if eq .Active "agents"}} aria-current="page"{{end}}><svg class="icon"><use href="#i-bot"/></svg><span>Helpers</span>{{if .Nav.Agents}}<span class="sb-badge">{{.Nav.Agents}}</span>{{end}}</a></li>
